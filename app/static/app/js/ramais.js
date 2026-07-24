@@ -212,13 +212,8 @@ function copiarTextoFallback(texto) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    // Carrega os ramais a partir do arquivo JSON
-    fetch("/ramais/json/")
-      .then(response => response.json())
-      .then(data => {
-        listaRamais = data;
-        ramaisFiltrados = [...listaRamais];
-        carregarRamais();
-      })
-      .catch(error => console.error("Erro ao carregar os ramais:", error));
+    // Carrega os ramais a partir dos dados embutidos na página
+    listaRamais = JSON.parse(document.getElementById('ramais-data').textContent);
+    ramaisFiltrados = [...listaRamais];
+    carregarRamais();
 });

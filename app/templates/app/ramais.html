@@ -35,6 +35,7 @@
             </table>
             <div id="paginacao" class="paginacao-container"></div>
         </div>
+        {{ data|json_script:"ramais-data" }}
         <script>
             const isStaff = {% if request.user.is_staff %}true{% else %}false{% endif %};
         </script>
