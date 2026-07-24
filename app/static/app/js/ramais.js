@@ -213,7 +213,7 @@ function copiarTextoFallback(texto) {
 
 document.addEventListener("DOMContentLoaded", function () {
     // Carrega os ramais a partir do arquivo JSON
-    fetch("/ramais/api/")
+    fetch("/ramais/json/")
       .then(response => response.json())
       .then(data => {
         listaRamais = data;

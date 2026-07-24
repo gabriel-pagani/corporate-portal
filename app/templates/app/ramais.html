@@ -10,15 +10,9 @@
 {% block body %}
         <div id="content" class="container">
             <div class="header">
-                {% if user.is_authenticated %}
-                <a href="#">
-                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" id="logo-img" title="Voltar ao Menu Principal"/>
-                </a>
-                {% else %}
-                <a href="#">
+                <a href="{% url "app:ramais" %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" id="logo-img" title="Recarregar a Página"/>
                 </a>
-                {% endif %}
                 <div class="header-text">
                     <h1>Lista de Ramais</h1>
                     <div class="search-container">
@@ -37,7 +31,7 @@
                     {% endif %}
                     </tr>
                 </thead>
-                <tbody></tbody>
+            <tbody></tbody>
             </table>
             <div id="paginacao" class="paginacao-container"></div>
         </div>
