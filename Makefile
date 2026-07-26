@@ -10,11 +10,11 @@ stop-system:
 restart-system:
 	@cd deploy/ && docker compose down && docker compose up -d
 
+reset-system:
+	@cd deploy/ && docker compose down -v && sudo rm -rf ../database/ ../deploy/certbot/ && docker compose up -d --build
+
 clean-system:
-	@cd deploy/ && \
-	docker compose down -v && \
-	docker system prune -a --volumes --force && \
-    cd .. && sudo rm -rf database/ deploy/certbot/
+	@cd deploy/ && docker compose down -v && docker system prune -a --volumes --force && cd .. && sudo rm -rf database/ deploy/certbot/
 
 create-superuser:
 	@cd deploy/ && \
