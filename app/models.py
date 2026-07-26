@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib import admin
 from django.conf import settings
-from django.contrib.auth.models import AbstractUser, Group
+from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
 from .validators import valid_url
 
@@ -57,7 +57,7 @@ class Dashboards(models.Model):
         ]
 
 
-class Users(AbstractUser):
+class User(AbstractUser):
     email = models.EmailField(blank=True, null=True, verbose_name='Endereço de email')
     observations = models.TextField(blank=True, null=True, verbose_name='Observações')
     dashboards = models.ManyToManyField(Dashboards, related_name='usuarios_atribuidos', blank=True)
@@ -65,21 +65,21 @@ class Users(AbstractUser):
     def clean(self):
         super().clean()
         if self.email:
-            email = Users.objects.filter(email=self.email).exclude(pk=self.pk)
+            email = User.objects.filter(email=self.email).exclude(pk=self.pk)
             if email.exists():
                 raise ValidationError({'email': 'Já existe um usuário com este e-mail.'})
 
 
-class GroupProxy(Group):
+class Group(BaseGroup):
     class Meta:
         proxy = True
-        verbose_name = Group._meta.verbose_name
-        verbose_name_plural = Group._meta.verbose_name_plural
+        verbose_name = BaseGroup._meta.verbose_name
+        verbose_name_plural = BaseGroup._meta.verbose_name_plural
         app_label = 'app'
 
 
 class GroupDashboards(models.Model):
-    group = models.OneToOneField(Group, on_delete=models.CASCADE, related_name='perfil', primary_key=True, verbose_name='Grupo')
+    group = models.OneToOneField(BaseGroup, on_delete=models.CASCADE, related_name='perfil', primary_key=True, verbose_name='Grupo')
     dashboards = models.ManyToManyField(Dashboards, related_name='grupos_atribuidos', blank=True, verbose_name='Dashboards')
 
     def __str__(self):
@@ -88,7 +88,7 @@ class GroupDashboards(models.Model):
 
 class Ramais(models.Model):
     user = models.ForeignKey(
-        Users,
+        User,
         on_delete=models.PROTECT,
         blank=True,
         null=True,

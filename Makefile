@@ -18,7 +18,7 @@ clean-system:
 
 create-superuser:
 	@cd deploy/ && \
-	docker compose exec app python manage.py shell -c "from app.models import Users; Users.objects.filter(username='admin').exists() or Users.objects.create_superuser(username='admin', password='1234')"
+	docker compose exec app python manage.py shell -c "from app.models import User; User.objects.filter(username='admin').exists() or User.objects.create_superuser(username='admin', password='1234')"
 
 container-terminal:
 	@cd deploy/ && docker compose exec $(container) sh
