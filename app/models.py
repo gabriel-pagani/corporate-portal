@@ -4,9 +4,10 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
 from .validators import valid_url
+from .utils.dashboards.metabase import generate_metabase_dashboard_url
 
 
-class Setores(models.Model):
+class Sector(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name='Setor')
 
     def __str__(self):
@@ -18,7 +19,7 @@ class Setores(models.Model):
         verbose_name_plural = 'Setores'
 
 
-class Dashboards(models.Model):
+class Dashboard(models.Model):
     STATUS = [
         ('D', 'Em Desenvolvimento'),
         ('M', 'Em Manutenção'),
@@ -27,23 +28,28 @@ class Dashboards(models.Model):
 
     title = models.CharField(max_length=150, unique=True, verbose_name='Título')
     sector = models.ForeignKey(
-        Setores,
+        Sector,
         on_delete=models.PROTECT,
         blank=True,
         null=True,
-        verbose_name='Setor',
-        related_name='dashboards'
+        verbose_name='Setor'
     )
     metabase_code = models.PositiveSmallIntegerField(blank=True, null=True, unique=True, verbose_name='Código do Metabase')
     powerbi_url = models.CharField(blank=True, null=True, unique=True, validators=[valid_url], verbose_name='Link do Power BI')
     status = models.CharField(max_length=1, choices=STATUS, default="D", verbose_name='Situação')
-    fav_by = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='dashboards_favoritos', blank=True, verbose_name='Favoritado Por')
+    fav_by = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, verbose_name='Favoritado Por')
 
     def clean(self):
         if self.metabase_code and self.powerbi_url:
             raise ValidationError(
                 'Preencha apenas o campo "Código do Metabase" ou o campo "Link do Power BI".'
             )
+
+    @property
+    def metabase_url(self):
+        if self.metabase_code:
+            return generate_metabase_dashboard_url(self.metabase_code)
+        return None
 
     def __str__(self) -> str:
         return self.title
@@ -60,7 +66,7 @@ class Dashboards(models.Model):
 class User(AbstractUser):
     email = models.EmailField(blank=True, null=True, verbose_name='Endereço de email')
     observations = models.TextField(blank=True, null=True, verbose_name='Observações')
-    dashboards = models.ManyToManyField(Dashboards, related_name='usuarios_atribuidos', blank=True)
+    dashboards = models.ManyToManyField(Dashboard, blank=True, verbose_name='Dashboards')
 
     def clean(self):
         super().clean()
@@ -80,7 +86,7 @@ class Group(BaseGroup):
 
 class GroupDashboards(models.Model):
     group = models.OneToOneField(BaseGroup, on_delete=models.CASCADE, related_name='perfil', primary_key=True, verbose_name='Grupo')
-    dashboards = models.ManyToManyField(Dashboards, related_name='grupos_atribuidos', blank=True, verbose_name='Dashboards')
+    dashboards = models.ManyToManyField(Dashboard, blank=True, verbose_name='Dashboards')
 
     def __str__(self):
         return self.group.name
@@ -92,18 +98,16 @@ class Ramais(models.Model):
         on_delete=models.PROTECT,
         blank=True,
         null=True,
-        verbose_name='Usuário',
-        related_name='ramais'
+        verbose_name='Usuário'
     )
     name = models.CharField(max_length=100, blank=True, verbose_name='Nome')
     phone = models.CharField(max_length=100, blank=True, verbose_name='Ramal')
     sector = models.ForeignKey(
-        Setores,
+        Sector,
         on_delete=models.PROTECT,
         blank=True,
         null=True,
-        verbose_name='Setor',
-        related_name='ramais'
+        verbose_name='Setor'
     )
     machine = models.CharField(max_length=100, blank=True, verbose_name='Máquina')
 
