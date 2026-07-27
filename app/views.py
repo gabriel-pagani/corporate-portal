@@ -1,16 +1,16 @@
-from app.models import Ramais
+from app.models import Employee
 from django.shortcuts import render
 
 
-def ramais_view(request):
+def employees_view(request):
     data = [
         {
-            'name': ramal.get_display_name(),
-            'phone': ramal.phone or '',
-            'sector': ramal.sector.name if ramal.sector else '',
-            'machine': ramal.machine or '',
+            'name': employee.get_display_name(),
+            'number': employee.number or '',
+            'sector': employee.sector.name if employee.sector else '',
+            'machine': employee.machine or '',
         }
-        for ramal in Ramais.objects.select_related('sector', 'user').all()
+        for employee in Employee.objects.select_related('sector', 'user').all()
     ]
 
     return render(request, 'app/ramais.html', {

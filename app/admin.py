@@ -3,7 +3,7 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Sector, Dashboard, GroupDashboards, Ramais
+from .models import User, Group, Sector, Dashboard, GroupDashboards, Employee
 
 
 # Users Admin
@@ -62,10 +62,10 @@ class SectorAdmin(VersionAdmin):
     search_fields = ('name',)
 
 
-@admin.register(Ramais)
-class RamaisAdmin(VersionAdmin):
-    list_display = ('get_display_name', 'phone', 'sector', 'machine',)
-    search_fields = ('name', 'user__username', 'user__first_name', 'user__last_name', 'phone', 'sector__name', 'machine',)
+@admin.register(Employee)
+class EmployeeAdmin(VersionAdmin):
+    list_display = ('get_display_name', 'number', 'sector', 'machine',)
+    search_fields = ('name', 'user__username', 'user__first_name', 'user__last_name', 'number', 'sector__name', 'machine',)
     list_filter = ('sector',)
     autocomplete_fields = ('sector', 'user')
 

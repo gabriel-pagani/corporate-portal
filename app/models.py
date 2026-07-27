@@ -92,7 +92,7 @@ class GroupDashboards(models.Model):
         return self.group.name
 
 
-class Ramais(models.Model):
+class Employee(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
@@ -101,7 +101,7 @@ class Ramais(models.Model):
         verbose_name='Usuário'
     )
     name = models.CharField(max_length=100, blank=True, verbose_name='Nome')
-    phone = models.CharField(max_length=100, blank=True, verbose_name='Ramal')
+    number = models.CharField(max_length=100, blank=True, verbose_name='Número')
     sector = models.ForeignKey(
         Sector,
         on_delete=models.PROTECT,
@@ -122,5 +122,5 @@ class Ramais(models.Model):
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'Ramal'
-        verbose_name_plural = 'Ramais'
+        verbose_name = 'Funcionário'
+        verbose_name_plural = 'Funcionários'
