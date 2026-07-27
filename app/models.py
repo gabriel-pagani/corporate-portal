@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from .validators import valid_url
 from .utils.dashboards.metabase import generate_metabase_dashboard_url
 
@@ -39,17 +40,20 @@ class Dashboard(models.Model):
     status = models.CharField(max_length=1, choices=STATUS, default="D", verbose_name='Situação')
     fav_by = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, verbose_name='Favoritado Por')
 
-    def clean(self):
-        if self.metabase_code and self.powerbi_url:
-            raise ValidationError(
-                'Preencha apenas o campo "Código do Metabase" ou o campo "Link do Power BI".'
-            )
-
     @property
     def metabase_url(self):
         if self.metabase_code:
             return generate_metabase_dashboard_url(self.metabase_code)
         return None
+
+    def get_absolute_url(self):
+        return reverse('app:dashboard', args=[self.id])
+
+    def clean(self):
+        if self.metabase_code and self.powerbi_url:
+            raise ValidationError(
+                'Preencha apenas o campo "Código do Metabase" ou o campo "Link do Power BI".'
+            )
 
     def __str__(self) -> str:
         return self.title

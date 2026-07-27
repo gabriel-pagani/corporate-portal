@@ -35,8 +35,8 @@ def dashboard_view(request, dashboard_id):
 @login_required
 @require_POST
 def favorite_dashboard(request, dashboard_id):
-    dashboard = get_object_or_404(get_user_dashboards(request.user), id=dashboard_id)
     user = request.user
+    dashboard = get_object_or_404(get_user_dashboards(user), id=dashboard_id)
 
     if user in dashboard.fav_by.all():
         dashboard.fav_by.remove(user)
