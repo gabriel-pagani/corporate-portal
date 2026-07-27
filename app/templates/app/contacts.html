@@ -16,11 +16,11 @@
                 <div class="header-text">
                     <h1>Lista de Contatos</h1>
                     <div class="search-container">
-                        <input type="text" id="search-input" placeholder="Pesquise aqui..." oninput="filtrarRamais()"/>
+                        <input type="text" id="search-input" placeholder="Pesquise aqui..." oninput="filtrarContatos()"/>
                     </div>
                 </div>
             </div>
-            <table id="lista-ramais">
+            <table id="lista-contatos">
                 <thead>
                     <tr>
                     <th><div class="header-cell">Nome</div></th>
@@ -33,9 +33,9 @@
                 </thead>
             <tbody></tbody>
             </table>
-            <div id="paginacao" class="paginacao-container"></div>
+            <div id="pagination" class="pagination-container"></div>
         </div>
-        {{ data|json_script:"ramais-data" }}
+        {{ data|json_script:"contacts-data" }}
         <script>
             const isStaff = {% if request.user.is_staff %}true{% else %}false{% endif %};
         </script>

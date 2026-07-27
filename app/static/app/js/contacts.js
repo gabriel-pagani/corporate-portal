@@ -1,219 +1,125 @@
-const ramaisPorPagina = 8; // Número de ramais por página
-let paginaAtual = 1; // Página inicial
+const CONTATOS_POR_PAGINA = 8;
 
+let listaContatos = [];
+let contatosFiltrados = [];
+let paginaAtual = 1;
 
-// Função para carregar os ramais da página atual
-function carregarRamais(lista = ramaisFiltrados) {
-    const listaElement = document.querySelector('#lista-ramais tbody');
-    listaElement.innerHTML = '';
-
-    const inicio = (paginaAtual - 1) * ramaisPorPagina;
-    const fim = inicio + ramaisPorPagina;
-    const ramaisPagina = lista.slice(inicio, fim);
-
-    ramaisPagina.forEach((ramal) => {
-        const row = document.createElement('tr');
-        
-        if (isStaff) {
-            row.innerHTML = `
-                <td>${ramal.name}</td>
-                <td>${ramal.number}</td>
-                <td>${ramal.sector}</td>
-                <td>
-                    <div class="machine-cell">
-                        <span>${ramal.machine}</span>
-                        <button class="copy-btn" onclick="copiarTexto('${ramal.machine}')" title="Copiar número da máquina">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                    </div>
-                </td>
-            `;
-        } else {
-            row.innerHTML = `
-                <td>${ramal.name}</td>
-                <td>${ramal.number}</td>
-                <td>${ramal.sector}</td>
-            `;
-        }
-        
-        listaElement.appendChild(row);
-    });
-    renderizarPaginacao(lista.length);
-}
-
-// Função para criar botões de navegação de páginas
-function renderizarPaginacao(totalRamais) {
-    const paginacaoContainer = document.getElementById('paginacao');
-    paginacaoContainer.innerHTML = '';
-
-    const totalPaginas = Math.ceil(totalRamais / ramaisPorPagina);
-    
-    // Não mostrar paginação se houver apenas uma página
-    if (totalPaginas <= 1) return;
-    
-    // Lógica para mostrar páginas com reticências em telas pequenas
-    const isMobile = window.innerWidth <= 480;
-    const maxVisiblePages = isMobile ? 3 : 7;
-    
-    let startPage = Math.max(1, paginaAtual - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPaginas, startPage + maxVisiblePages - 1);
-    
-    // Ajustar início se estivermos próximos ao final
-    if (endPage - startPage + 1 < maxVisiblePages) {
-        startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-    
-    // Botão "Anterior"
-    if (paginaAtual > 1) {
-        const botaoAnterior = document.createElement('button');
-        botaoAnterior.innerHTML = isMobile ? '‹' : '‹ Anterior';
-        botaoAnterior.classList.add('pagina-botao');
-        botaoAnterior.addEventListener('click', () => {
-            paginaAtual--;
-            carregarRamais();
-        });
-        paginacaoContainer.appendChild(botaoAnterior);
-    }
-    
-    // Primeira página e reticências
-    if (startPage > 1) {
-        const primeira = document.createElement('button');
-        primeira.textContent = '1';
-        primeira.classList.add('pagina-botao');
-        primeira.addEventListener('click', () => {
-            paginaAtual = 1;
-            carregarRamais();
-        });
-        paginacaoContainer.appendChild(primeira);
-        
-        if (startPage > 2) {
-            const reticencias = document.createElement('span');
-            reticencias.textContent = '...';
-            reticencias.style.padding = '8px 4px';
-            reticencias.style.color = '#666';
-            paginacaoContainer.appendChild(reticencias);
-        }
-    }
-    
-    // Páginas visíveis
-    for (let i = startPage; i <= endPage; i++) {
-        const botaoPagina = document.createElement('button');
-        botaoPagina.textContent = i;
-        botaoPagina.classList.add('pagina-botao');
-        if (i === paginaAtual) botaoPagina.classList.add('pagina-ativa');
-
-        botaoPagina.addEventListener('click', () => {
-            paginaAtual = i;
-            carregarRamais();
-        });
-
-        paginacaoContainer.appendChild(botaoPagina);
-    }
-    
-    // Reticências e última página
-    if (endPage < totalPaginas) {
-        if (endPage < totalPaginas - 1) {
-            const reticencias = document.createElement('span');
-            reticencias.textContent = '...';
-            reticencias.style.padding = '8px 4px';
-            reticencias.style.color = '#666';
-            paginacaoContainer.appendChild(reticencias);
-        }
-        
-        const ultima = document.createElement('button');
-        ultima.textContent = totalPaginas;
-        ultima.classList.add('pagina-botao');
-        ultima.addEventListener('click', () => {
-            paginaAtual = totalPaginas;
-            carregarRamais();
-        });
-        paginacaoContainer.appendChild(ultima);
-    }
-    
-    // Botão "Próximo"
-    if (paginaAtual < totalPaginas) {
-        const botaoProximo = document.createElement('button');
-        botaoProximo.innerHTML = isMobile ? '›' : 'Próximo ›';
-        botaoProximo.classList.add('pagina-botao');
-        botaoProximo.addEventListener('click', () => {
-            paginaAtual++;
-            carregarRamais();
-        });
-        paginacaoContainer.appendChild(botaoProximo);
-    }
-}
-
-// Função para filtrar os ramais com base no termo de pesquisa
-function filtrarRamais() {
-    const input = document.getElementById('search-input').value.toLowerCase().trim();
-    const buscaInversa = input.startsWith('-');
-
-    const termo = buscaInversa
-        ? removerAcentos(input.slice(1).trim())
-        : removerAcentos(input);
-
-    ramaisFiltrados = listaRamais.filter((ramal) => {
-        const nome = removerAcentos(ramal.name.toLowerCase());
-        const ramalNumero = removerAcentos(ramal.number.toLowerCase());
-        const setor = removerAcentos(ramal.sector.toLowerCase());
-        const maquina = removerAcentos(ramal.machine.toLowerCase());
-
-        const contemTermo =
-            nome.includes(termo) ||
-            ramalNumero.includes(termo) ||
-            setor.includes(termo) ||
-            maquina.includes(termo);
-
-        return buscaInversa ? !contemTermo : contemTermo;
-    });
-
-    paginaAtual = 1; // Resetar para a primeira página após filtrar
-    carregarRamais();
-}
-
-// Função para remover acentos (ajuda na pesquisa)
+// Remove acentos para tornar a pesquisa mais tolerante
 function removerAcentos(texto) {
     return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-// Função para copiar texto para a área de transferência
+function criarBotaoPagina(rotulo, pagina, ativo = false) {
+    const botao = document.createElement('button');
+    botao.textContent = rotulo;
+    botao.classList.add('pagination-button');
+    if (ativo) botao.classList.add('active');
+    botao.addEventListener('click', () => {
+        paginaAtual = pagina;
+        carregarContatos();
+    });
+    return botao;
+}
+
+function criarCelula(texto) {
+    const celula = document.createElement('td');
+    celula.textContent = texto;
+    return celula;
+}
+
+// Célula da máquina, com botão para copiar o valor
+function criarCelulaMaquina(maquina) {
+    const celula = document.createElement('td');
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('machine-cell');
+
+    const valor = document.createElement('span');
+    valor.textContent = maquina;
+
+    const botao = document.createElement('button');
+    botao.classList.add('copy-button');
+    botao.title = 'Copiar número da máquina';
+    botao.innerHTML = '<i class="fas fa-copy"></i>';
+    botao.addEventListener('click', () => copiarTexto(maquina));
+
+    wrapper.append(valor, botao);
+    celula.appendChild(wrapper);
+    return celula;
+}
+
+function carregarContatos() {
+    const corpoTabela = document.querySelector('#lista-contatos tbody');
+    const inicio = (paginaAtual - 1) * CONTATOS_POR_PAGINA;
+    const contatosPagina = contatosFiltrados.slice(inicio, inicio + CONTATOS_POR_PAGINA);
+
+    corpoTabela.innerHTML = '';
+
+    contatosPagina.forEach((contato) => {
+        const linha = document.createElement('tr');
+        linha.append(
+            criarCelula(contato.name),
+            criarCelula(contato.number),
+            criarCelula(contato.sector)
+        );
+        if (isStaff) linha.appendChild(criarCelulaMaquina(contato.machine));
+        corpoTabela.appendChild(linha);
+    });
+
+    renderizarPaginacao();
+}
+
+function renderizarPaginacao() {
+    const container = document.getElementById('pagination');
+    const totalPaginas = Math.ceil(contatosFiltrados.length / CONTATOS_POR_PAGINA);
+
+    container.innerHTML = '';
+    if (totalPaginas <= 1) return;
+
+    // Em telas pequenas mostramos uma janela menor de páginas
+    const maxVisiveis = window.innerWidth <= 480 ? 3 : 7;
+    const fim = Math.min(totalPaginas, Math.max(paginaAtual + Math.floor(maxVisiveis / 2), maxVisiveis));
+    const inicio = Math.max(1, fim - maxVisiveis + 1);
+
+    if (paginaAtual > 1) {
+        container.appendChild(criarBotaoPagina('‹ Anterior', paginaAtual - 1));
+    }
+
+    for (let pagina = inicio; pagina <= fim; pagina++) {
+        container.appendChild(criarBotaoPagina(pagina, pagina, pagina === paginaAtual));
+    }
+
+    if (paginaAtual < totalPaginas) {
+        container.appendChild(criarBotaoPagina('Próximo ›', paginaAtual + 1));
+    }
+}
+
+// Prefixar a busca com "-" inverte o filtro
+function filtrarContatos() {
+    const entrada = document.getElementById('search-input').value.toLowerCase().trim();
+    const buscaInversa = entrada.startsWith('-');
+    const termo = removerAcentos(buscaInversa ? entrada.slice(1).trim() : entrada);
+
+    contatosFiltrados = listaContatos.filter((contato) => {
+        const contemTermo = [contato.name, contato.number, contato.sector, contato.machine]
+            .some((campo) => removerAcentos(campo.toLowerCase()).includes(termo));
+
+        return buscaInversa ? !contemTermo : contemTermo;
+    });
+
+    paginaAtual = 1;
+    carregarContatos();
+}
+
 function copiarTexto(texto) {
-    // Verifica se a API Clipboard está disponível
     if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(texto).then(() => {
-        }).catch(err => {
+        navigator.clipboard.writeText(texto).catch((err) => {
             console.error('Erro ao copiar: ', err);
-            copiarTextoFallback(texto);
         });
-    } else {
-        // Usa fallback para navegadores sem suporte ou contextos não seguros
-        copiarTextoFallback(texto);
     }
 }
 
-// Função fallback para copiar texto
-function copiarTextoFallback(texto) {
-    const textArea = document.createElement('textarea');
-    textArea.value = texto;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    
-    try {
-        document.execCommand('copy');
-    } catch (err) {
-        console.error('Erro ao copiar texto: ', err);
-    }
-    
-    document.body.removeChild(textArea);
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    // Carrega os ramais a partir dos dados embutidos na página
-    listaRamais = JSON.parse(document.getElementById('ramais-data').textContent);
-    ramaisFiltrados = [...listaRamais];
-    carregarRamais();
+document.addEventListener('DOMContentLoaded', () => {
+    listaContatos = JSON.parse(document.getElementById('contacts-data').textContent);
+    contatosFiltrados = [...listaContatos];
+    carregarContatos();
 });

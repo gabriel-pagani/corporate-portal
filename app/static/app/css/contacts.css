@@ -1,7 +1,4 @@
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
   font-family: "Roboto Condensed", sans-serif;
 }
 
@@ -33,6 +30,30 @@ body {
   margin-bottom: 25px;
 }
 
+.header img {
+  width: 160px;
+  height: auto;
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.logo {
+  width: 130px;
+  height: auto;
+  margin-left: 20px;
+  cursor: pointer;
+}
+
+h1 {
+  font-size: 34px;
+  color: #333;
+  margin-bottom: 10px;
+}
+
 .search-container {
   display: flex;
   align-items: center;
@@ -50,17 +71,9 @@ body {
   border-color: #333333;
 }
 
-h1 {
-  font-size: 34px;
-  color: #333;
-  margin-bottom: 10px;
-}
-
 table {
   width: 100%;
   margin-top: 20px;
-  border-spacing: 0;
-  border-collapse: collapse;
 }
 
 th,
@@ -90,54 +103,13 @@ tbody tr:hover {
   align-items: center;
 }
 
-.header img {
-  width: 160px;
-  height: auto;
-}
-
-.paginacao-container {
+.machine-cell {
   display: flex;
-  justify-content: center;
-  margin-top: 20px;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.pagina-botao {
-  background-color: transparent;
-  color: #333;
-  border: none;
-  padding: 8px 12px;
-  margin: 0 5px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.3s, background-color 0.3s;
-  border-radius: 4px;
-}
-
-.pagina-botao:hover {
-  color: #333333;
-  background-color: #3333331e;
-}
-
-.pagina-ativa {
-  color: white;
-  background-color: #333333;
-  font-weight: bold;
-}
-
-.logo {
-  width: 130px;
-  height: auto;
-  margin-left: 20px;
-  cursor: pointer;
-}
-
-.header-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.copy-btn {
+.copy-button {
   background: none;
   border: none;
   color: #333333;
@@ -149,12 +121,35 @@ tbody tr:hover {
   transition: background-color 0.3s, color 0.3s;
 }
 
-.copy-btn:active {
+.copy-button:active {
   transform: scale(0.75);
 }
 
-.machine-cell {
+.pagination-container {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.pagination-button {
+  background-color: transparent;
+  color: #333;
+  border: none;
+  padding: 8px 12px;
+  margin: 0 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: color 0.3s, background-color 0.3s;
+  border-radius: 4px;
+}
+
+.pagination-button:hover {
+  color: #333333;
+  background-color: #3333331e;
+}
+
+.pagination-button.active {
+  color: white;
+  background-color: #333333;
+  font-weight: bold;
 }
