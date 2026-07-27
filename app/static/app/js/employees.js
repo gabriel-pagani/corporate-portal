@@ -17,7 +17,7 @@ function carregarRamais(lista = ramaisFiltrados) {
         if (isStaff) {
             row.innerHTML = `
                 <td>${ramal.name}</td>
-                <td>${ramal.phone}</td>
+                <td>${ramal.number}</td>
                 <td>${ramal.sector}</td>
                 <td>
                     <div class="machine-cell">
@@ -31,7 +31,7 @@ function carregarRamais(lista = ramaisFiltrados) {
         } else {
             row.innerHTML = `
                 <td>${ramal.name}</td>
-                <td>${ramal.phone}</td>
+                <td>${ramal.number}</td>
                 <td>${ramal.sector}</td>
             `;
         }
@@ -154,7 +154,7 @@ function filtrarRamais() {
 
     ramaisFiltrados = listaRamais.filter((ramal) => {
         const nome = removerAcentos(ramal.name.toLowerCase());
-        const ramalNumero = removerAcentos(ramal.phone.toLowerCase());
+        const ramalNumero = removerAcentos(ramal.number.toLowerCase());
         const setor = removerAcentos(ramal.sector.toLowerCase());
         const maquina = removerAcentos(ramal.machine.toLowerCase());
 
