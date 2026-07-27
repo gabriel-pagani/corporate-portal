@@ -92,7 +92,7 @@ class GroupDashboards(models.Model):
         return self.group.name
 
 
-class Employee(models.Model):
+class Contact(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
@@ -122,5 +122,5 @@ class Employee(models.Model):
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'Funcionário'
-        verbose_name_plural = 'Funcionários'
+        verbose_name = 'Contato'
+        verbose_name_plural = 'Contatos'

@@ -1,20 +1,20 @@
 {% extends 'global/global.html' %}
 {% load static %}
 
-{% block title %}Lista de Funcionários{% endblock title %}
+{% block title %}Lista de Contatos{% endblock title %}
 
 {% block head %}
-        <link href="{% static 'app/css/employees.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/contacts.css' %}" rel="stylesheet">
 {% endblock head %}
 
 {% block body %}
         <div id="content" class="container">
             <div class="header">
-                <a href="{% url "app:employees-list" %}">
+                <a href="{% url "app:contacts-list" %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" id="logo-img" title="Recarregar a Página"/>
                 </a>
                 <div class="header-text">
-                    <h1>Lista de Funcionários</h1>
+                    <h1>Lista de Contatos</h1>
                     <div class="search-container">
                         <input type="text" id="search-input" placeholder="Pesquise aqui..." oninput="filtrarRamais()"/>
                     </div>
@@ -39,5 +39,5 @@
         <script>
             const isStaff = {% if request.user.is_staff %}true{% else %}false{% endif %};
         </script>
-        <script src="{% static 'app/js/employees.js' %}"></script>
+        <script src="{% static 'app/js/contacts.js' %}"></script>
 {% endblock body %}

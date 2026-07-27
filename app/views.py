@@ -1,18 +1,18 @@
-from app.models import Employee
+from app.models import Contact
 from django.shortcuts import render
 
 
-def employees_view(request):
+def contacts_view(request):
     data = [
         {
-            'name': employee.get_display_name(),
-            'number': employee.number or '',
-            'sector': employee.sector.name if employee.sector else '',
-            'machine': employee.machine or '',
+            'name': contact.get_display_name(),
+            'number': contact.number or '',
+            'sector': contact.sector.name if contact.sector else '',
+            'machine': contact.machine or '',
         }
-        for employee in Employee.objects.select_related('sector', 'user').all()
+        for contact in Contact.objects.select_related('sector', 'user').all()
     ]
 
-    return render(request, 'app/employees.html', {
+    return render(request, 'app/contacts.html', {
         'data': data
     })

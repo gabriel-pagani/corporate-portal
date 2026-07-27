@@ -1,8 +1,8 @@
 from django.urls import path
-from app.views import employees_view
+from app.views import contacts_view
 
 app_name = 'app'
 
 urlpatterns = [
-    path('employees-list/', employees_view, name='employees-list'),
+    path('contacts-list/', contacts_view, name='contacts-list'),
 ]
