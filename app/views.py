@@ -13,7 +13,6 @@ def employees_view(request):
         for employee in Employee.objects.select_related('sector', 'user').all()
     ]
 
-    return render(request, 'app/ramais.html', {
-        'is_staff': request.user.is_staff,
+    return render(request, 'app/employees.html', {
         'data': data
     })
