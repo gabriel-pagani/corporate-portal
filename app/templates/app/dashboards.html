@@ -1,0 +1,99 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Dashboards{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'global/css/sidebar.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/dashboards.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div class="sidebar" id="sidebar">
+            <div class="logo">
+                <a href="{% url "app:dashboards" %}" title="Recarregar a Página">
+                    <img src="{% static 'global/images/white_logo.png' %}" id="logo-img"
+                        data-full-logo="{% static 'global/images/white_logo.png' %}"
+                        data-icon-logo="{% static 'global/images/icon.png' %}"
+                    />
+                </a>
+            </div>
+
+            <nav class="menu">
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Pesquise aqui..." autocomplete="off">
+                    <button class="clear-search" type="button" title="Limpar pesquisa">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="alert no-results">Nenhum dashboard encontrado</div>
+                {% if dashboards %}
+                    <ul class="menu-list" data-favorite-url="{% url "app:favorite-dashboard" 12345 %}">
+                        {% for sector, sector_dashboards in dashboards.items %}
+                            <li class="menu-item">
+                                <div class="sector-header" title="{{ sector }}">
+                                    {% if sector == 'Favoritos' %}
+                                        <i class="fas fa-star"></i>
+                                    {% else %}
+                                        <i class="fas fa-box-archive"></i>
+                                    {% endif %}
+                                    <span class="text">{{ sector }}</span>
+                                    <i class="fas fa-chevron-right toggle-icon"></i>
+                                </div>
+                                <ul class="submenu" data-sector="{{ sector }}">
+                                    {% for dashboard in sector_dashboards %}
+                                        <li data-id="{{ dashboard.id }}" data-sector="{{ dashboard.sector }}">
+                                            <a href="{{ dashboard.url }}" class="dashboard-link{% if dashboard.id == current_dashboard.id %} active{% endif %}" title="{% if dashboard.status == 'D' %}Em Desenvolvimento{% elif dashboard.status == 'M' %}Em Manutenção{% else %}{{ dashboard.title }}{% endif %}">
+                                                <i class="fas fa-chart-line"></i>
+                                                <span class="text">
+                                                    {{ dashboard.title }}
+                                                    {% if dashboard.status == 'D' %}
+                                                        <span class="status-badge development">EM DESENVOLVIMENTO</span>
+                                                    {% elif dashboard.status == 'M' %}
+                                                        <span class="status-badge maintenance">EM MANUTENÇÃO</span>
+                                                    {% endif %}
+                                                </span>
+                                                <i class="fas fa-thumbtack pin-icon{% if dashboard.is_fav %} favorited{% endif %}" data-id="{{ dashboard.id }}" title="{% if dashboard.is_fav %}Desafixar dos favoritos{% else %}Fixar nos favoritos{% endif %}"></i>
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="alert">
+                        Não há dashboards<p>
+                        disponíveis para você<p>
+                        no momento
+                    </div>
+                {% endif %}
+            </nav>
+
+            <div class="bottom">
+                <a href="#" title="Voltar ao Menu Principal">
+                    <i class="fas fa-arrow-left"></i>
+                    <span class="text">Voltar</span>
+                </a>
+                <button id="toggle" title="Minimizar Menu Lateral"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            {% if current_dashboard.url_iframe %}
+                <div id="dashboard-loader" class="dashboard-placeholder">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <p>Carregando Dashboard...</p>
+                </div>
+                <iframe id="dashboard-frame" src="{{ current_dashboard.url_iframe }}" frameborder="0" style="display: none;"></iframe>
+            {% else %}
+                <div class="dashboard-placeholder">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <p>{% if current_dashboard %}Dashboard Sem Conteúdo{% else %}Nenhum Dashboard Selecionado{% endif %}</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <script src="{% static 'global/js/sidebar.js' %}"></script>
+        <script src="{% static 'app/js/dashboards.js' %}"></script>
+{% endblock body %}
