@@ -29,7 +29,42 @@ def dashboards_view(request):
 
 @login_required
 def dashboard_view(request, dashboard_id):
-    ...
+    user = request.user
+    current_dashboard = get_object_or_404(get_user_dashboards(user), id=dashboard_id)
+    dashboards = get_user_dashboards(user)
+
+    dashboards_dict = {'Favoritos': []}
+    for dashboard in dashboards:
+        is_fav = user in dashboard.fav_by.all()
+        dashboard_payload = {
+            'id': dashboard.id,
+            'title': dashboard.title,
+            'url': dashboard.get_absolute_url(),
+            'status': dashboard.status,
+            'is_fav': is_fav,
+        }
+
+        if is_fav:
+            dashboards_dict['Favoritos'].append(dashboard_payload)
+
+        sector = dashboard.sector.name if dashboard.sector else 'Sem Setor'
+        dashboards_dict.setdefault(sector, []).append(dashboard_payload)
+
+    if not dashboards_dict['Favoritos']:
+        del dashboards_dict['Favoritos']
+
+    if 'Sem Setor' in dashboards_dict:
+        dashboards_dict['Sem Setor'] = dashboards_dict.pop('Sem Setor')
+
+    current_dashboard = {
+        'id': current_dashboard.id,
+        'url_iframe': current_dashboard.metabase_url or current_dashboard.powerbi_url or '',
+    }
+
+    return render(request, 'app/dashboards.html', {
+        'current_dashboard': current_dashboard,
+        'dashboards': dashboards_dict
+    })
 
 
 @login_required
