@@ -24,7 +24,35 @@ def contacts_view(request):
 
 @login_required
 def dashboards_view(request):
-    ...
+    user = request.user
+    dashboards = get_user_dashboards(user)
+
+    dashboards_dict = {'Favoritos': []}
+    for dashboard in dashboards:
+        is_fav = user in dashboard.fav_by.all()
+        dashboard_payload = {
+            'id': dashboard.id,
+            'title': dashboard.title,
+            'url': dashboard.get_absolute_url(),
+            'status': dashboard.status,
+            'is_fav': is_fav,
+        }
+
+        if is_fav:
+            dashboards_dict['Favoritos'].append(dashboard_payload)
+
+        sector = dashboard.sector.name if dashboard.sector else 'Sem Setor'
+        dashboards_dict.setdefault(sector, []).append(dashboard_payload)
+
+    if not dashboards_dict['Favoritos']:
+        del dashboards_dict['Favoritos']
+
+    if 'Sem Setor' in dashboards_dict:
+        dashboards_dict['Sem Setor'] = dashboards_dict.pop('Sem Setor')
+
+    return render(request, 'app/dashboards.html', {
+        'dashboards': dashboards_dict
+    })
 
 
 @login_required
