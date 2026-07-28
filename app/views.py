@@ -30,18 +30,20 @@ def dashboards_view(request):
     dashboards_dict = {'Favoritos': []}
     for dashboard in dashboards:
         is_fav = user in dashboard.fav_by.all()
+        sector = dashboard.sector.name if dashboard.sector else 'Sem Setor'
         dashboard_payload = {
             'id': dashboard.id,
             'title': dashboard.title,
             'url': dashboard.get_absolute_url(),
             'status': dashboard.status,
             'is_fav': is_fav,
+            'sector': sector,
         }
 
         if is_fav:
             dashboards_dict['Favoritos'].append(dashboard_payload)
+            continue
 
-        sector = dashboard.sector.name if dashboard.sector else 'Sem Setor'
         dashboards_dict.setdefault(sector, []).append(dashboard_payload)
 
     if not dashboards_dict['Favoritos']:
@@ -64,18 +66,20 @@ def dashboard_view(request, dashboard_id):
     dashboards_dict = {'Favoritos': []}
     for dashboard in dashboards:
         is_fav = user in dashboard.fav_by.all()
+        sector = dashboard.sector.name if dashboard.sector else 'Sem Setor'
         dashboard_payload = {
             'id': dashboard.id,
             'title': dashboard.title,
             'url': dashboard.get_absolute_url(),
             'status': dashboard.status,
             'is_fav': is_fav,
+            'sector': sector,
         }
 
         if is_fav:
             dashboards_dict['Favoritos'].append(dashboard_payload)
+            continue
 
-        sector = dashboard.sector.name if dashboard.sector else 'Sem Setor'
         dashboards_dict.setdefault(sector, []).append(dashboard_payload)
 
     if not dashboards_dict['Favoritos']:
