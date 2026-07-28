@@ -35,7 +35,7 @@
             </table>
             <div id="pagination" class="pagination-container"></div>
         </div>
-        {{ data|json_script:"contacts-data" }}
+        {{ contacts|json_script:"contacts-data" }}
         <script>
             const isStaff = {% if request.user.is_staff %}true{% else %}false{% endif %};
         </script>

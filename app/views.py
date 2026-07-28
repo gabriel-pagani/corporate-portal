@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 
 
 def contacts_view(request):
-    data = [
+    contacts = [
         {
             'name': contact.get_display_name(),
             'number': contact.number or '',
@@ -18,7 +18,7 @@ def contacts_view(request):
     ]
 
     return render(request, 'app/contacts.html', {
-        'data': data
+        'contacts': contacts
     })
 
 
