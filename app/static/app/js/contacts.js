@@ -68,6 +68,13 @@ function carregarContatos() {
     renderizarPaginacao();
 }
 
+function criarReticencias() {
+    const reticencias = document.createElement('span');
+    reticencias.textContent = '...';
+    reticencias.classList.add('pagination-ellipsis');
+    return reticencias;
+}
+
 function renderizarPaginacao() {
     const container = document.getElementById('pagination');
     const totalPaginas = Math.ceil(contatosFiltrados.length / CONTATOS_POR_PAGINA);
@@ -76,20 +83,40 @@ function renderizarPaginacao() {
     if (totalPaginas <= 1) return;
 
     // Em telas pequenas mostramos uma janela menor de páginas
-    const maxVisiveis = window.innerWidth <= 480 ? 3 : 7;
-    const fim = Math.min(totalPaginas, Math.max(paginaAtual + Math.floor(maxVisiveis / 2), maxVisiveis));
-    const inicio = Math.max(1, fim - maxVisiveis + 1);
+    const isMobile = window.innerWidth <= 480;
+    const maxVisiveis = isMobile ? 3 : 7;
+
+    let inicio = Math.max(1, paginaAtual - Math.floor(maxVisiveis / 2));
+    let fim = Math.min(totalPaginas, inicio + maxVisiveis - 1);
+
+    if (fim - inicio + 1 < maxVisiveis) {
+        inicio = Math.max(1, fim - maxVisiveis + 1);
+    }
 
     if (paginaAtual > 1) {
-        container.appendChild(criarBotaoPagina('‹ Anterior', paginaAtual - 1));
+        container.appendChild(criarBotaoPagina(isMobile ? '‹' : '‹ Anterior', paginaAtual - 1));
+    }
+
+    if (inicio > 1) {
+        container.appendChild(criarBotaoPagina('1', 1));
+        if (inicio > 2) {
+            container.appendChild(criarReticencias());
+        }
     }
 
     for (let pagina = inicio; pagina <= fim; pagina++) {
         container.appendChild(criarBotaoPagina(pagina, pagina, pagina === paginaAtual));
     }
 
+    if (fim < totalPaginas) {
+        if (fim < totalPaginas - 1) {
+            container.appendChild(criarReticencias());
+        }
+        container.appendChild(criarBotaoPagina(totalPaginas, totalPaginas));
+    }
+
     if (paginaAtual < totalPaginas) {
-        container.appendChild(criarBotaoPagina('Próximo ›', paginaAtual + 1));
+        container.appendChild(criarBotaoPagina(isMobile ? '›' : 'Próximo ›', paginaAtual + 1));
     }
 }
 
