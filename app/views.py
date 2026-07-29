@@ -6,6 +6,11 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 
 
+@login_required
+def home_view(request):
+    return render(request, 'app/home.html')
+
+
 def contacts_view(request):
     contacts = [
         {
