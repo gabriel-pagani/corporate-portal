@@ -1,0 +1,186 @@
+/* O fundo fica no body para não ser redimensionado quando a sidebar colapsa */
+body {
+  background-image: url('../../global/images/fundo_estrada.png');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.main-content {
+  background-color: transparent;
+}
+
+.menu a {
+  display: flex;
+  align-items: center;
+  color: white;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  transition: background 0.2s;
+}
+
+.menu a:hover {
+  background-color: #33373c;
+}
+
+.menu i {
+  width: 24px;
+  text-align: center;
+}
+
+.menu .text {
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+.bottom a {
+  display: flex;
+  align-items: center;
+  color: white;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  transition: background 0.2s;
+}
+
+.bottom a:hover {
+  background-color: #33373c;
+}
+
+.bottom .text {
+  margin-left: 12px;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-toggle {
+  display: flex;
+  align-items: center;
+  color: white;
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.user-toggle:hover {
+  background-color: #33373c;
+}
+
+.user-toggle i {
+  width: 24px;
+  text-align: center;
+}
+
+.user-toggle .text {
+  margin-left: 12px;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.dropdown-icon {
+  margin-left: auto;
+  transition: transform 0.3s;
+  width: 16px !important;
+}
+
+.user-toggle.active .dropdown-icon {
+  transform: rotate(180deg);
+}
+
+.user-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background-color: #2a2e33;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  margin-bottom: 5px;
+}
+
+.user-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.user-dropdown a {
+  display: flex;
+  align-items: center;
+  color: white;
+  padding: 12px 16px;
+  transition: background 0.2s;
+  border-radius: 4px;
+  margin: 4px;
+}
+
+.user-dropdown a:hover,
+.logout-button:hover {
+  background-color: #404550;
+}
+
+.user-dropdown a i,
+.logout-button i {
+  width: 20px;
+  text-align: center;
+  margin-right: 12px;
+}
+
+/* O botão do form de logout imita os links do dropdown */
+.logout-button {
+  display: flex;
+  align-items: center;
+  width: calc(100% - 8px);
+  color: white;
+  background: none;
+  border: none;
+  font-size: inherit;
+  text-align: left;
+  padding: 12px 16px;
+  transition: background 0.2s;
+  border-radius: 4px;
+  margin: 4px;
+  cursor: pointer;
+}
+
+/* Com a sidebar minimizada o dropdown flutua ao lado, como nos submenus dos dashboards */
+.sidebar.collapsed .user-menu .text,
+.sidebar.collapsed .dropdown-icon {
+  display: none;
+}
+
+.sidebar.collapsed .user-dropdown {
+  left: 60px;
+  bottom: 10px;
+  width: 250px;
+}
+
+/* Dentro do dropdown o texto continua visível mesmo com a sidebar colapsada */
+.sidebar.collapsed .user-dropdown .text {
+  display: inline-block;
+}
+
+@media (max-width: 768px) {
+  .user-dropdown {
+    position: fixed;
+    bottom: 80px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+
+  .sidebar.collapsed .user-dropdown {
+    left: 10px;
+    width: auto;
+  }
+}

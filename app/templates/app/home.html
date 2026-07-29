@@ -1,0 +1,68 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Home{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'global/css/sidebar.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/home.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div class="sidebar" id="sidebar">
+            <div class="logo">
+                <a href="{% url "app:home" %}" title="Recarregar a Página">
+                    <img src="{% static 'global/images/white_logo.png' %}" id="logo-img"
+                        data-full-logo="{% static 'global/images/white_logo.png' %}"
+                        data-icon-logo="{% static 'global/images/icon.png' %}"
+                    />
+                </a>
+            </div>
+
+            <nav class="menu">
+                <a href="{% url "app:contacts" %}" title="Acessar Lista de Contatos">
+                    <i class="fas fa-phone"></i>
+                    <span class="text">Lista de Contatos</span>
+                </a>
+                <a href="{% url "app:dashboards" %}" title="Acessar Central de Dashboards">
+                    <i class="fas fa-chart-pie"></i>
+                    <span class="text">Central de Dashboards</span>
+                </a>
+                <a href="http://servicos.gruposmi.com.br/front/ticket.php" title="Acessar Central de Chamados">
+                    <i class="fas fa-headphones"></i>
+                    <span class="text">Central de Chamados</span>
+                </a>
+            </nav>
+
+            <div class="bottom">
+                <div class="user-menu">
+                    <a href="#" class="user-toggle" id="user-toggle" title="{{ request.user }}">
+                        <i class="fas fa-user-tie"></i>
+                        <span class="text">{{ request.user }}</span>
+                        <i class="fas fa-chevron-down dropdown-icon"></i>
+                    </a>
+                    <div class="user-dropdown" id="user-dropdown">
+                        {% if request.user.is_staff %}
+                            <a href="{% url "admin:index" %}" title="Acessar Portal de Controle do Site">
+                                <i class="fa-solid fa-screwdriver-wrench"></i>
+                                <span class="text">Portal de Administração</span>
+                            </a>
+                        {% endif %}
+                        <form action="{% url "app:logout" %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="logout-button" title="Fazer Logout">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span class="text">Sair</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <button id="toggle" title="Minimizar Menu Lateral"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+
+        <div class="main-content"></div>
+
+        <script src="{% static 'global/js/sidebar.js' %}"></script>
+        <script src="{% static 'app/js/home.js' %}"></script>
+{% endblock body %}
