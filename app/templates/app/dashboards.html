@@ -11,7 +11,7 @@
 {% block body %}
         <div class="sidebar" id="sidebar">
             <div class="logo">
-                <a href="{% url "app:home" %}" title="Voltar ao Menu Principal">
+                <a href="{% url "app:home" %}" title="Voltar ao menu principal">
                     <img src="{% static 'global/images/white_logo.png' %}" id="logo-img"
                         data-full-logo="{% static 'global/images/white_logo.png' %}"
                         data-icon-logo="{% static 'global/images/icon.png' %}"
@@ -43,7 +43,7 @@
                                 <ul class="submenu" data-sector="{{ sector }}">
                                     {% for dashboard in sector_dashboards %}
                                         <li data-id="{{ dashboard.id }}" data-sector="{{ dashboard.sector }}">
-                                            <a href="{{ dashboard.url }}" class="dashboard-link{% if dashboard.id == current_dashboard.id %} active{% endif %}" title="{% if dashboard.status == 'D' %}Em Desenvolvimento{% elif dashboard.status == 'M' %}Em Manutenção{% else %}{{ dashboard.title }}{% endif %}">
+                                            <a href="{{ dashboard.url }}" class="dashboard-link{% if dashboard.id == current_dashboard.id %} active{% endif %}" title="{% if dashboard.status == 'D' %}Em desenvolvimento{% elif dashboard.status == 'M' %}Em manutenção{% else %}{{ dashboard.title }}{% endif %}">
                                                 <i class="fas fa-chart-line"></i>
                                                 <span class="text">
                                                     {{ dashboard.title }}
@@ -71,11 +71,11 @@
             </nav>
 
             <div class="bottom">
-                <a href="{% url "app:home" %}" title="Voltar ao Menu Principal">
+                <a href="{% url "app:home" %}" title="Voltar ao menu principal">
                     <i class="fas fa-arrow-left"></i>
                     <span class="text">Voltar</span>
                 </a>
-                <button id="toggle" title="Minimizar Menu Lateral"><i class="fas fa-bars"></i></button>
+                <button id="toggle" title="Minimizar menu lateral"><i class="fas fa-bars"></i></button>
             </div>
         </div>
 

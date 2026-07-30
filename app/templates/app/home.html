@@ -11,7 +11,7 @@
 {% block body %}
         <div class="sidebar" id="sidebar">
             <div class="logo">
-                <a href="{% url "app:home" %}" title="Recarregar a Página">
+                <a href="{% url "app:home" %}" title="Recarregar a página">
                     <img src="{% static 'global/images/white_logo.png' %}" id="logo-img"
                         data-full-logo="{% static 'global/images/white_logo.png' %}"
                         data-icon-logo="{% static 'global/images/icon.png' %}"
@@ -20,15 +20,15 @@
             </div>
 
             <nav class="menu">
-                <a href="{% url "app:contacts" %}" title="Acessar Lista de Contatos">
+                <a href="{% url "app:contacts" %}" title="Acessar lista de contatos">
                     <i class="fas fa-phone"></i>
                     <span class="text">Lista de Contatos</span>
                 </a>
-                <a href="{% url "app:dashboards" %}" title="Acessar Central de Dashboards">
+                <a href="{% url "app:dashboards" %}" title="Acessar central de dashboards">
                     <i class="fas fa-chart-pie"></i>
                     <span class="text">Central de Dashboards</span>
                 </a>
-                <a href="http://servicos.gruposmi.com.br/front/ticket.php" title="Acessar Central de Chamados">
+                <a href="http://servicos.gruposmi.com.br/front/ticket.php" title="Acessar central de chamados">
                     <i class="fas fa-headphones"></i>
                     <span class="text">Central de Chamados</span>
                 </a>
@@ -43,21 +43,21 @@
                     </a>
                     <div class="user-dropdown" id="user-dropdown">
                         {% if request.user.is_staff %}
-                            <a href="{% url "admin:index" %}" title="Acessar Portal de Controle do Site">
+                            <a href="{% url "admin:index" %}" title="Acessar portal de administração do site">
                                 <i class="fa-solid fa-screwdriver-wrench"></i>
                                 <span class="text">Portal de Administração</span>
                             </a>
                         {% endif %}
                         <form action="{% url "app:logout" %}" method="post">
                             {% csrf_token %}
-                            <button type="submit" class="logout-button" title="Fazer Logout">
+                            <button type="submit" class="logout-button" title="Se desconectar">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span class="text">Sair</span>
                             </button>
                         </form>
                     </div>
                 </div>
-                <button id="toggle" title="Minimizar Menu Lateral"><i class="fas fa-bars"></i></button>
+                <button id="toggle" title="Minimizar menu lateral"><i class="fas fa-bars"></i></button>
             </div>
         </div>
 
