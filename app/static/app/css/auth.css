@@ -16,8 +16,8 @@ body {
 
 #tela-login {
   width: 100%;
-  max-width: 440px;
-  padding: 48px 44px;
+  max-width: 484px;
+  padding: 53px 48px;
   border-radius: 8px;
   background-color: rgba(30, 33, 36, 0.92);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
@@ -25,26 +25,26 @@ body {
 }
 
 #tela-login h2 {
-  margin: 0 0 28px;
+  margin: 0 0 31px;
   text-align: center;
   font-weight: 500;
-  font-size: 30px;
+  font-size: 33px;
 }
 
 .input-group {
   position: relative;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .input-group input {
   width: 100%;
   box-sizing: border-box;
-  padding: 14px 42px;
+  padding: 15px 46px;
   border: 1px solid #444;
   border-radius: 4px;
   background-color: #2a2d31;
   color: white;
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .input-group input:focus {
@@ -54,7 +54,7 @@ body {
 
 .input-icon {
   position: absolute;
-  left: 14px;
+  left: 15px;
   top: 50%;
   transform: translateY(-50%);
   color: #999;
@@ -62,7 +62,7 @@ body {
 
 .toggle-password {
   position: absolute;
-  right: 14px;
+  right: 15px;
   top: 50%;
   transform: translateY(-50%);
   color: #999;
@@ -71,12 +71,12 @@ body {
 
 .btn {
   width: 100%;
-  padding: 14px;
+  padding: 15px;
   border: none;
   border-radius: 4px;
   background-color: #33373c;
   color: white;
-  font-size: 16px;
+  font-size: 18px;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -88,11 +88,11 @@ body {
 .mensagem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 9px;
+  padding: 13px 15px;
   border-radius: 4px;
-  margin-bottom: 20px;
-  font-size: 15px;
+  margin-bottom: 22px;
+  font-size: 17px;
 }
 
 .mensagem.erro {
