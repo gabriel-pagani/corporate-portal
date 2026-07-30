@@ -76,4 +76,5 @@ class DashboardAdmin(VersionAdmin):
     search_fields = ('title', 'sector__name')
     filter_horizontal = ('fav_by',)
     list_filter = ('status', 'sector',)
+    ordering = ('title',)
     autocomplete_fields = ('sector',)
