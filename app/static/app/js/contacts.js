@@ -122,7 +122,8 @@ function renderizarPaginacao() {
 
 // Prefixar a busca com "-" inverte o filtro
 function filtrarContatos() {
-    const entrada = document.getElementById('search-input').value.toLowerCase().trim();
+    const valorBruto = document.getElementById('search-input').value;
+    const entrada = valorBruto.toLowerCase().trim();
     const buscaInversa = entrada.startsWith('-');
     const termo = removerAcentos(buscaInversa ? entrada.slice(1).trim() : entrada);
 
@@ -135,6 +136,18 @@ function filtrarContatos() {
 
     paginaAtual = 1;
     carregarContatos();
+    atualizarUrlComBusca(valorBruto);
+}
+
+// Mantém a pesquisa sincronizada com a URL (parâmetro "q"), sem poluir o histórico
+function atualizarUrlComBusca(valorBusca) {
+    const url = new URL(window.location.href);
+    if (valorBusca) {
+        url.searchParams.set('q', valorBusca);
+    } else {
+        url.searchParams.delete('q');
+    }
+    window.history.replaceState({}, '', url);
 }
 
 function copiarTexto(texto) {
@@ -147,6 +160,14 @@ function copiarTexto(texto) {
 
 document.addEventListener('DOMContentLoaded', () => {
     listaContatos = JSON.parse(document.getElementById('contacts-data').textContent);
+
+    const buscaSalva = new URLSearchParams(window.location.search).get('q');
+    if (buscaSalva) {
+        document.getElementById('search-input').value = buscaSalva;
+        filtrarContatos();
+        return;
+    }
+
     contatosFiltrados = [...listaContatos];
     carregarContatos();
 });
