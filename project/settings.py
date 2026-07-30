@@ -164,6 +164,5 @@ AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
 )
 
 AUTH_LDAP_USER_FLAGS_BY_GROUP = {
-    "is_staff": [os.getenv('STAFF_GROUP_DN'), os.getenv('ADMIN_GROUP_DN')],
-    "is_superuser": os.getenv('ADMIN_GROUP_DN'),
+    "is_staff": os.getenv('STAFF_GROUP_DN'),
 }
