@@ -85,7 +85,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'django_auth_ldap.backend.LDAPBackend',
+    # 'django_auth_ldap.backend.LDAPBackend',
 ]
 
 LANGUAGE_CODE = 'pt-br'
@@ -121,9 +121,9 @@ AUTH_USER_MODEL = 'app.User'
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
-LOGIN_URL = f'/{ADMIN_PANEL_PATH}/login/'
+LOGIN_URL = 'app:login'
 
-LOGOUT_REDIRECT_URL = 'app:home'
+LOGOUT_REDIRECT_URL = 'app:login'
 
 METABASE_SITE_URL = os.getenv('METABASE_SITE_URL')
 

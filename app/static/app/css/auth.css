@@ -1,0 +1,120 @@
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Roboto Condensed', sans-serif;
+  background-image: url('../../global/images/fundo_estrada.png');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+#tela-login {
+  width: 100%;
+  max-width: 440px;
+  padding: 48px 44px;
+  border-radius: 8px;
+  background-color: rgba(30, 33, 36, 0.92);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  color: white;
+}
+
+#tela-login h2 {
+  margin: 0 0 28px;
+  text-align: center;
+  font-weight: 500;
+  font-size: 30px;
+}
+
+.input-group {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.input-group input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 42px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background-color: #2a2d31;
+  color: white;
+  font-size: 15px;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: #888;
+}
+
+.input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  cursor: pointer;
+}
+
+.btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 4px;
+  background-color: #33373c;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background-color: #45494f;
+}
+
+.mensagem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.mensagem.erro {
+  background-color: rgba(220, 53, 69, 0.15);
+  color: #ff8a94;
+  border: 1px solid rgba(220, 53, 69, 0.4);
+}
+
+.mensagem.aviso {
+  background-color: rgba(255, 193, 7, 0.15);
+  color: #ffd970;
+  border: 1px solid rgba(255, 193, 7, 0.4);
+}
+
+.mensagem.info {
+  background-color: rgba(13, 202, 240, 0.15);
+  color: #7ce0f5;
+  border: 1px solid rgba(13, 202, 240, 0.4);
+}
+
+.mensagem.sucesso {
+  background-color: rgba(25, 135, 84, 0.15);
+  color: #7ce8ac;
+  border: 1px solid rgba(25, 135, 84, 0.4);
+}

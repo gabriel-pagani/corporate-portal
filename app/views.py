@@ -1,14 +1,61 @@
 from app.models import Contact
+from app.forms import LoginForm
 from app.utils.dashboards.access import get_user_dashboards
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse, Http404
+from django.urls import reverse
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.views.decorators.http import require_POST
 
 
 @login_required
 def home_view(request):
     return render(request, 'app/home.html')
+
+
+def login_view(request):
+    form = LoginForm()
+    return render(request, 'app/login.html', {
+        'form': form,
+        'form_action': reverse('app:login-done')
+    })
+
+
+def login_done(request):
+    if not request.POST:
+        raise Http404()
+
+    form = LoginForm(request.POST)
+
+    if form.is_valid():
+        username = form.cleaned_data.get('username', '')
+        password = form.cleaned_data.get('password', '')
+
+        user = authenticate(
+            username=username,
+            password=password,
+        )
+
+        if user is not None:
+            login(request, user)
+            return redirect(reverse('app:home'))
+        else:
+            messages.error(request, 'Dados inválidos!')
+    else:
+        messages.error(request, 'Preencha todos os campos!')
+
+    return render(request, 'app/login.html', {
+        'form': form,
+        'form_action': reverse('app:login-done')
+    })
+
+
+def logout_view(request):
+    logout(request)
+    messages.success(request, 'Você se desconectou com sucesso!')
+    return redirect('app:login')
 
 
 def contacts_view(request):

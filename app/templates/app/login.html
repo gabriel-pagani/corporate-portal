@@ -1,0 +1,59 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Login{% endblock title %}
+
+{% block head %}
+<link href="{% static 'app/css/auth.css' %}" rel="stylesheet">
+<script src="{% static 'app/js/auth.js' %}" defer></script>
+{% endblock head %}
+
+{% block body %}
+<div class="container" id="tela-login">
+  <h2>Bem Vindo!</h2>
+  {% if messages %}
+    {% for message in messages %}
+      {% if 'error' in message.tags %}
+        <div class="mensagem erro">
+          <i class="fas fa-circle-xmark"></i>
+          <span>{{ message }}</span>
+        </div>
+      {% endif %}
+      {% if 'warning' in message.tags %}
+        <div class="mensagem aviso">
+          <i class="fas fa-circle-exclamation"></i>
+          <span>{{ message }}</span>
+        </div>
+      {% endif %}
+      {% if 'info' in message.tags %}
+        <div class="mensagem info">
+          <i class="fas fa-circle-info"></i>
+          <span>{{ message }}</span>
+        </div>
+      {% endif %}
+      {% if 'success' in message.tags %}
+        <div class="mensagem sucesso">
+          <i class="fas fa-circle-check"></i>
+          <span>{{ message }}</span>
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" action="{{ form_action }}" novalidate>
+    {% csrf_token %}
+    <div class="input-group">
+      <i class="fas fa-user input-icon"></i>
+      <input type="text" name="username" placeholder="Usuário" id="usuario" value="{{ form.username.value|default_if_none:'' }}" />
+    </div>
+
+    <div class="input-group">
+      <i class="fas fa-lock input-icon"></i>
+      <input type="password" name="password" placeholder="Senha" id="senha" />
+      <i class="fas fa-eye toggle-password" data-target="senha" title="Mostrar/Ocultar senha"></i>
+    </div>
+
+    <button type="submit" class="btn">Entrar</button>
+  </form>
+</div>
+{% endblock body %}
