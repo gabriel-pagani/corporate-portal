@@ -40,8 +40,9 @@
     {% endfor %}
   {% endif %}
 
-  <form method="post" action="{{ form_action }}" novalidate>
+  <form method="post" action="{% url 'app:login' %}" novalidate>
     {% csrf_token %}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
     <div class="input-group">
       <i class="fas fa-user input-icon"></i>
       <input type="text" name="username" placeholder="Usuário" id="usuario" value="{{ form.username.value|default_if_none:'' }}" />
