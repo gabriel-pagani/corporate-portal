@@ -61,7 +61,7 @@ class Dashboard(models.Model):
     class Meta:
         verbose_name = 'Dashboard'
         verbose_name_plural = 'Dashboards'
-        ordering = ['sector', 'title']
+        ordering = ['title']
         permissions = [
             ("view_all_dashboards", "Can view all Dashboards"),
         ]
