@@ -62,8 +62,8 @@ def register_customer_vendor(cnpj: str, ie: str, type_: str) -> dict:
         return {
             'cnpj': formatted_cnpj,
             'status': 'skipped',
-            'codcfo': existing[0][0],
             'message': f'O {label} {formatted_cnpj} já está cadastrado! CODCFO: {existing[0][0]}',
+            'codcfo': existing[0][0],
         }
 
     codes = execute_query(NEXT_CODE_QUERY)
@@ -108,8 +108,8 @@ def register_customer_vendor(cnpj: str, ie: str, type_: str) -> dict:
     return {
         'cnpj': formatted_cnpj,
         'status': 'created',
-        'codcfo': codcfo,
         'message': f'Sucesso ao cadastrar o {label} {formatted_cnpj}! CODCFO: {codcfo}',
+        'codcfo': codcfo,
     }
 
 
