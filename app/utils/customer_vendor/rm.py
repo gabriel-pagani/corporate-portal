@@ -3,7 +3,7 @@ from requests.auth import HTTPBasicAuth
 from django.conf import settings
 
 
-CUSTOMER_VENDOR_PATH = '/api/framework/v1/customerVendor'
+CUSTOMER_VENDOR_PATH = '/api/fin/v1/CustomerVendor'
 
 
 def create_new_customer_vendor(
