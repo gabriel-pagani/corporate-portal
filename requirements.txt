@@ -8,6 +8,8 @@ psycopg2==2.9.12
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 PyJWT==2.13.0
+pyodbc==5.2.0
 python-ldap==3.4.7
+requests==2.32.3
 sqlparse==0.5.5
 tzdata==2026.3
