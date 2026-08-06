@@ -1,12 +1,16 @@
+import json
 from app.models import Contact
 from app.forms import LoginForm
 from app.utils.dashboards.access import get_user_dashboards
+from app.utils.customer_vendor.auth import api_token_required
+from app.utils.customer_vendor.registration import register_customers_vendors
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -167,3 +171,32 @@ def favorite_dashboard(request, dashboard_id):
         is_favorite = True
 
     return JsonResponse({'status': 'success', 'is_favorite': is_favorite})
+
+
+@csrf_exempt
+@require_POST
+@api_token_required
+def customers_vendors_api(request):
+    try:
+        payload = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    entries = payload.get('customers_vendors') if isinstance(payload, dict) else payload
+
+    if not isinstance(entries, list):
+        return JsonResponse(
+            {'detail': 'Body vazio.'},
+            status=400,
+        )
+
+    if not entries:
+        return JsonResponse({'detail': 'Body vazio.'}, status=400)
+
+    data = register_customers_vendors(entries)
+
+    status = 207 if data['summary']['errors'] and data['summary']['errors'] < data['summary']['total'] else (
+        400 if data['summary']['errors'] == data['summary']['total'] else 200
+    )
+
+    return JsonResponse(data, status=status)

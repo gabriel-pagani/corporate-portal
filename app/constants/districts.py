@@ -1,0 +1,22 @@
+district_types = {
+    "BAIRRO": "1",
+    "BOSQUE": "2",
+    "CHACARA": "3",
+    "CONJUNTO": "4",
+    "DESMEMB.": "5",
+    "DISTRITO": "6",
+    "FAVELA": "7",
+    "FAZENDA": "8",
+    "GLEBA": "9",
+    "HORTO": "10",
+    "JARDIM": "11",
+    "LOTEAMENTO": "12",
+    "NUCLEO": "13",
+    "PARQUE": "14",
+    "RESIDENC.": "15",
+    "SITIO": "16",
+    "TROPICAL": "17",
+    "VILA": "18",
+    "ZONA": "19",
+    # Adicionar mais conforme necessário
+}
