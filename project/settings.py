@@ -129,6 +129,33 @@ METABASE_SITE_URL = os.getenv('METABASE_SITE_URL')
 
 METABASE_SECRET_KEY = os.getenv('METABASE_SECRET_KEY')
 
+QIVE_API_ID = os.getenv('QIVE_API_ID')
+
+QIVE_API_KEY = os.getenv('QIVE_API_KEY')
+
+SQLSERVER_DRIVER = os.getenv('SQLSERVER_DRIVER', 'FreeTDS')
+
+SQLSERVER_HOST = os.getenv('SQLSERVER_HOST')
+
+SQLSERVER_PORT = os.getenv('SQLSERVER_PORT', '1433')
+
+SQLSERVER_TDS_VERSION = os.getenv('SQLSERVER_TDS_VERSION', '7.4')
+
+SQLSERVER_DB = os.getenv('SQLSERVER_DB')
+
+SQLSERVER_USER = os.getenv('SQLSERVER_USER')
+
+SQLSERVER_PASSWORD = os.getenv('SQLSERVER_PASSWORD')
+
+RM_USER = os.getenv('RM_USER')
+
+RM_PASSWORD = os.getenv('RM_PASSWORD')
+
+RM_API_ROOT_URL = os.getenv('RM_API_ROOT_URL')
+
+# API de cadastro de clientes/fornecedores
+API_TOKEN = os.getenv('API_TOKEN')
+
 # Auth LDAP
 from django_auth_ldap.config import LDAPSearch, ActiveDirectoryGroupType
 from ldap import SCOPE_SUBTREE
