@@ -63,8 +63,8 @@ DATABASES = {
         'NAME': os.getenv('POSTGRES_DB'),
         'USER': os.getenv('POSTGRES_USER'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
-        'HOST': 'database',
-        'PORT': '5432',
+        'HOST': os.getenv('POSTGRES_HOST', 'postgres'),
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
     }
 }
 
@@ -118,6 +118,10 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media_root'
 
 AUTH_USER_MODEL = 'app.User'
+
+SESSION_COOKIE_AGE = 60 * 60 * 24
+
+SESSION_SAVE_EVERY_REQUEST = True
 
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
