@@ -1,30 +1,29 @@
 build-system:
-	@cd deploy/ && docker compose up -d --build
+	@docker compose -f deploy/docker-compose.yml up -d --build
 
 start-system:
-	@cd deploy/ && docker compose up -d
+	@docker compose -f deploy/docker-compose.yml up -d
 
 stop-system:
-	@cd deploy/ && docker compose down
+	@docker compose -f deploy/docker-compose.yml down
 
 restart-system:
-	@cd deploy/ && docker compose down && docker compose up -d
+	@docker compose -f deploy/docker-compose.yml down && docker compose -f deploy/docker-compose.yml up -d
 
 reset-system:
-	@cd deploy/ && docker compose down -v && rm -rf ../database/ certbot/ && docker compose up -d --build
+	@docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
 
 clean-system:
-	@cd deploy/ && docker compose down -v && docker system prune -a --volumes --force && cd .. && sudo rm -rf database/ deploy/certbot/
+	@docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
 
 create-superuser:
-	@cd deploy/ && \
-	docker compose exec app python manage.py shell -c "from app.models import User; User.objects.filter(username='admin').exists() or User.objects.create_superuser(username='admin', password='1234')"
+	@docker compose -f deploy/docker-compose.yml exec app python manage.py createsuperuser
 
 container-terminal:
-	@cd deploy/ && docker compose exec $(container) sh
+	@docker compose -f deploy/docker-compose.yml exec $(container) sh
 
 containers-logs:
-	@cd deploy/ && docker compose logs -f $(container)
+	@docker compose -f deploy/docker-compose.yml logs -f $(container)
 
 django-shell:
-	@cd deploy/ && docker compose exec app python manage.py shell
+	@docker compose -f deploy/docker-compose.yml exec app python manage.py shell
