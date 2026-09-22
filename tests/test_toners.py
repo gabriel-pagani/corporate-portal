@@ -2,7 +2,7 @@ import json
 import pytest
 from django.contrib.auth.models import Permission
 from django.urls import reverse
-from app.models import User, Toner, TonerMovement
+from app.models import User, Toner, TonerLocation, TonerMovement
 
 
 def make_user(*codenames):
@@ -13,6 +13,11 @@ def make_user(*codenames):
 
 def post_json(client, url, data):
     return client.post(url, data=json.dumps(data), content_type='application/json')
+
+
+@pytest.fixture
+def location(db):
+    return TonerLocation.objects.create(name='Almoxarifado')
 
 
 @pytest.fixture
@@ -49,14 +54,14 @@ def test_is_low_uses_minimum_quantity():
 
 
 @pytest.mark.django_db
-def test_create_records_initial_stock_as_movement(client, operator):
+def test_create_records_initial_stock_as_movement(client, operator, location):
     response = post_json(client, reverse('app:toners-api'), {
-        'name': 'CF411A', 'location': 'Recepção', 'quantity': 5, 'minimum_quantity': 2,
+        'name': 'CF411A', 'location': location.id, 'quantity': 5, 'minimum_quantity': 2,
     })
     assert response.status_code == 201
 
     toner = Toner.objects.get()
-    assert (toner.quantity, toner.minimum_quantity) == (5, 2)
+    assert (toner.quantity, toner.minimum_quantity, toner.location) == (5, 2, location)
     movement = toner.movements.get()
     assert (movement.type, movement.quantity, movement.user) == (TonerMovement.ENTRY, 5, operator)
 
@@ -78,16 +83,16 @@ def test_create_rejects_duplicated_name(client, operator):
 
 
 @pytest.mark.django_db
-def test_update_does_not_change_quantity(client, operator):
+def test_update_does_not_change_quantity(client, operator, location):
     toner = Toner.objects.create(name='CF412A', quantity=4)
     response = post_json(client, reverse('app:toner-api', args=[toner.id]), {
-        'name': 'CF412A', 'location': 'Obras', 'minimum_quantity': 5, 'quantity': 99,
+        'name': 'CF412A', 'location': location.id, 'minimum_quantity': 5, 'quantity': 99,
     })
     assert response.status_code == 200
     assert response.json()['toner']['is_low'] is True
 
     toner.refresh_from_db()
-    assert (toner.quantity, toner.minimum_quantity, toner.location) == (4, 5, 'Obras')
+    assert (toner.quantity, toner.minimum_quantity, toner.location) == (4, 5, location)
 
 
 @pytest.mark.django_db
@@ -105,18 +110,18 @@ def test_name_changes_while_toner_has_no_movements(client, operator):
 
 
 @pytest.mark.django_db
-def test_name_is_frozen_once_toner_has_movements(client, operator):
+def test_name_is_frozen_once_toner_has_movements(client, operator, location):
     toner = Toner.objects.create(name='CF412A', quantity=4)
     TonerMovement.objects.create(toner=toner, type=TonerMovement.EXIT, quantity=1)
     assert client.get(reverse('app:toners-api')).json()['toners'][0]['can_rename'] is False
 
     response = post_json(client, reverse('app:toner-api', args=[toner.id]), {
-        'name': 'OUTRO', 'location': 'Obras', 'minimum_quantity': 1,
+        'name': 'OUTRO', 'location': location.id, 'minimum_quantity': 1,
     })
     assert response.status_code == 200
 
     toner.refresh_from_db()
-    assert (toner.name, toner.location) == ('CF412A', 'Obras')
+    assert (toner.name, toner.location) == ('CF412A', location)
 
 
 @pytest.mark.django_db

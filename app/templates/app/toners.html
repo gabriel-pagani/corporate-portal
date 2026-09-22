@@ -37,7 +37,12 @@
                     </div>
                     <div class="field">
                         <label for="add-location">Impressora/Setor</label>
-                        <input id="add-location" name="location" type="text" maxlength="100" placeholder="Ex: Recepção" list="locations">
+                        <select id="add-location" name="location">
+                            <option value="">Sem local</option>
+                            {% for location in locations %}
+                            <option value="{{ location.id }}">{{ location.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="field">
                         <label for="add-observations">Observação (fornecedor, código...)</label>
@@ -87,11 +92,11 @@
                 <div id="empty-message" class="empty" hidden></div>
             </section>
 
-            <datalist id="locations"></datalist>
         </div>
 
         {{ toners|json_script:"toners-data" }}
         {{ permissions|json_script:"permissions-data" }}
+        {{ locations|json_script:"locations-data" }}
         <script>
             const CSRF_TOKEN = '{{ csrf_token }}';
             const TONERS_API_URL = '{% url "app:toners-api" %}';

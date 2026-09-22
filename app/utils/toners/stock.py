@@ -6,7 +6,7 @@ from app.models import Toner, TonerMovement
 
 def toners_queryset():
     # A anotação evita uma consulta por linha ao montar a lista
-    return Toner.objects.annotate(
+    return Toner.objects.select_related('location').annotate(
         has_movements=Exists(TonerMovement.objects.filter(toner=OuterRef('pk')))
     )
 
@@ -21,7 +21,8 @@ def serialize_toner(toner):
     return {
         'id': toner.id,
         'name': toner.name,
-        'location': toner.location,
+        'location': toner.location.name if toner.location else '',
+        'location_id': toner.location_id,
         'observations': toner.observations,
         'quantity': toner.quantity,
         'minimum_quantity': toner.minimum_quantity,

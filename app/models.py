@@ -130,6 +130,18 @@ class Contact(models.Model):
         verbose_name_plural = 'Contatos'
 
 
+class TonerLocation(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name='Impressora / Setor')
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Local de Toner'
+        verbose_name_plural = 'Locais de Toner'
+
+
 class Toner(models.Model):
     name = models.CharField(
         max_length=100,
@@ -137,7 +149,13 @@ class Toner(models.Model):
         error_messages={'unique': 'Já existe um toner cadastrado com este nome.'},
         verbose_name='Modelo'
     )
-    location = models.CharField(max_length=100, blank=True, verbose_name='Impressora / Setor')
+    location = models.ForeignKey(
+        TonerLocation,
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        verbose_name='Impressora / Setor'
+    )
     observations = models.CharField(max_length=255, blank=True, verbose_name='Observação')
     quantity = models.PositiveIntegerField(default=0, verbose_name='Quantidade')
     minimum_quantity = models.PositiveIntegerField(
@@ -159,7 +177,7 @@ class Toner(models.Model):
         return f'{self.name} ({self.location})' if self.location else self.name
 
     class Meta:
-        ordering = ['location', 'name']
+        ordering = ['location__name', 'name']
         verbose_name = 'Toner'
         verbose_name_plural = 'Toners'
 

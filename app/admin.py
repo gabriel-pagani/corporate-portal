@@ -3,7 +3,9 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerMovement
+from .models import (
+    User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
+)
 
 
 # Users Admin
@@ -92,12 +94,19 @@ class TonerMovementInline(admin.TabularInline):
         return False
 
 
+@admin.register(TonerLocation)
+class TonerLocationAdmin(VersionAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
 @admin.register(Toner)
 class TonerAdmin(VersionAdmin):
     list_display = ('name', 'location', 'observations', 'quantity', 'minimum_quantity', 'is_stock_ok',)
-    search_fields = ('name', 'location', 'observations',)
+    search_fields = ('name', 'location__name', 'observations',)
     list_filter = ('location',)
     readonly_fields = ('quantity', 'updated_at',)
+    autocomplete_fields = ('location',)
     inlines = (TonerMovementInline,)
 
     def get_readonly_fields(self, request, obj=None):
@@ -110,7 +119,7 @@ class TonerAdmin(VersionAdmin):
 @admin.register(TonerMovement)
 class TonerMovementAdmin(admin.ModelAdmin):
     list_display = ('created_at', 'toner', 'type', 'quantity', 'reason', 'user',)
-    search_fields = ('toner__name', 'toner__location', 'reason', 'user__username',)
+    search_fields = ('toner__name', 'toner__location__name', 'reason', 'user__username',)
     list_filter = ('type', 'toner__location',)
     date_hierarchy = 'created_at'
 

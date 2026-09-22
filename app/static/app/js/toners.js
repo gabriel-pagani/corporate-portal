@@ -2,6 +2,7 @@ const INTERVALO_ATUALIZACAO = 15000;
 
 let listaToners = [];
 let permissoes = {};
+let locais = [];
 let editandoId = null;
 let movimentandoId = null;
 let historicoId = null;
@@ -93,11 +94,13 @@ function renderizarAlerta() {
     ).join('');
 }
 
-function renderizarLocais() {
-    const locais = [...new Set(listaToners.map((toner) => toner.location).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    document.getElementById('locations').innerHTML = locais
-        .map((local) => `<option value="${escaparHtml(local)}"></option>`).join('');
+// Os locais são cadastrados apenas pelo portal de administração
+function opcoesDeLocal(idSelecionado) {
+    return [
+        `<option value=""${idSelecionado ? '' : ' selected'}>Sem local</option>`,
+        ...locais.map((local) => `
+            <option value="${local.id}"${local.id === idSelecionado ? ' selected' : ''}>${escaparHtml(local.name)}</option>`),
+    ].join('');
 }
 
 function badgeStatus(toner) {
@@ -132,7 +135,7 @@ function linhaEdicao(toner) {
             <td>${toner.can_rename
                 ? `<input class="edit-input" id="edit-name" type="text" maxlength="100" value="${escaparHtml(toner.name)}">`
                 : `<span title="O nome não muda mais porque o toner já tem movimentação">${escaparHtml(toner.name)}</span>`}</td>
-            <td><input class="edit-input" id="edit-location" type="text" maxlength="100" list="locations" value="${escaparHtml(toner.location)}"></td>
+            <td><select class="edit-input" id="edit-location">${opcoesDeLocal(toner.location_id)}</select></td>
             <td><input class="edit-input" id="edit-observations" type="text" maxlength="255" value="${escaparHtml(toner.observations)}"></td>
             <td><span class="quantity-value" title="A quantidade muda apenas por entradas e saídas">${toner.quantity}</span></td>
             <td><input class="edit-input small" id="edit-minimum" type="number" min="0" value="${toner.minimum_quantity}"></td>
@@ -212,7 +215,6 @@ function linhaHistorico(toner) {
 
 function renderizar() {
     renderizarAlerta();
-    renderizarLocais();
 
     const toners = tonersFiltrados();
     const corpoTabela = document.querySelector('#toners-table tbody');
@@ -318,7 +320,7 @@ async function executarAcao(acao, id) {
             }
             const dados = await requisitar(urlToner(id), 'POST', {
                 ...(campoNome ? { name: campoNome.value.trim() } : {}),
-                location: document.getElementById('edit-location').value.trim(),
+                location: document.getElementById('edit-location').value,
                 observations: document.getElementById('edit-observations').value.trim(),
                 minimum_quantity: document.getElementById('edit-minimum').value,
             });
@@ -446,6 +448,7 @@ function exportarPdf() {
 document.addEventListener('DOMContentLoaded', () => {
     listaToners = JSON.parse(document.getElementById('toners-data').textContent);
     permissoes = JSON.parse(document.getElementById('permissions-data').textContent);
+    locais = JSON.parse(document.getElementById('locations-data').textContent);
 
     document.querySelector('#toners-table tbody').addEventListener('click', aoClicarNaTabela);
     document.getElementById('search-input').addEventListener('input', renderizar);

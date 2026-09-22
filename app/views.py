@@ -1,6 +1,6 @@
 import json
 from functools import wraps
-from app.models import Contact, Toner, TonerMovement
+from app.models import Contact, Toner, TonerLocation, TonerMovement
 from app.forms import LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
@@ -244,6 +244,7 @@ def toners_view(request):
 
     return render(request, 'app/toners.html', {
         'toners': toners,
+        'locations': list(TonerLocation.objects.values('id', 'name')),
         'permissions': {
             'add': user.has_perm('app.add_toner'),
             'change': user.has_perm('app.change_toner'),
