@@ -100,6 +100,12 @@ class TonerAdmin(VersionAdmin):
     readonly_fields = ('quantity', 'updated_at',)
     inlines = (TonerMovementInline,)
 
+    def get_readonly_fields(self, request, obj=None):
+        # O nome identifica o toner no histórico, então é definido apenas no cadastro
+        if obj:
+            return self.readonly_fields + ('name',)
+        return self.readonly_fields
+
 
 @admin.register(TonerMovement)
 class TonerMovementAdmin(admin.ModelAdmin):

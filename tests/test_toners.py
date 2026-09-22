@@ -69,16 +69,16 @@ def test_create_requires_name(client, operator):
 
 
 @pytest.mark.django_db
-def test_update_does_not_change_quantity(client, operator):
+def test_update_does_not_change_name_or_quantity(client, operator):
     toner = Toner.objects.create(name='CF412A', quantity=4)
     response = post_json(client, reverse('app:toner-api', args=[toner.id]), {
-        'name': 'CF412A', 'location': 'Obras', 'minimum_quantity': 5, 'quantity': 99,
+        'name': 'OUTRO', 'location': 'Obras', 'minimum_quantity': 5, 'quantity': 99,
     })
     assert response.status_code == 200
     assert response.json()['toner']['is_low'] is True
 
     toner.refresh_from_db()
-    assert (toner.quantity, toner.minimum_quantity, toner.location) == (4, 5, 'Obras')
+    assert (toner.name, toner.quantity, toner.minimum_quantity, toner.location) == ('CF412A', 4, 5, 'Obras')
 
 
 @pytest.mark.django_db

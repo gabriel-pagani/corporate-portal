@@ -129,7 +129,7 @@ function linhaVisualizacao(toner) {
 function linhaEdicao(toner) {
     return `
         <tr class="${toner.is_low ? 'low' : ''}">
-            <td><input class="edit-input" id="edit-name" type="text" maxlength="100" value="${escaparHtml(toner.name)}"></td>
+            <td title="O nome não pode ser alterado depois do cadastro">${escaparHtml(toner.name)}</td>
             <td><input class="edit-input" id="edit-location" type="text" maxlength="100" list="locations" value="${escaparHtml(toner.location)}"></td>
             <td><input class="edit-input" id="edit-observations" type="text" maxlength="255" value="${escaparHtml(toner.observations)}"></td>
             <td><span class="quantity-value" title="A quantidade muda apenas por entradas e saídas">${toner.quantity}</span></td>
@@ -301,21 +301,14 @@ async function executarAcao(acao, id) {
             movimentandoId = null;
             historicoId = null;
             renderizar();
-            document.getElementById('edit-name').focus();
+            document.getElementById('edit-location').focus();
             return;
         case 'cancelar':
             editandoId = null;
             movimentandoId = null;
             break;
         case 'salvar': {
-            const campoNome = document.getElementById('edit-name');
-            if (!campoNome.value.trim()) {
-                campoNome.classList.add('invalid');
-                campoNome.focus();
-                return;
-            }
             const dados = await requisitar(urlToner(id), 'POST', {
-                name: campoNome.value.trim(),
                 location: document.getElementById('edit-location').value.trim(),
                 observations: document.getElementById('edit-observations').value.trim(),
                 minimum_quantity: document.getElementById('edit-minimum').value,
@@ -410,8 +403,8 @@ function exportarExcel() {
     const planilha = XLSX.utils.aoa_to_sheet([CABECALHO_EXPORTACAO, ...linhasExportacao()]);
     planilha['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
     const pasta = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(pasta, planilha, 'Estoque de Toner');
-    XLSX.writeFile(pasta, `estoque-toner-${dataArquivo()}.xlsx`);
+    XLSX.utils.book_append_sheet(pasta, planilha, 'Estoque de Toners');
+    XLSX.writeFile(pasta, `estoque-toners-${dataArquivo()}.xlsx`);
 }
 
 function exportarPdf() {
@@ -419,7 +412,7 @@ function exportarPdf() {
     const documento = new jsPDF();
 
     documento.setFontSize(14);
-    documento.text('Controle de Estoque de Toner', 14, 16);
+    documento.text('Controle de Estoque de Toners', 14, 16);
     documento.setFontSize(9);
     documento.setTextColor(120);
     documento.text('Gerado em ' + new Date().toLocaleDateString('pt-BR'), 14, 22);
@@ -438,7 +431,7 @@ function exportarPdf() {
         },
     });
 
-    documento.save(`estoque-toner-${dataArquivo()}.pdf`);
+    documento.save(`estoque-toners-${dataArquivo()}.pdf`);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

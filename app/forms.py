@@ -15,6 +15,13 @@ class TonerForm(forms.ModelForm):
         fields = ['name', 'location', 'observations', 'minimum_quantity']
 
 
+# O nome identifica o toner no histórico, então é definido apenas no cadastro
+class TonerUpdateForm(forms.ModelForm):
+    class Meta:
+        model = Toner
+        fields = ['location', 'observations', 'minimum_quantity']
+
+
 class TonerMovementForm(forms.ModelForm):
     quantity = forms.IntegerField(min_value=1)
 

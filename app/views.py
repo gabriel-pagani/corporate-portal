@@ -1,7 +1,7 @@
 import json
 from functools import wraps
 from app.models import Contact, Toner, TonerMovement
-from app.forms import LoginForm, TonerForm, TonerMovementForm
+from app.forms import LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors
@@ -305,7 +305,7 @@ def toner_update(request, toner_id):
     if payload is None:
         return JsonResponse({'detail': 'JSON inválido.'}, status=400)
 
-    form = TonerForm(payload, instance=toner)
+    form = TonerUpdateForm(payload, instance=toner)
     if not form.is_valid():
         return form_errors_response(form)
 
