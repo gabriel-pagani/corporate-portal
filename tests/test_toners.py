@@ -69,6 +69,15 @@ def test_create_requires_name(client, operator):
 
 
 @pytest.mark.django_db
+def test_create_rejects_duplicated_name(client, operator):
+    Toner.objects.create(name='CF411A', quantity=1)
+    response = post_json(client, reverse('app:toners-api'), {'name': 'CF411A', 'minimum_quantity': 1})
+    assert response.status_code == 400
+    assert response.json()['detail'] == 'Já existe um toner cadastrado com este nome.'
+    assert Toner.objects.count() == 1
+
+
+@pytest.mark.django_db
 def test_update_does_not_change_name_or_quantity(client, operator):
     toner = Toner.objects.create(name='CF412A', quantity=4)
     response = post_json(client, reverse('app:toner-api', args=[toner.id]), {

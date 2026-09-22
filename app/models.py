@@ -131,7 +131,12 @@ class Contact(models.Model):
 
 
 class Toner(models.Model):
-    name = models.CharField(max_length=100, verbose_name='Modelo')
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        error_messages={'unique': 'Já existe um toner cadastrado com este nome.'},
+        verbose_name='Modelo'
+    )
     location = models.CharField(max_length=100, blank=True, verbose_name='Impressora / Setor')
     observations = models.CharField(max_length=255, blank=True, verbose_name='Observação')
     quantity = models.PositiveIntegerField(default=0, verbose_name='Quantidade')
