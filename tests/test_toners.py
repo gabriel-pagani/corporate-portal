@@ -78,16 +78,45 @@ def test_create_rejects_duplicated_name(client, operator):
 
 
 @pytest.mark.django_db
-def test_update_does_not_change_name_or_quantity(client, operator):
+def test_update_does_not_change_quantity(client, operator):
     toner = Toner.objects.create(name='CF412A', quantity=4)
     response = post_json(client, reverse('app:toner-api', args=[toner.id]), {
-        'name': 'OUTRO', 'location': 'Obras', 'minimum_quantity': 5, 'quantity': 99,
+        'name': 'CF412A', 'location': 'Obras', 'minimum_quantity': 5, 'quantity': 99,
     })
     assert response.status_code == 200
     assert response.json()['toner']['is_low'] is True
 
     toner.refresh_from_db()
-    assert (toner.name, toner.quantity, toner.minimum_quantity, toner.location) == ('CF412A', 4, 5, 'Obras')
+    assert (toner.quantity, toner.minimum_quantity, toner.location) == (4, 5, 'Obras')
+
+
+@pytest.mark.django_db
+def test_name_changes_while_toner_has_no_movements(client, operator):
+    toner = Toner.objects.create(name='CF412A', quantity=4)
+    assert client.get(reverse('app:toners-api')).json()['toners'][0]['can_rename'] is True
+
+    response = post_json(client, reverse('app:toner-api', args=[toner.id]), {
+        'name': 'CF412B', 'minimum_quantity': 1,
+    })
+    assert response.status_code == 200
+
+    toner.refresh_from_db()
+    assert toner.name == 'CF412B'
+
+
+@pytest.mark.django_db
+def test_name_is_frozen_once_toner_has_movements(client, operator):
+    toner = Toner.objects.create(name='CF412A', quantity=4)
+    TonerMovement.objects.create(toner=toner, type=TonerMovement.EXIT, quantity=1)
+    assert client.get(reverse('app:toners-api')).json()['toners'][0]['can_rename'] is False
+
+    response = post_json(client, reverse('app:toner-api', args=[toner.id]), {
+        'name': 'OUTRO', 'location': 'Obras', 'minimum_quantity': 1,
+    })
+    assert response.status_code == 200
+
+    toner.refresh_from_db()
+    assert (toner.name, toner.location) == ('CF412A', 'Obras')
 
 
 @pytest.mark.django_db

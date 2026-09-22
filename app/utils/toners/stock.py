@@ -1,6 +1,20 @@
 from django.db import transaction
+from django.db.models import Exists, OuterRef
 from django.core.exceptions import ValidationError
 from app.models import Toner, TonerMovement
+
+
+def toners_queryset():
+    # A anotação evita uma consulta por linha ao montar a lista
+    return Toner.objects.annotate(
+        has_movements=Exists(TonerMovement.objects.filter(toner=OuterRef('pk')))
+    )
+
+
+def has_movements(toner):
+    if not hasattr(toner, 'has_movements'):
+        return toner.movements.exists()
+    return toner.has_movements
 
 
 def serialize_toner(toner):
@@ -12,6 +26,8 @@ def serialize_toner(toner):
         'quantity': toner.quantity,
         'minimum_quantity': toner.minimum_quantity,
         'is_low': toner.is_low,
+        # O nome deixa de ser editável assim que o toner tem histórico
+        'can_rename': not has_movements(toner),
     }
 
 

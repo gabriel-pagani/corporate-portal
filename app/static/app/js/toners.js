@@ -129,7 +129,9 @@ function linhaVisualizacao(toner) {
 function linhaEdicao(toner) {
     return `
         <tr class="${toner.is_low ? 'low' : ''}">
-            <td title="O nome não pode ser alterado depois do cadastro">${escaparHtml(toner.name)}</td>
+            <td>${toner.can_rename
+                ? `<input class="edit-input" id="edit-name" type="text" maxlength="100" value="${escaparHtml(toner.name)}">`
+                : `<span title="O nome não muda mais porque o toner já tem movimentação">${escaparHtml(toner.name)}</span>`}</td>
             <td><input class="edit-input" id="edit-location" type="text" maxlength="100" list="locations" value="${escaparHtml(toner.location)}"></td>
             <td><input class="edit-input" id="edit-observations" type="text" maxlength="255" value="${escaparHtml(toner.observations)}"></td>
             <td><span class="quantity-value" title="A quantidade muda apenas por entradas e saídas">${toner.quantity}</span></td>
@@ -301,14 +303,21 @@ async function executarAcao(acao, id) {
             movimentandoId = null;
             historicoId = null;
             renderizar();
-            document.getElementById('edit-location').focus();
+            document.getElementById(toner.can_rename ? 'edit-name' : 'edit-location').focus();
             return;
         case 'cancelar':
             editandoId = null;
             movimentandoId = null;
             break;
         case 'salvar': {
+            const campoNome = document.getElementById('edit-name');
+            if (campoNome && !campoNome.value.trim()) {
+                campoNome.classList.add('invalid');
+                campoNome.focus();
+                return;
+            }
             const dados = await requisitar(urlToner(id), 'POST', {
+                ...(campoNome ? { name: campoNome.value.trim() } : {}),
                 location: document.getElementById('edit-location').value.trim(),
                 observations: document.getElementById('edit-observations').value.trim(),
                 minimum_quantity: document.getElementById('edit-minimum').value,

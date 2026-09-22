@@ -101,8 +101,8 @@ class TonerAdmin(VersionAdmin):
     inlines = (TonerMovementInline,)
 
     def get_readonly_fields(self, request, obj=None):
-        # O nome identifica o toner no histórico, então é definido apenas no cadastro
-        if obj:
+        # O nome identifica o toner no histórico, então só muda enquanto não houver movimentação
+        if obj and obj.movements.exists():
             return self.readonly_fields + ('name',)
         return self.readonly_fields
 

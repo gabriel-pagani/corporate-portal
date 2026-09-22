@@ -5,7 +5,9 @@ from app.forms import LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors
-from app.utils.toners.stock import serialize_toner, serialize_movement, register_movement
+from app.utils.toners.stock import (
+    serialize_toner, serialize_movement, register_movement, toners_queryset, has_movements,
+)
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse
@@ -238,7 +240,7 @@ def form_errors_response(form):
 @permission_required('app.view_toner', raise_exception=True)
 def toners_view(request):
     user = request.user
-    toners = [serialize_toner(toner) for toner in Toner.objects.all()]
+    toners = [serialize_toner(toner) for toner in toners_queryset()]
 
     return render(request, 'app/toners.html', {
         'toners': toners,
@@ -260,7 +262,7 @@ def toners_api(request):
 
 @json_permission_required('app.view_toner')
 def toners_list(request):
-    return JsonResponse({'toners': [serialize_toner(toner) for toner in Toner.objects.all()]})
+    return JsonResponse({'toners': [serialize_toner(toner) for toner in toners_queryset()]})
 
 
 @json_permission_required('app.add_toner')
@@ -300,12 +302,14 @@ def toner_api(request, toner_id):
 
 @json_permission_required('app.change_toner')
 def toner_update(request, toner_id):
-    toner = get_object_or_404(Toner, id=toner_id)
+    toner = get_object_or_404(toners_queryset(), id=toner_id)
     payload = parse_json_body(request)
     if payload is None:
         return JsonResponse({'detail': 'JSON inválido.'}, status=400)
 
-    form = TonerUpdateForm(payload, instance=toner)
+    # O nome identifica o toner no histórico, então só muda enquanto não houver movimentação
+    form_class = TonerUpdateForm if has_movements(toner) else TonerForm
+    form = form_class(payload, instance=toner)
     if not form.is_valid():
         return form_errors_response(form)
 
