@@ -1,0 +1,103 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Controle de Toners{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div id="content" class="container">
+            <div class="header">
+                <a href="{% url "app:home" %}">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
+                </a>
+                <div class="header-text">
+                    <h1>Controle de Toners</h1>
+                </div>
+            </div>
+
+            <div id="alert-low" class="alert" hidden>
+                <strong><i class="fas fa-triangle-exclamation"></i> Estoque baixo</strong>
+                <ul id="alert-low-list"></ul>
+            </div>
+
+            <div id="alert-error" class="alert" hidden>
+                <strong><i class="fas fa-circle-xmark"></i> <span id="alert-error-text"></span></strong>
+            </div>
+
+            {% if permissions.add %}
+            <section class="card">
+                <h2>Adicionar toner</h2>
+                <form id="add-form" class="form-grid" autocomplete="off">
+                    <div class="field">
+                        <label for="add-name">Modelo/Toner</label>
+                        <input id="add-name" name="name" type="text" maxlength="100" placeholder="Ex: HP CF283A" required>
+                    </div>
+                    <div class="field">
+                        <label for="add-location">Impressora/Setor</label>
+                        <input id="add-location" name="location" type="text" maxlength="100" placeholder="Ex: Recepção" list="locations">
+                    </div>
+                    <div class="field">
+                        <label for="add-observations">Observação (fornecedor, código...)</label>
+                        <input id="add-observations" name="observations" type="text" maxlength="255" placeholder="Ex: Fornecedor XPTO">
+                    </div>
+                    <div class="field field-small">
+                        <label for="add-quantity">Quantidade</label>
+                        <input id="add-quantity" name="quantity" type="number" min="0" value="0" required>
+                    </div>
+                    <div class="field field-small">
+                        <label for="add-minimum">Mínimo</label>
+                        <input id="add-minimum" name="minimum_quantity" type="number" min="0" value="1" required>
+                    </div>
+                    <button type="submit" class="button primary">Adicionar</button>
+                </form>
+            </section>
+            {% endif %}
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Toners em estoque</h2>
+                    <div class="toolbar">
+                        <label class="checkbox">
+                            <input type="checkbox" id="only-low"> Apenas toners com estoque baixo
+                        </label>
+                        <input type="search" id="search-input" placeholder="Pesquise aqui...">
+                        <button type="button" class="button" id="export-excel"><i class="fas fa-file-excel"></i> Excel</button>
+                        <button type="button" class="button" id="export-pdf"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="toners-table">
+                        <thead>
+                            <tr>
+                                <th>Toner</th>
+                                <th>Local</th>
+                                <th>Observação</th>
+                                <th>Quantidade</th>
+                                <th>Mínimo</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="empty-message" class="empty" hidden></div>
+            </section>
+
+            <datalist id="locations"></datalist>
+        </div>
+
+        {{ toners|json_script:"toners-data" }}
+        {{ permissions|json_script:"permissions-data" }}
+        <script>
+            const CSRF_TOKEN = '{{ csrf_token }}';
+            const TONERS_API_URL = '{% url "app:toners-api" %}';
+        </script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+        <script src="{% static 'app/js/toners.js' %}"></script>
+{% endblock body %}

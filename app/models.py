@@ -128,3 +128,62 @@ class Contact(models.Model):
         ordering = ['name']
         verbose_name = 'Contato'
         verbose_name_plural = 'Contatos'
+
+
+class Toner(models.Model):
+    name = models.CharField(max_length=100, verbose_name='Modelo')
+    location = models.CharField(max_length=100, blank=True, verbose_name='Impressora / Setor')
+    observations = models.CharField(max_length=255, blank=True, verbose_name='Observação')
+    quantity = models.PositiveIntegerField(default=0, verbose_name='Quantidade')
+    minimum_quantity = models.PositiveIntegerField(
+        default=1,
+        verbose_name='Quantidade Mínima',
+        help_text='Quando a quantidade chegar a este valor o toner é sinalizado para compra.',
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
+
+    @property
+    def is_low(self):
+        return self.quantity <= self.minimum_quantity
+
+    @admin.display(boolean=True, description='Estoque OK')
+    def is_stock_ok(self):
+        return not self.is_low
+
+    def __str__(self):
+        return f'{self.name} ({self.location})' if self.location else self.name
+
+    class Meta:
+        ordering = ['location', 'name']
+        verbose_name = 'Toner'
+        verbose_name_plural = 'Toners'
+
+
+class TonerMovement(models.Model):
+    ENTRY = 'E'
+    EXIT = 'S'
+    TYPES = [
+        (ENTRY, 'Entrada'),
+        (EXIT, 'Saída'),
+    ]
+
+    toner = models.ForeignKey(Toner, on_delete=models.CASCADE, related_name='movements', verbose_name='Toner')
+    type = models.CharField(max_length=1, choices=TYPES, verbose_name='Tipo')
+    quantity = models.PositiveIntegerField(verbose_name='Quantidade')
+    reason = models.CharField(max_length=255, blank=True, verbose_name='Motivo')
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='Usuário'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data')
+
+    def __str__(self):
+        return f'{self.get_type_display()} de {self.quantity} - {self.toner}'
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Movimentação de Toner'
+        verbose_name_plural = 'Movimentações de Toner'

@@ -1,17 +1,21 @@
 import json
-from app.models import Contact
-from app.forms import LoginForm
+from functools import wraps
+from app.models import Contact, Toner, TonerMovement
+from app.forms import LoginForm, TonerForm, TonerMovementForm
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors
+from app.utils.toners.stock import serialize_toner, serialize_movement, register_movement
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.utils.http import url_has_allowed_host_and_scheme
 
 
@@ -200,3 +204,156 @@ def customers_vendors_api(request):
     )
 
     return JsonResponse(data, status=status)
+
+
+def json_permission_required(perm):
+    # Equivalente ao permission_required, mas respondendo JSON para as chamadas da API
+    def decorator(view):
+        @wraps(view)
+        def wrapper(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
+            if not request.user.has_perm(perm):
+                return JsonResponse({'detail': 'Você não tem permissão para esta ação.'}, status=403)
+            return view(request, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def parse_json_body(request):
+    try:
+        payload = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def form_errors_response(form):
+    errors = {field: [str(error) for error in field_errors] for field, field_errors in form.errors.items()}
+    first_error = next(iter(errors.values()))[0]
+    return JsonResponse({'detail': first_error, 'errors': errors}, status=400)
+
+
+@login_required
+@permission_required('app.view_toner', raise_exception=True)
+def toners_view(request):
+    user = request.user
+    toners = [serialize_toner(toner) for toner in Toner.objects.all()]
+
+    return render(request, 'app/toners.html', {
+        'toners': toners,
+        'permissions': {
+            'add': user.has_perm('app.add_toner'),
+            'change': user.has_perm('app.change_toner'),
+            'delete': user.has_perm('app.delete_toner'),
+            'move': user.has_perm('app.add_tonermovement'),
+        },
+    })
+
+
+@require_http_methods(['GET', 'POST'])
+def toners_api(request):
+    if request.method == 'GET':
+        return toners_list(request)
+    return toner_create(request)
+
+
+@json_permission_required('app.view_toner')
+def toners_list(request):
+    return JsonResponse({'toners': [serialize_toner(toner) for toner in Toner.objects.all()]})
+
+
+@json_permission_required('app.add_toner')
+def toner_create(request):
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = TonerForm(payload)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    try:
+        initial_quantity = int(payload.get('quantity') or 0)
+    except (TypeError, ValueError):
+        initial_quantity = -1
+    if initial_quantity < 0:
+        return JsonResponse({'detail': 'Informe uma quantidade válida.'}, status=400)
+
+    with transaction.atomic():
+        toner = form.save()
+        # O estoque inicial entra como movimentação para o histórico ficar consistente
+        if initial_quantity:
+            toner, _ = register_movement(
+                toner.id, TonerMovement.ENTRY, initial_quantity, 'Estoque inicial', request.user,
+            )
+
+    return JsonResponse({'toner': serialize_toner(toner)}, status=201)
+
+
+@require_http_methods(['POST', 'DELETE'])
+def toner_api(request, toner_id):
+    if request.method == 'DELETE':
+        return toner_delete(request, toner_id)
+    return toner_update(request, toner_id)
+
+
+@json_permission_required('app.change_toner')
+def toner_update(request, toner_id):
+    toner = get_object_or_404(Toner, id=toner_id)
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = TonerForm(payload, instance=toner)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    toner = form.save()
+    return JsonResponse({'toner': serialize_toner(toner)})
+
+
+@json_permission_required('app.delete_toner')
+def toner_delete(request, toner_id):
+    toner = get_object_or_404(Toner, id=toner_id)
+    toner.delete()
+    return JsonResponse({'status': 'success'})
+
+
+@require_http_methods(['GET', 'POST'])
+def toner_movements_api(request, toner_id):
+    if request.method == 'GET':
+        return toner_movements_list(request, toner_id)
+    return toner_movement_create(request, toner_id)
+
+
+@json_permission_required('app.view_toner')
+def toner_movements_list(request, toner_id):
+    toner = get_object_or_404(Toner, id=toner_id)
+    movements = toner.movements.select_related('user')
+    return JsonResponse({'movements': [serialize_movement(movement) for movement in movements]})
+
+
+@json_permission_required('app.add_tonermovement')
+def toner_movement_create(request, toner_id):
+    get_object_or_404(Toner, id=toner_id)
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = TonerMovementForm(payload)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    try:
+        toner, movement = register_movement(
+            toner_id,
+            form.cleaned_data['type'],
+            form.cleaned_data['quantity'],
+            form.cleaned_data['reason'],
+            request.user,
+        )
+    except ValidationError as error:
+        return JsonResponse({'detail': error.messages[0]}, status=400)
+
+    return JsonResponse({'toner': serialize_toner(toner), 'movement': serialize_movement(movement)}, status=201)

@@ -3,7 +3,7 @@ from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup
-from .models import User, Group, Sector, Dashboard, GroupDashboards, Contact
+from .models import User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerMovement
 
 
 # Users Admin
@@ -78,3 +78,38 @@ class DashboardAdmin(VersionAdmin):
     list_filter = ('status', 'sector',)
     ordering = ('title',)
     autocomplete_fields = ('sector',)
+
+
+# A quantidade só muda por movimentação, para o histórico sempre fechar com o estoque
+class TonerMovementInline(admin.TabularInline):
+    model = TonerMovement
+    extra = 0
+    can_delete = False
+    fields = ('created_at', 'type', 'quantity', 'reason', 'user',)
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Toner)
+class TonerAdmin(VersionAdmin):
+    list_display = ('name', 'location', 'observations', 'quantity', 'minimum_quantity', 'is_stock_ok',)
+    search_fields = ('name', 'location', 'observations',)
+    list_filter = ('location',)
+    readonly_fields = ('quantity', 'updated_at',)
+    inlines = (TonerMovementInline,)
+
+
+@admin.register(TonerMovement)
+class TonerMovementAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'toner', 'type', 'quantity', 'reason', 'user',)
+    search_fields = ('toner__name', 'toner__location', 'reason', 'user__username',)
+    list_filter = ('type', 'toner__location',)
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
