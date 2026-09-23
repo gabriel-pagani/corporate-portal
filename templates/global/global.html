@@ -17,11 +17,14 @@
   <body>
     {% block body %}{% endblock %}
     {% if request.user.is_authenticated %}
+    {% block notifications %}
     <div class="notifications" id="notifications" aria-live="polite"
       data-api-url="{% url 'app:notifications-api' %}"
+      data-board-url="{% url 'app:notifications' %}"
       data-csrf-token="{{ csrf_token }}"
     ></div>
     <script src="{% static 'global/js/notifications.js' %}"></script>
+    {% endblock notifications %}
     {% endif %}
   </body>
 </html>

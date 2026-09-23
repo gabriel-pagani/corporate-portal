@@ -28,6 +28,10 @@
                     <i class="fas fa-chart-pie"></i>
                     <span class="text">Central de Dashboards</span>
                 </a>
+                <a href="{% url "app:notifications" %}" title="Acessar mural de notificações">
+                    <i class="fas fa-bullhorn"></i>
+                    <span class="text">Mural de Notificações</span>
+                </a>
                 {% if perms.app.view_toner %}
                 <a href="{% url "app:toners" %}" title="Acessar controle de toners">
                     <i class="fas fa-print"></i>

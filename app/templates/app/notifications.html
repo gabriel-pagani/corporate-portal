@@ -1,0 +1,51 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Mural de Notificações{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'app/css/notifications.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div id="content" class="container">
+            <div class="header">
+                <a href="{% url "app:home" %}">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
+                </a>
+                <div class="header-text">
+                    <h1>Mural de Notificações</h1>
+                </div>
+            </div>
+
+            <div id="alert-error" class="alert" hidden>
+                <strong><i class="fas fa-circle-xmark"></i> <span id="alert-error-text"></span></strong>
+            </div>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Notificações <span id="unread-count" class="badge unread" hidden></span></h2>
+                    <div class="toolbar">
+                        <label class="checkbox">
+                            <input type="checkbox" id="only-unread"> Apenas não lidas
+                        </label>
+                        <input type="search" id="search-input" placeholder="Pesquise aqui...">
+                        <button type="button" class="button" id="read-all"><i class="fas fa-check-double"></i> Marcar todas como lidas</button>
+                    </div>
+                </div>
+                <div id="board" class="board"></div>
+                <div id="empty-message" class="empty" hidden></div>
+            </section>
+        </div>
+
+        {{ notifications|json_script:"notifications-data" }}
+        <script>
+            const CSRF_TOKEN = '{{ csrf_token }}';
+            const NOTIFICATIONS_API_URL = '{% url "app:notifications-api" %}';
+            const READ_ALL_API_URL = '{% url "app:notifications-read-all-api" %}';
+        </script>
+        <script src="{% static 'app/js/notifications.js' %}"></script>
+{% endblock body %}
+
+{# O mural já mostra tudo, então os alertas flutuantes ficam desligados aqui #}
+{% block notifications %}{% endblock notifications %}

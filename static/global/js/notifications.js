@@ -58,7 +58,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = document.createElement('div');
         data.className = 'notification-date';
-        data.textContent = notificacao.start_at;
+        data.textContent = `${notificacao.start_at} · `;
+
+        const linkMural = document.createElement('a');
+        linkMural.href = container.dataset.boardUrl;
+        linkMural.textContent = 'Ver mural';
+        data.appendChild(linkMural);
 
         const fechar = document.createElement('button');
         fechar.type = 'button';

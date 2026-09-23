@@ -89,3 +89,66 @@ def test_pages_include_notifications_only_when_logged_in(client, user):
 
     client.logout()
     assert b'id="notifications"' not in client.get(reverse('app:login')).content
+
+
+@pytest.mark.django_db
+def test_board_requires_login(client):
+    response = client.get(reverse('app:notifications'))
+    assert response.status_code == 302
+    assert reverse('app:login') in response.url
+
+
+@pytest.mark.django_db
+def test_board_lists_read_and_unread_without_floating_alerts(client, user, other_user):
+    read = Notification.objects.create(title='Lida', message='-')
+    read.read_by.add(user)
+    unread = Notification.objects.create(title='Não lida', message='-')
+    private = Notification.objects.create(title='De outro', message='-')
+    private.users.add(other_user)
+
+    response = client.get(reverse('app:notifications'))
+    assert response.status_code == 200
+    board = {n['id']: n['is_read'] for n in response.context['notifications']}
+    assert board == {read.id: True, unread.id: False}
+    assert b'id="notifications"' not in response.content
+
+
+@pytest.mark.django_db
+def test_api_all_includes_read_notifications(client, user):
+    read = Notification.objects.create(title='Lida', message='-')
+    read.read_by.add(user)
+    unread = Notification.objects.create(title='Não lida', message='-')
+
+    assert unread_ids(client) == [unread.id]
+    response = client.get(reverse('app:notifications-api'), {'all': 1})
+    assert sorted(n['id'] for n in response.json()['notifications']) == sorted([read.id, unread.id])
+
+
+@pytest.mark.django_db
+def test_mark_as_read_twice_is_harmless(client, user):
+    notification = Notification.objects.create(title='Aviso', message='-')
+    url = reverse('app:notification-read-api', args=[notification.id])
+
+    assert client.post(url).status_code == 200
+    assert client.post(url).status_code == 200
+    assert notification.read_by.count() == 1
+
+
+@pytest.mark.django_db
+def test_read_all_marks_only_what_the_user_receives(client, user, other_user):
+    first = Notification.objects.create(title='Primeira', message='-')
+    second = Notification.objects.create(title='Segunda', message='-')
+    second.users.add(user)
+    private = Notification.objects.create(title='De outro', message='-')
+    private.users.add(other_user)
+
+    response = client.post(reverse('app:notifications-read-all-api'))
+    assert response.status_code == 200
+    assert unread_ids(client) == []
+    assert set(user.read_notifications.all()) == {first, second}
+    assert not private.read_by.exists()
+
+
+@pytest.mark.django_db
+def test_read_all_rejects_anonymous(client):
+    assert client.post(reverse('app:notifications-read-all-api')).status_code == 401

@@ -8,7 +8,9 @@ from app.utils.customer_vendor.registration import register_customers_vendors
 from app.utils.toners.stock import (
     serialize_toner, serialize_movement, register_movement, toners_queryset, has_movements,
 )
-from app.utils.notifications.delivery import unread_notifications, serialize_notification
+from app.utils.notifications.delivery import (
+    visible_notifications, unread_notifications, serialize_notification,
+)
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse
@@ -209,13 +211,22 @@ def customers_vendors_api(request):
     return JsonResponse(data, status=status)
 
 
+def json_login_required(view):
+    # Equivalente ao login_required, mas respondendo JSON para as chamadas da API
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
 def json_permission_required(perm):
     # Equivalente ao permission_required, mas respondendo JSON para as chamadas da API
     def decorator(view):
         @wraps(view)
+        @json_login_required
         def wrapper(request, *args, **kwargs):
-            if not request.user.is_authenticated:
-                return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
             if not request.user.has_perm(perm):
                 return JsonResponse({'detail': 'Você não tem permissão para esta ação.'}, status=403)
             return view(request, *args, **kwargs)
@@ -365,21 +376,36 @@ def toner_movement_create(request, toner_id):
     return JsonResponse({'toner': serialize_toner(toner), 'movement': serialize_movement(movement)}, status=201)
 
 
-@require_http_methods(['GET'])
-def notifications_api(request):
-    if not request.user.is_authenticated:
-        return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
+@login_required
+def notifications_view(request):
+    notifications = [serialize_notification(n) for n in visible_notifications(request.user)]
+    return render(request, 'app/notifications.html', {
+        'notifications': notifications,
+    })
 
-    notifications = unread_notifications(request.user)
+
+@require_http_methods(['GET'])
+@json_login_required
+def notifications_api(request):
+    # Os alertas pedem só as não lidas; o mural pede todas com ?all=1
+    if request.GET.get('all'):
+        notifications = visible_notifications(request.user)
+    else:
+        notifications = unread_notifications(request.user)
     return JsonResponse({'notifications': [serialize_notification(n) for n in notifications]})
 
 
 @require_POST
+@json_login_required
 def notification_read_api(request, notification_id):
-    if not request.user.is_authenticated:
-        return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
-
     # Só marca como lida o que realmente foi entregue a este usuário
-    notification = get_object_or_404(unread_notifications(request.user), id=notification_id)
+    notification = get_object_or_404(visible_notifications(request.user), id=notification_id)
     notification.read_by.add(request.user)
+    return JsonResponse({'status': 'success'})
+
+
+@require_POST
+@json_login_required
+def notifications_read_all_api(request):
+    request.user.read_notifications.add(*unread_notifications(request.user))
     return JsonResponse({'status': 'success'})

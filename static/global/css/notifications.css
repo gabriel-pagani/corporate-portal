@@ -61,6 +61,15 @@
   color: #666;
 }
 
+.notification-date a {
+  color: #666;
+  text-decoration: underline;
+}
+
+.notification-date a:hover {
+  color: #000;
+}
+
 .notification-close {
   align-self: flex-start;
   padding: 2px 4px;

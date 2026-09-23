@@ -244,7 +244,7 @@ class Notification(models.Model):
         blank=True,
         null=True,
         verbose_name='Exibir até',
-        help_text='Deixe em branco para exibir até o usuário marcar como lida.',
+        help_text='Depois desta data a notificação sai do mural e deixa de aparecer como alerta. Deixe em branco para mantê-la no mural.',
     )
     is_active = models.BooleanField(default=True, verbose_name='Ativa')
     read_by = models.ManyToManyField(
