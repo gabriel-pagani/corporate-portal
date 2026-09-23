@@ -8,6 +8,7 @@ from app.utils.customer_vendor.registration import register_customers_vendors
 from app.utils.toners.stock import (
     serialize_toner, serialize_movement, register_movement, toners_queryset, has_movements,
 )
+from app.utils.notifications.delivery import unread_notifications, serialize_notification
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse
@@ -362,3 +363,23 @@ def toner_movement_create(request, toner_id):
         return JsonResponse({'detail': error.messages[0]}, status=400)
 
     return JsonResponse({'toner': serialize_toner(toner), 'movement': serialize_movement(movement)}, status=201)
+
+
+@require_http_methods(['GET'])
+def notifications_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
+
+    notifications = unread_notifications(request.user)
+    return JsonResponse({'notifications': [serialize_notification(n) for n in notifications]})
+
+
+@require_POST
+def notification_read_api(request, notification_id):
+    if not request.user.is_authenticated:
+        return JsonResponse({'detail': 'Sessão expirada, faça login novamente.'}, status=401)
+
+    # Só marca como lida o que realmente foi entregue a este usuário
+    notification = get_object_or_404(unread_notifications(request.user), id=notification_id)
+    notification.read_by.add(request.user)
+    return JsonResponse({'status': 'success'})

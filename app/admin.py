@@ -5,6 +5,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as 
 from django.contrib.auth.models import Group as BaseGroup
 from .models import (
     User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
+    Notification,
 )
 
 
@@ -128,3 +129,44 @@ class TonerMovementAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(Notification)
+class NotificationAdmin(VersionAdmin):
+    list_display = ('title', 'level', 'get_recipients', 'start_at', 'end_at', 'is_active', 'get_read_count',)
+    search_fields = ('title', 'message',)
+    list_filter = ('level', 'is_active',)
+    date_hierarchy = 'start_at'
+    filter_horizontal = ('users', 'groups',)
+    readonly_fields = ('get_read_by', 'created_at',)
+    fieldsets = (
+        (None, {
+            'fields': ('title', 'message', 'level', 'is_active',)
+        }),
+        ('Destinatários', {
+            'fields': ('users', 'groups',)
+        }),
+        ('Período de exibição', {
+            'fields': ('start_at', 'end_at',)
+        }),
+        ('Leitura', {
+            'fields': ('get_read_by', 'created_at',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('users', 'groups', 'read_by')
+
+    @admin.display(description='Destinatários')
+    def get_recipients(self, obj):
+        recipients = [user.username for user in obj.users.all()] + [group.name for group in obj.groups.all()]
+        return ', '.join(recipients) or 'Todos'
+
+    @admin.display(description='Lida Por')
+    def get_read_count(self, obj):
+        return len(obj.read_by.all())
+
+    @admin.display(description='Lida Por')
+    def get_read_by(self, obj):
+        users = [user.get_full_name() or user.username for user in obj.read_by.all()]
+        return ', '.join(sorted(users)) or '-'

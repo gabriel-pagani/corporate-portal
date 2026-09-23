@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
 from django.urls import reverse
+from django.utils import timezone
 from .validators import valid_url
 from .utils.dashboards.metabase import generate_metabase_dashboard_url
 
@@ -210,3 +211,58 @@ class TonerMovement(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Movimentação de Toner'
         verbose_name_plural = 'Movimentações de Toner'
+
+
+class Notification(models.Model):
+    INFO = 'I'
+    WARNING = 'A'
+    URGENT = 'U'
+    LEVELS = [
+        (INFO, 'Informação'),
+        (WARNING, 'Aviso'),
+        (URGENT, 'Urgente'),
+    ]
+
+    title = models.CharField(max_length=150, verbose_name='Título')
+    message = models.TextField(verbose_name='Mensagem')
+    level = models.CharField(max_length=1, choices=LEVELS, default=INFO, verbose_name='Nível')
+    users = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name='notifications',
+        verbose_name='Usuários',
+        help_text='Deixe usuários e grupos em branco para enviar a todos.',
+    )
+    groups = models.ManyToManyField(
+        BaseGroup,
+        blank=True,
+        related_name='notifications',
+        verbose_name='Grupos',
+    )
+    start_at = models.DateTimeField(default=timezone.now, verbose_name='Exibir a partir de')
+    end_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Exibir até',
+        help_text='Deixe em branco para exibir até o usuário marcar como lida.',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Ativa')
+    read_by = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name='read_notifications',
+        verbose_name='Lida Por',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
+
+    def clean(self):
+        if self.end_at and self.start_at and self.end_at <= self.start_at:
+            raise ValidationError({'end_at': 'A data final deve ser posterior à data inicial.'})
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        ordering = ['-start_at']
+        verbose_name = 'Notificação'
+        verbose_name_plural = 'Notificações'

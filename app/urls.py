@@ -3,7 +3,7 @@ from django.views.generic import RedirectView
 from app.views import (
     home_view, contacts_view, dashboards_view, dashboard_view, favorite_dashboard,
     login_view, logout_view, customers_vendors_api, toners_view, toners_api, toner_api,
-    toner_movements_api,
+    toner_movements_api, notifications_api, notification_read_api,
 )
 
 app_name = 'app'
@@ -23,6 +23,8 @@ urlpatterns = [
     path('api/toners/', toners_api, name='toners-api'),
     path('api/toners/<int:toner_id>/', toner_api, name='toner-api'),
     path('api/toners/<int:toner_id>/movements/', toner_movements_api, name='toner-movements-api'),
+    path('api/notifications/', notifications_api, name='notifications-api'),
+    path('api/notifications/<int:notification_id>/read/', notification_read_api, name='notification-read-api'),
 
     # Redirects
     path('ramais/', RedirectView.as_view(pattern_name='app:contacts', permanent=True)),
