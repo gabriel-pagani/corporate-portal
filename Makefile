@@ -1,29 +1,37 @@
+MAKEFLAGS += --no-print-directory
+
+COMPOSE = docker compose -f deploy/docker-compose.yml
+
 build-system:
-	@docker compose -f deploy/docker-compose.yml up -d --build
+	@$(COMPOSE) up -d --build
 
 start-system:
-	@docker compose -f deploy/docker-compose.yml up -d
+	@$(COMPOSE) up -d
 
 stop-system:
-	@docker compose -f deploy/docker-compose.yml down
+	@$(COMPOSE) down
 
 restart-system:
-	@docker compose -f deploy/docker-compose.yml down && docker compose -f deploy/docker-compose.yml up -d
+	@$(COMPOSE) down && $(COMPOSE) up -d
 
-reset-system:
-	@docker compose -f deploy/docker-compose.yml down -v && docker compose -f deploy/docker-compose.yml up -d --build
+backup-database:
+	@mkdir -p -m 700 backups
+	@umask 077; FILE="backups/portal-$$(date +%Y%m%d-%H%M%S).sql"; \
+	$(COMPOSE) exec -T postgres sh -c 'pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" --no-owner --no-privileges' > "$$FILE.tmp" \
+		&& mv "$$FILE.tmp" "$$FILE" || { rm -f "$$FILE.tmp"; exit 1; }
 
-clean-system:
-	@docker compose -f deploy/docker-compose.yml down -v && docker system prune -a --volumes --force
+restore-database:
+	@test -n "$(file)" || { echo "use: make restore-database file=backups/portal-....sql" >&2; exit 1; }
+	@$(COMPOSE) exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < "$(file)"
 
 create-superuser:
-	@docker compose -f deploy/docker-compose.yml exec app python manage.py createsuperuser
-
-container-terminal:
-	@docker compose -f deploy/docker-compose.yml exec $(container) sh
-
-containers-logs:
-	@docker compose -f deploy/docker-compose.yml logs -f $(container)
+	@$(COMPOSE) exec django python manage.py createsuperuser
 
 django-shell:
-	@docker compose -f deploy/docker-compose.yml exec app python manage.py shell
+	@$(COMPOSE) exec django python manage.py shell
+
+container-terminal:
+	@$(COMPOSE) exec $(container) sh
+
+containers-logs:
+	@$(COMPOSE) logs -f $(container)
