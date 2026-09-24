@@ -16,8 +16,8 @@ body {
 }
 
 .container {
-  width: 90%;
-  max-width: 1200px;
+  width: 95%;
+  max-width: 1300px;
   background-color: #fff;
   border-radius: 8px;
   padding: 25px;
@@ -28,12 +28,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 25px;
-}
-
-.header img {
-  width: 160px;
-  height: auto;
+  gap: 25px;
+  margin-bottom: 20px;
 }
 
 .header-text {
@@ -45,14 +41,12 @@ body {
 .logo {
   width: 130px;
   height: auto;
-  margin-left: 20px;
   cursor: pointer;
 }
 
 h1 {
   font-size: 34px;
   color: #333;
-  margin-bottom: 10px;
 }
 
 .search-container {
@@ -172,4 +166,12 @@ tbody tr:hover {
 .pagination-ellipsis {
   padding: 8px 4px;
   color: #666;
+}
+
+@media (max-width: 600px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 }
