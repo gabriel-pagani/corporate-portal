@@ -65,6 +65,8 @@ static_root
 # Postgres data volume
 /database
 
+/temp
+
 # Database backups
 /backups
 

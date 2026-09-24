@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y build-essential gcc python3-dev libpq-d
 RUN pip install --upgrade pip && pip install --prefix=/install -r requirements.txt
 
 # STAGE 2
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm AS production
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -22,6 +22,12 @@ RUN apt-get update && apt-get install -y libpq5 libsasl2-2 libldap-2.5-0 unixodb
 
 COPY --from=builder /install /usr/local
 
+RUN groupadd --gid 1000 django && useradd --uid 1000 --gid django --create-home django
+
 COPY ../ .
+
+RUN mkdir -p /app/static_root && chown django:django /app/static_root
+
+USER django
 
 EXPOSE 8000

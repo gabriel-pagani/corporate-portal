@@ -22,6 +22,7 @@ services:
     build:
       context: ../
       dockerfile: deploy/Dockerfile
+      target: production
     image: intranet-django
     expose:
       - "8000"
