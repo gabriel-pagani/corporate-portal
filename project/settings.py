@@ -88,8 +88,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'django_auth_ldap.backend.LDAPBackend',
 ]
+
+# O LDAP entra na fila só quando há servidor configurado: sem endereço, o
+# backend levanta exceção em vez de recusar a senha, e a tela de login
+# responderia 500 no lugar de "Dados inválidos!".
+if os.getenv('AUTH_LDAP_SERVER_URI'):
+    AUTHENTICATION_BACKENDS.append('django_auth_ldap.backend.LDAPBackend')
 
 LANGUAGE_CODE = 'pt-br'
 
