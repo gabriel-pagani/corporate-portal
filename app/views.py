@@ -1,8 +1,8 @@
 import json
 from functools import wraps
-from app.models import Contact, Toner, TonerLocation, TonerMovement
+from app.models import Contact, Sector, Toner, TonerLocation, TonerMovement, User
 from app.forms import (
-    LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm, ContactForm, NotificationForm,
+    LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm, ContactForm,
 )
 from app.utils import throttle
 from app.utils.dashboards.access import get_user_dashboards
@@ -96,6 +96,7 @@ def logout_view(request):
 
 def contacts_view(request):
     can_add = request.user.has_perm('app.add_contact')
+    can_change = request.user.has_perm('app.change_contact')
     form = None
     if request.method == 'POST':
         if not can_add:
@@ -109,19 +110,34 @@ def contacts_view(request):
         form = ContactForm()
 
     contacts = [
-        {
-            'name': contact.get_display_name(),
-            'number': contact.number or '',
-            'sector': contact.sector.name if contact.sector else '',
-            'machine': contact.machine or '',
-        }
+        serialize_contact(contact)
         for contact in Contact.objects.select_related('sector', 'user').all()
     ]
 
     return render(request, 'app/contacts.html', {
         'contacts': contacts,
         'contact_form': form,
+        'sectors': list(Sector.objects.values('id', 'name')),
+        'users': [
+            {'id': user.id, 'name': user.get_full_name() or user.username}
+            for user in User.objects.order_by('username')
+        ] if can_change else [],
+        'can_change_contact': can_change,
+        'can_delete_contact': request.user.has_perm('app.delete_contact'),
     })
+
+
+def serialize_contact(contact):
+    return {
+        'id': contact.id,
+        'user_id': contact.user_id,
+        'name': contact.get_display_name(),
+        'custom_name': contact.name,
+        'number': contact.number or '',
+        'sector_id': contact.sector_id,
+        'sector': contact.sector.name if contact.sector else '',
+        'machine': contact.machine or '',
+    }
 
 
 @login_required
@@ -283,6 +299,35 @@ def form_errors_response(form):
     return JsonResponse({'detail': first_error, 'errors': errors}, status=400)
 
 
+@require_http_methods(['POST', 'DELETE'])
+def contact_update_api(request, contact_id):
+    if request.method == 'DELETE':
+        return contact_delete(request, contact_id)
+    return contact_update(request, contact_id)
+
+
+@json_permission_required('app.change_contact')
+def contact_update(request, contact_id):
+    contact = get_object_or_404(Contact.objects.select_related('sector', 'user'), id=contact_id)
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = ContactForm(payload, instance=contact)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    contact = form.save()
+    return JsonResponse({'contact': serialize_contact(contact)})
+
+
+@json_permission_required('app.delete_contact')
+def contact_delete(request, contact_id):
+    contact = get_object_or_404(Contact, id=contact_id)
+    contact.delete()
+    return JsonResponse({'status': 'success'})
+
+
 @login_required
 @permission_required('app.view_toner', raise_exception=True)
 def toners_view(request):
@@ -412,24 +457,11 @@ def toner_movement_create(request, toner_id):
 
 
 @login_required
+@require_http_methods(['GET'])
 def notifications_view(request):
-    can_add = request.user.has_perm('app.add_notification')
-    form = None
-    if request.method == 'POST':
-        if not can_add:
-            raise PermissionDenied
-        form = NotificationForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Notificação cadastrada com sucesso.')
-            return redirect('app:notifications')
-    elif can_add:
-        form = NotificationForm()
-
     notifications = [serialize_notification(n) for n in visible_notifications(request.user)]
     return render(request, 'app/notifications.html', {
         'notifications': notifications,
-        'notification_form': form,
     })
 
 

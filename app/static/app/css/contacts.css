@@ -5,13 +5,14 @@
 body {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   min-height: 100vh;
   padding: 20px;
   background-image: url('../../global/images/fundo_estrada.png');
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 .container {
@@ -78,11 +79,38 @@ table {
 
 th,
 td {
-  width: 25%;
   padding: 12px;
   text-align: left;
   font-size: 16px;
   color: #000000;
+}
+
+.alert {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border: 1px solid #f09595;
+  border-radius: 8px;
+  color: #a32d2d;
+  background: #fcebeb;
+}
+
+[hidden] { display: none !important; }
+
+td .edit-input {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+.contact-name-edit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 300px;
 }
 
 th {
@@ -103,27 +131,14 @@ tbody tr:hover {
   align-items: center;
 }
 
-.machine-cell {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.actions-heading {
+  width: 140px;
+  text-align: right;
 }
 
-.copy-button {
-  background: none;
-  border: none;
-  color: #333333;
-  cursor: pointer;
-  font-size: 14px;
-  margin-left: 8px;
-  padding: 4px;
-  border-radius: 3px;
-  transition: background-color 0.3s, color 0.3s;
-}
-
-.copy-button:active {
-  transform: scale(0.75);
-}
+.row-actions .button { width: 34px; padding: 0; }
+.row-actions .button.danger { color: #a32d2d; border-color: #f09595; }
+.row-actions .button.danger:hover { background: #fcebeb; }
 
 .pagination-container {
   display: flex;

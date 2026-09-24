@@ -1,6 +1,5 @@
 from django import forms
-from django.utils import timezone
-from app.models import Contact, Notification, Toner, TonerMovement
+from app.models import Contact, Toner, TonerMovement
 
 
 class LoginForm(forms.Form):
@@ -43,25 +42,3 @@ class ContactForm(forms.ModelForm):
         if not cleaned_data.get('number', '').strip():
             self.add_error('number', 'Informe o ramal.')
         return cleaned_data
-
-
-class NotificationForm(forms.ModelForm):
-    start_at = forms.DateTimeField(
-        label='Exibir a partir de',
-        input_formats=['%Y-%m-%dT%H:%M'],
-        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
-    )
-    end_at = forms.DateTimeField(
-        label='Exibir até', required=False,
-        input_formats=['%Y-%m-%dT%H:%M'],
-        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
-    )
-
-    class Meta:
-        model = Notification
-        fields = ['title', 'message', 'level', 'users', 'groups', 'start_at', 'end_at', 'is_active']
-
-    def __init__(self, *args, **kwargs):
-        if not args and 'initial' not in kwargs:
-            kwargs['initial'] = {'start_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M')}
-        super().__init__(*args, **kwargs)

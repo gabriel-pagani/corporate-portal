@@ -9,28 +9,33 @@
 {% endblock head %}
 
 {% block body %}
-        <div id="content" class="container" data-is-staff="{{ request.user.is_staff|yesno:'1,' }}">
+        <div id="content" class="container"
+            data-is-staff="{{ request.user.is_staff|yesno:'1,0' }}"
+            data-can-edit="{{ can_change_contact|yesno:'1,0' }}"
+            data-can-delete="{{ can_delete_contact|yesno:'1,0' }}"
+            data-csrf-token="{{ csrf_token }}"
+            data-update-url="{% url 'app:contact-update-api' 0 %}">
             <div class="header">
                 <a href="{% url "app:home" %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" id="logo-img" title="Voltar ao menu principal"/>
                 </a>
                 <div class="header-text">
                     <h1>Lista de Contatos</h1>
-                    <div class="search-container">
-                        <input type="text" id="search-input" placeholder="Pesquise aqui..."/>
-                    </div>
                 </div>
             </div>
             {% for message in messages %}
             <div class="form-message" role="status">{{ message }}</div>
             {% endfor %}
+            <div id="alert-error" class="alert" role="alert" hidden>
+                <span id="alert-error-text"></span>
+            </div>
             {% if contact_form %}
-            <details class="create-panel" {% if contact_form.errors %}open{% endif %}>
-                <summary>Cadastrar ramal</summary>
-                <form method="post" class="create-form">
+            <section class="card">
+                <h2>Cadastrar ramal</h2>
+                <form method="post" class="form-grid contact-grid">
                     {% csrf_token %}
                     {% for field in contact_form %}
-                    <div class="form-field">
+                    <div class="field">
                         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                         {{ field }}
                         {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
@@ -38,11 +43,17 @@
                     </div>
                     {% endfor %}
                     {% for error in contact_form.non_field_errors %}<p class="form-error">{{ error }}</p>{% endfor %}
-                    <button type="submit" class="save-button">Salvar ramal</button>
+                    <button type="submit" class="button primary">Adicionar</button>
                 </form>
-            </details>
+            </section>
             {% endif %}
-            <table id="lista-contatos">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Ramais cadastrados</h2>
+                    <input type="search" id="search-input" placeholder="Pesquise aqui..." aria-label="Pesquisar ramais">
+                </div>
+                <div class="table-wrapper">
+                <table id="lista-contatos">
                 <thead>
                     <tr>
                     <th><div class="header-cell">Nome</div></th>
@@ -51,12 +62,19 @@
                     {% if request.user.is_staff %}
                     <th><div class="header-cell">Máquina</div></th>
                     {% endif %}
+                    {% if can_change_contact or can_delete_contact or request.user.is_staff %}
+                    <th class="actions-heading" aria-label="Ações"></th>
+                    {% endif %}
                     </tr>
                 </thead>
             <tbody></tbody>
-            </table>
-            <div id="pagination" class="pagination-container"></div>
+                </table>
+                </div>
+                <div id="pagination" class="pagination-container"></div>
+            </section>
         </div>
         {{ contacts|json_script:"contacts-data" }}
+        {{ sectors|json_script:"sectors-data" }}
+        {{ users|json_script:"users-data" }}
         <script src="{% static 'app/js/contacts.js' %}"></script>
 {% endblock body %}
