@@ -5,6 +5,7 @@
 
 {% block head %}
         <link href="{% static 'app/css/notifications.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
 {% endblock head %}
 
 {% block body %}
@@ -21,6 +22,28 @@
                     <h1>Mural de Notificações</h1>
                 </div>
             </div>
+            {% for message in messages %}
+            <div class="form-message" role="status">{{ message }}</div>
+            {% endfor %}
+            {% if notification_form %}
+            <details class="create-panel" {% if notification_form.errors %}open{% endif %}>
+                <summary>Cadastrar notificação</summary>
+                <form method="post" class="create-form">
+                    {% csrf_token %}
+                    {% for field in notification_form %}
+                    <div class="form-field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                        {% for error in field.errors %}<small class="form-error">{{ error }}</small>{% endfor %}
+                    </div>
+                    {% endfor %}
+                    {% for error in notification_form.non_field_errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    <p class="form-hint">Deixe usuários e grupos em branco para enviar a todos.</p>
+                    <button type="submit" class="save-button">Salvar notificação</button>
+                </form>
+            </details>
+            {% endif %}
 
             <div id="alert-error" class="alert" hidden>
                 <strong><i class="fas fa-circle-xmark"></i> <span id="alert-error-text"></span></strong>

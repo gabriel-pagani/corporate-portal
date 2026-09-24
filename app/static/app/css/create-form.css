@@ -1,0 +1,61 @@
+.create-panel {
+  margin: 20px 0;
+  padding: 14px 18px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.create-panel summary {
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.create-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.form-field label { font-weight: 600; }
+.form-field input:not([type="checkbox"]),
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font: inherit;
+}
+.form-field textarea { min-height: 100px; }
+.form-field select[multiple] { min-height: 100px; }
+.form-field small, .form-hint { color: #555; }
+.form-field .form-error, .form-error { color: #a32d2d; }
+
+.save-button {
+  align-self: end;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  background: #24292e;
+  cursor: pointer;
+  font: inherit;
+}
+
+.form-message {
+  margin: 15px 0;
+  padding: 12px;
+  border-radius: 4px;
+  color: #155724;
+  background: #d4edda;
+}

@@ -5,6 +5,7 @@
 
 {% block head %}
         <link href="{% static 'app/css/contacts.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
 {% endblock head %}
 
 {% block body %}
@@ -20,6 +21,27 @@
                     </div>
                 </div>
             </div>
+            {% for message in messages %}
+            <div class="form-message" role="status">{{ message }}</div>
+            {% endfor %}
+            {% if contact_form %}
+            <details class="create-panel" {% if contact_form.errors %}open{% endif %}>
+                <summary>Cadastrar ramal</summary>
+                <form method="post" class="create-form">
+                    {% csrf_token %}
+                    {% for field in contact_form %}
+                    <div class="form-field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                        {% for error in field.errors %}<small class="form-error">{{ error }}</small>{% endfor %}
+                    </div>
+                    {% endfor %}
+                    {% for error in contact_form.non_field_errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    <button type="submit" class="save-button">Salvar ramal</button>
+                </form>
+            </details>
+            {% endif %}
             <table id="lista-contatos">
                 <thead>
                     <tr>

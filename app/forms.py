@@ -1,5 +1,6 @@
 from django import forms
-from app.models import Toner, TonerMovement
+from django.utils import timezone
+from app.models import Contact, Notification, Toner, TonerMovement
 
 
 class LoginForm(forms.Form):
@@ -28,3 +29,39 @@ class TonerMovementForm(forms.ModelForm):
     class Meta:
         model = TonerMovement
         fields = ['type', 'quantity', 'reason']
+
+
+class ContactForm(forms.ModelForm):
+    class Meta:
+        model = Contact
+        fields = ['user', 'name', 'number', 'sector', 'machine']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get('user') and not cleaned_data.get('name', '').strip():
+            self.add_error('name', 'Informe um nome ou selecione um usuário.')
+        if not cleaned_data.get('number', '').strip():
+            self.add_error('number', 'Informe o ramal.')
+        return cleaned_data
+
+
+class NotificationForm(forms.ModelForm):
+    start_at = forms.DateTimeField(
+        label='Exibir a partir de',
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+    )
+    end_at = forms.DateTimeField(
+        label='Exibir até', required=False,
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+    )
+
+    class Meta:
+        model = Notification
+        fields = ['title', 'message', 'level', 'users', 'groups', 'start_at', 'end_at', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        if not args and 'initial' not in kwargs:
+            kwargs['initial'] = {'start_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M')}
+        super().__init__(*args, **kwargs)

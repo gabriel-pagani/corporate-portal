@@ -1,7 +1,9 @@
 import json
 from functools import wraps
 from app.models import Contact, Toner, TonerLocation, TonerMovement
-from app.forms import LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm
+from app.forms import (
+    LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm, ContactForm, NotificationForm,
+)
 from app.utils import throttle
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
@@ -18,7 +20,7 @@ from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
@@ -93,6 +95,19 @@ def logout_view(request):
 
 
 def contacts_view(request):
+    can_add = request.user.has_perm('app.add_contact')
+    form = None
+    if request.method == 'POST':
+        if not can_add:
+            raise PermissionDenied
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Ramal cadastrado com sucesso.')
+            return redirect('app:contacts')
+    elif can_add:
+        form = ContactForm()
+
     contacts = [
         {
             'name': contact.get_display_name(),
@@ -104,7 +119,8 @@ def contacts_view(request):
     ]
 
     return render(request, 'app/contacts.html', {
-        'contacts': contacts
+        'contacts': contacts,
+        'contact_form': form,
     })
 
 
@@ -397,9 +413,23 @@ def toner_movement_create(request, toner_id):
 
 @login_required
 def notifications_view(request):
+    can_add = request.user.has_perm('app.add_notification')
+    form = None
+    if request.method == 'POST':
+        if not can_add:
+            raise PermissionDenied
+        form = NotificationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Notificação cadastrada com sucesso.')
+            return redirect('app:notifications')
+    elif can_add:
+        form = NotificationForm()
+
     notifications = [serialize_notification(n) for n in visible_notifications(request.user)]
     return render(request, 'app/notifications.html', {
         'notifications': notifications,
+        'notification_form': form,
     })
 
 
