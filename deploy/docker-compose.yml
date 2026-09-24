@@ -18,6 +18,22 @@ services:
       - network
     restart: unless-stopped
 
+  redis:
+    image: redis:8-alpine
+    expose:
+      - "6379"
+    command: redis-server --appendonly yes --save ""
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - network
+    restart: unless-stopped
+
   django:
     build:
       context: ../
@@ -32,6 +48,8 @@ services:
       - .env
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate --noinput &&
@@ -62,6 +80,8 @@ services:
       - .env
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: python -m pytest -vv
     profiles:
@@ -105,6 +125,7 @@ services:
 volumes:
   static_volume:
   postgres_data:
+  redis_data:
 
 networks:
   network:

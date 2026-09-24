@@ -1,4 +1,19 @@
 import pytest
+from django.core.cache import cache
+
+
+# O cache guarda o teto de tentativas de login e, em produção, as sessões. Os
+# testes usam a memória do próprio processo: limpar entre um teste e outro não
+# apaga a sessão de ninguém que esteja usando o sistema, e a suíte roda sem
+# depender do Redis.
+@pytest.fixture(autouse=True)
+def isolated_cache(settings):
+    settings.CACHES = {
+        'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'},
+    }
+    cache.clear()
+    yield
+    cache.clear()
 
 
 # O storage de produção resolve cada arquivo pelo manifesto que o collectstatic

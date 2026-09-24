@@ -2,6 +2,7 @@ import json
 from functools import wraps
 from app.models import Contact, Toner, TonerLocation, TonerMovement
 from app.forms import LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm
+from app.utils import throttle
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors
@@ -22,6 +23,18 @@ from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 from django.utils.http import url_has_allowed_host_and_scheme
+from axes.handlers.proxy import AxesProxyHandler
+
+
+LOGIN_THROTTLED_ERROR = 'Muitas tentativas de login. Espere uma hora e tente novamente.'
+
+
+def login_throttled(request, username):
+    # A recusa por teto de tentativas chega igual à de senha errada: os dois
+    # tetos interrompem a fila de backends, e o authenticate devolve None.
+    # Quem espera uma hora precisa saber por quê, e saber que o teto estourou
+    # não conta nada sobre a conta que já não se soubesse.
+    return throttle.login_blocked(username) or not AxesProxyHandler.is_allowed(request, {'username': username})
 
 
 def get_safe_next_url(request, next_url):
@@ -45,14 +58,20 @@ def login_view(request):
         next_url = get_safe_next_url(request, request.POST.get('next'))
 
         if form.is_valid():
+            username = form.cleaned_data.get('username', '')
+            # O request vai junto: é dele que o axes tira o IP para contar as
+            # tentativas, e sem ele o teto por usuário e IP não existe.
             user = authenticate(
-                username=form.cleaned_data.get('username', ''),
+                request,
+                username=username,
                 password=form.cleaned_data.get('password', ''),
             )
 
             if user is not None:
                 login(request, user)
                 return redirect(next_url or reverse('app:home'))
+            elif login_throttled(request, username):
+                messages.error(request, LOGIN_THROTTLED_ERROR)
             else:
                 messages.error(request, 'Dados inválidos!')
         else:
