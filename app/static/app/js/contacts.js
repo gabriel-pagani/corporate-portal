@@ -1,3 +1,7 @@
+// A configuração da tela vem em data-attributes: com o CSP ligado, o navegador
+// recusa <script> inline, que é onde essas constantes moravam.
+const isStaff = document.getElementById('content').dataset.isStaff === '1';
+
 const CONTATOS_POR_PAGINA = 8;
 
 let listaContatos = [];
@@ -160,6 +164,8 @@ function copiarTexto(texto) {
 
 document.addEventListener('DOMContentLoaded', () => {
     listaContatos = JSON.parse(document.getElementById('contacts-data').textContent);
+
+    document.getElementById('search-input').addEventListener('input', filtrarContatos);
 
     const buscaSalva = new URLSearchParams(window.location.search).get('q');
     if (buscaSalva) {

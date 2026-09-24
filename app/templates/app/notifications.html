@@ -8,7 +8,11 @@
 {% endblock head %}
 
 {% block body %}
-        <div id="content" class="container">
+        <div id="content" class="container"
+            data-csrf-token="{{ csrf_token }}"
+            data-api-url="{% url 'app:notifications-api' %}"
+            data-read-all-url="{% url 'app:notifications-read-all-api' %}"
+        >
             <div class="header">
                 <a href="{% url "app:home" %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
@@ -39,11 +43,6 @@
         </div>
 
         {{ notifications|json_script:"notifications-data" }}
-        <script>
-            const CSRF_TOKEN = '{{ csrf_token }}';
-            const NOTIFICATIONS_API_URL = '{% url "app:notifications-api" %}';
-            const READ_ALL_API_URL = '{% url "app:notifications-read-all-api" %}';
-        </script>
         <script src="{% static 'app/js/notifications.js' %}"></script>
 {% endblock body %}
 

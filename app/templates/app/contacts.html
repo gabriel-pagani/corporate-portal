@@ -8,7 +8,7 @@
 {% endblock head %}
 
 {% block body %}
-        <div id="content" class="container">
+        <div id="content" class="container" data-is-staff="{{ request.user.is_staff|yesno:'1,' }}">
             <div class="header">
                 <a href="{% url "app:home" %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" id="logo-img" title="Voltar ao menu principal"/>
@@ -16,7 +16,7 @@
                 <div class="header-text">
                     <h1>Lista de Contatos</h1>
                     <div class="search-container">
-                        <input type="text" id="search-input" placeholder="Pesquise aqui..." oninput="filtrarContatos()"/>
+                        <input type="text" id="search-input" placeholder="Pesquise aqui..."/>
                     </div>
                 </div>
             </div>
@@ -36,8 +36,5 @@
             <div id="pagination" class="pagination-container"></div>
         </div>
         {{ contacts|json_script:"contacts-data" }}
-        <script>
-            const isStaff = {% if request.user.is_staff %}true{% else %}false{% endif %};
-        </script>
         <script src="{% static 'app/js/contacts.js' %}"></script>
 {% endblock body %}

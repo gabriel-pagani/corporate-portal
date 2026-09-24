@@ -8,7 +8,10 @@
 {% endblock head %}
 
 {% block body %}
-        <div id="content" class="container">
+        <div id="content" class="container"
+            data-csrf-token="{{ csrf_token }}"
+            data-api-url="{% url 'app:toners-api' %}"
+        >
             <div class="header">
                 <a href="{% url "app:home" %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
@@ -97,10 +100,6 @@
         {{ toners|json_script:"toners-data" }}
         {{ permissions|json_script:"permissions-data" }}
         {{ locations|json_script:"locations-data" }}
-        <script>
-            const CSRF_TOKEN = '{{ csrf_token }}';
-            const TONERS_API_URL = '{% url "app:toners-api" %}';
-        </script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>

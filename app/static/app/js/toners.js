@@ -1,3 +1,10 @@
+// A configuração da tela vem em data-attributes: com o CSP ligado, o navegador
+// recusa <script> inline, que é onde essas constantes moravam.
+const {
+    csrfToken: CSRF_TOKEN,
+    apiUrl: TONERS_API_URL,
+} = document.getElementById('content').dataset;
+
 const INTERVALO_ATUALIZACAO = 15000;
 
 let listaToners = [];

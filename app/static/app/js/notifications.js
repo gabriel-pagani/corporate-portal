@@ -1,3 +1,11 @@
+// A configuração da tela vem em data-attributes: com o CSP ligado, o navegador
+// recusa <script> inline, que é onde essas constantes moravam.
+const {
+    csrfToken: CSRF_TOKEN,
+    apiUrl: NOTIFICATIONS_API_URL,
+    readAllUrl: READ_ALL_API_URL,
+} = document.getElementById('content').dataset;
+
 const INTERVALO_ATUALIZACAO = 60000;
 const ICONES = {
     I: 'fa-circle-info',
