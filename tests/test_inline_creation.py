@@ -21,8 +21,11 @@ def test_contact_can_be_created_from_contacts_page(client):
     url = reverse('app:contacts')
     page = client.get(url)
     assert b'Cadastrar contato' in page.content
+    assert b'id="open-contact-modal"' in page.content
+    assert b'<dialog id="contact-modal"' in page.content
+    assert b'id="success-message"' in page.content
     assert b'id="export-pdf"' in page.content
-    assert b'Contatos cadastrados' in page.content
+    assert b'Contatos cadastrados' not in page.content
     assert list(page.context['contact_form'].fields)[:2] == ['user', 'name']
     assert 'placeholder="Ex: Recepção"'.encode() in page.content
     assert b'placeholder="Ex: 1234"' in page.content
@@ -47,6 +50,14 @@ def test_contact_creation_checks_permission_and_required_fields(client):
     assert response.status_code == 200
     assert response.context['contact_form'].errors
     assert not Contact.objects.exists()
+
+
+@pytest.mark.django_db
+def test_contact_modal_reopens_with_form_errors(client):
+    user_with_permission(client, 'add_contact')
+    response = client.post(reverse('app:contacts'), {'name': '', 'number': ''})
+    assert response.status_code == 200
+    assert b'data-open-on-load="true"' in response.content
 
 
 @pytest.mark.django_db

@@ -21,6 +21,12 @@ function mostrarErro(mensagem) {
     document.getElementById('alert-error').hidden = !mensagem;
 }
 
+function mostrarSucesso(mensagem) {
+    const aviso = document.getElementById('success-message');
+    aviso.textContent = mensagem;
+    aviso.hidden = !mensagem;
+}
+
 function campoEdicao(valor, campo) {
     const input = document.createElement('input');
     input.type = 'text';
@@ -89,12 +95,12 @@ function linhaContato(contato) {
 
     linha.appendChild(celulaCom(emEdicao ? editorNome(contato) : contato.name));
     linha.appendChild(celulaCom(emEdicao
-        ? campoEdicao(contato.number, 'number') : contato.number));
+        ? campoEdicao(contato.number, 'number') : contato.number || '-'));
     linha.appendChild(celulaCom(emEdicao
-        ? selecaoSetor(contato.sector_id) : contato.sector));
+        ? selecaoSetor(contato.sector_id) : contato.sector || '-'));
 
     if (isStaff) linha.appendChild(celulaCom(emEdicao
-        ? campoEdicao(contato.machine, 'machine') : contato.machine));
+        ? campoEdicao(contato.machine, 'machine') : contato.machine || '-'));
 
     if (canEdit || canDelete || isStaff) {
         const acoes = document.createElement('div');
@@ -132,6 +138,7 @@ async function salvarContato(id) {
     };
     salvando = true;
     try {
+        mostrarSucesso('');
         const resposta = await fetch(updateUrlTemplate.replace('/0/', `/${id}/`), {
             method: 'POST',
             headers: {
@@ -147,6 +154,7 @@ async function salvarContato(id) {
         listaContatos[indice] = resultado.contact;
         editandoId = null;
         mostrarErro('');
+        mostrarSucesso('Contato atualizado com sucesso.');
         filtrarContatos();
     } catch (erro) {
         mostrarErro(erro.message);
@@ -160,6 +168,7 @@ async function excluirContato(id) {
     if (!contato || !confirm(`Excluir o contato de "${contato.name}"?`)) return;
     salvando = true;
     try {
+        mostrarSucesso('');
         const resposta = await fetch(updateUrlTemplate.replace('/0/', `/${id}/`), {
             method: 'DELETE',
             headers: { 'X-CSRFToken': csrfToken, 'Accept': 'application/json' },
@@ -169,6 +178,7 @@ async function excluirContato(id) {
         listaContatos = listaContatos.filter((item) => item.id !== id);
         if (editandoId === id) editandoId = null;
         mostrarErro('');
+        mostrarSucesso('Contato excluído com sucesso.');
         filtrarContatos();
     } catch (erro) {
         mostrarErro(erro.message);
@@ -182,6 +192,7 @@ function aoClicarNaTabela(evento) {
     if (!botao || salvando) return;
     const id = Number(botao.dataset.id);
     if (botao.dataset.action === 'editar') {
+        mostrarSucesso('');
         editandoId = id;
         mostrarErro('');
         carregarContatos();
@@ -366,6 +377,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('search-input').addEventListener('input', filtrarContatos);
     document.getElementById('export-pdf').addEventListener('click', exportarPdf);
     document.querySelector('#lista-contatos tbody').addEventListener('click', aoClicarNaTabela);
+
+    const modal = document.getElementById('contact-modal');
+    if (modal) {
+        document.getElementById('open-contact-modal').addEventListener('click', () => {
+            modal.showModal();
+            modal.querySelector('input, select, textarea').focus();
+        });
+        modal.querySelectorAll('[data-close-modal]').forEach((botao) => {
+            botao.addEventListener('click', () => modal.close());
+        });
+        if (modal.dataset.openOnLoad) modal.showModal();
+    }
 
     const buscaSalva = new URLSearchParams(window.location.search).get('q');
     if (buscaSalva) {

@@ -94,6 +94,51 @@
   background: #d4edda;
 }
 
+.form-modal {
+  position: fixed;
+  inset: 0;
+  width: min(680px, calc(100% - 32px));
+  max-height: calc(100vh - 32px);
+  margin: auto;
+  padding: 22px;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .3);
+}
+
+.form-modal::backdrop { background: rgba(0, 0, 0, .55); }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modal-header h2 { font-size: 20px; color: #333; }
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  color: #666;
+  font-size: 20px;
+}
+
+.modal-close:hover { background: #f1f1f1; color: #333; }
+
+.form-modal .form-grid,
+.form-modal .contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  grid-column: 1 / -1;
+  margin-top: 6px;
+}
+
+.modal-actions .button.primary { justify-self: auto; }
 .table-wrapper { overflow-x: auto; }
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .edit-input { width: 100%; min-width: 85px; }
@@ -107,5 +152,6 @@
 }
 
 @media (max-width: 560px) {
-  .form-grid, .contact-grid { grid-template-columns: 1fr; }
+  .form-grid, .contact-grid,
+  .form-modal .form-grid, .form-modal .contact-grid { grid-template-columns: 1fr; }
 }

@@ -76,15 +76,15 @@ h1 {
 
 table {
   width: 100%;
-  margin-top: 20px;
 }
 
 th,
 td {
-  padding: 12px;
+  padding: 10px 8px;
   text-align: left;
-  font-size: 16px;
-  color: #000000;
+  font-size: 15px;
+  color: #000;
+  vertical-align: middle;
 }
 
 .alert {
@@ -119,13 +119,7 @@ th {
   background-color: #f1f1f1;
 }
 
-tbody tr:nth-child(odd) {
-  background-color: #f9f9f9;
-}
-
-tbody tr:hover {
-  background-color: #f1f1f1;
-}
+tbody tr { border-bottom: 1px solid #eee; }
 
 .header-cell {
   display: flex;

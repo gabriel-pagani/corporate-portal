@@ -26,30 +26,17 @@
             {% for message in messages %}
             <div class="form-message" role="status">{{ message }}</div>
             {% endfor %}
+            <div id="success-message" class="form-message" role="status" hidden></div>
             <div id="alert-error" class="alert" role="alert" hidden>
                 <span id="alert-error-text"></span>
             </div>
-            {% if contact_form %}
-            <section class="card">
-                <h2>Cadastrar contato</h2>
-                <form method="post" class="form-grid contact-grid">
-                    {% csrf_token %}
-                    {% for field in contact_form %}
-                    <div class="field">
-                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-                        {% for error in field.errors %}<small class="form-error">{{ error }}</small>{% endfor %}
-                    </div>
-                    {% endfor %}
-                    {% for error in contact_form.non_field_errors %}<p class="form-error">{{ error }}</p>{% endfor %}
-                    <button type="submit" class="button primary">Adicionar</button>
-                </form>
-            </section>
-            {% endif %}
             <section class="card">
                 <div class="card-header">
-                    <h2>Contatos cadastrados</h2>
+                    {% if contact_form %}
+                    <button type="button" class="button primary" id="open-contact-modal">
+                        <i class="fas fa-plus"></i> Novo contato
+                    </button>
+                    {% endif %}
                     <div class="toolbar">
                         <input type="search" id="search-input" placeholder="Pesquise aqui..." aria-label="Pesquisar contatos">
                         <button type="button" class="button" id="export-pdf"><i class="fas fa-file-pdf"></i> PDF</button>
@@ -75,6 +62,33 @@
                 </div>
                 <div id="pagination" class="pagination-container"></div>
             </section>
+
+            {% if contact_form %}
+            <dialog id="contact-modal" class="form-modal" aria-labelledby="contact-modal-title"{% if contact_form.errors %} data-open-on-load="true"{% endif %}>
+                <div class="modal-header">
+                    <h2 id="contact-modal-title">Cadastrar contato</h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="Fechar formulário">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+                <form method="post" class="form-grid contact-grid">
+                    {% csrf_token %}
+                    {% for field in contact_form %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                        {% for error in field.errors %}<small class="form-error">{{ error }}</small>{% endfor %}
+                    </div>
+                    {% endfor %}
+                    {% for error in contact_form.non_field_errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    <div class="modal-actions">
+                        <button type="button" class="button" data-close-modal>Cancelar</button>
+                        <button type="submit" class="button primary">Adicionar</button>
+                    </div>
+                </form>
+            </dialog>
+            {% endif %}
         </div>
         {{ contacts|json_script:"contacts-data" }}
         {{ sectors|json_script:"sectors-data" }}
