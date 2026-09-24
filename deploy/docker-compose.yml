@@ -46,6 +46,29 @@ services:
       - network
     restart: unless-stopped
 
+  tests:
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+      target: test
+    image: intranet-django-tests
+    volumes:
+      - ../app:/app/app
+      - ../project:/app/project
+      - ../templates:/app/templates
+      - ../static:/app/static
+      - ../tests:/app/tests
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m pytest -vv
+    profiles:
+      - tests
+    networks:
+      - network
+
   nginx:
     image: nginx:1.30-alpine
     # Sem porta publicada no host: quem alcança o nginx é o túnel, pela rede do
