@@ -62,6 +62,12 @@ function mostrarErro(mensagem) {
     document.getElementById('alert-error').hidden = !mensagem;
 }
 
+function mostrarSucesso(mensagem) {
+    const aviso = document.getElementById('success-message');
+    aviso.textContent = mensagem;
+    aviso.hidden = !mensagem;
+}
+
 function substituirToner(toner) {
     const indice = listaToners.findIndex((t) => t.id === toner.id);
     if (indice === -1) {
@@ -359,6 +365,7 @@ async function executarAcao(acao, id) {
                 return;
             }
             movimentandoId = null;
+            mostrarSucesso('Movimentação registrada com sucesso.');
             break;
         }
         case 'historico':
@@ -396,6 +403,7 @@ async function executarAcao(acao, id) {
             });
             substituirToner(dados.toner);
             editandoId = null;
+            mostrarSucesso('Toner atualizado com sucesso.');
             break;
         }
         case 'excluir':
@@ -403,6 +411,7 @@ async function executarAcao(acao, id) {
             await requisitar(urlToner(id), 'DELETE');
             listaToners = listaToners.filter((t) => t.id !== id);
             if (historicoId === id) historicoId = null;
+            mostrarSucesso('Toner excluído com sucesso.');
             break;
     }
 
@@ -416,6 +425,7 @@ async function aoClicarNaTabela(evento) {
     enviando = true;
     botao.disabled = true;
     try {
+        mostrarSucesso('');
         mostrarErro('');
         await executarAcao(botao.dataset.action, Number(botao.dataset.id));
     } catch (erro) {
@@ -431,6 +441,7 @@ async function aoAdicionar(evento) {
     evento.preventDefault();
     const formulario = evento.currentTarget;
     const botao = formulario.querySelector('button[type="submit"]');
+    const erroCadastro = document.getElementById('add-error');
     const dadosFormulario = Object.fromEntries(new FormData(formulario));
     Object.keys(dadosFormulario).forEach((campo) => {
         dadosFormulario[campo] = dadosFormulario[campo].trim();
@@ -438,16 +449,20 @@ async function aoAdicionar(evento) {
 
     botao.disabled = true;
     try {
+        erroCadastro.hidden = true;
+        mostrarSucesso('');
         mostrarErro('');
         const dados = await requisitar(TONERS_API_URL, 'POST', dadosFormulario);
         substituirToner(dados.toner);
         formulario.reset();
         const indice = tonersFiltrados().findIndex((toner) => toner.id === dados.toner.id);
         if (indice >= 0) paginaAtual = Math.floor(indice / TONERS_POR_PAGINA) + 1;
-        document.getElementById('add-name').focus();
+        document.getElementById('toner-modal').close();
+        mostrarSucesso('Toner cadastrado com sucesso.');
         renderizar();
     } catch (erro) {
-        mostrarErro(erro.message);
+        erroCadastro.textContent = erro.message;
+        erroCadastro.hidden = false;
     } finally {
         botao.disabled = false;
     }
@@ -536,7 +551,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('export-pdf').addEventListener('click', exportarPdf);
 
     const formularioAdicionar = document.getElementById('add-form');
-    if (formularioAdicionar) formularioAdicionar.addEventListener('submit', aoAdicionar);
+    if (formularioAdicionar) {
+        const modal = document.getElementById('toner-modal');
+        formularioAdicionar.addEventListener('submit', aoAdicionar);
+        document.getElementById('open-toner-modal').addEventListener('click', () => {
+            modal.showModal();
+            document.getElementById('add-name').focus();
+        });
+        modal.querySelectorAll('[data-close-modal]').forEach((botao) => {
+            botao.addEventListener('click', () => modal.close());
+        });
+    }
 
     // Enter confirma a edição ou a movimentação aberta
     document.querySelector('#toners-table tbody').addEventListener('keydown', (evento) => {

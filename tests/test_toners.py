@@ -39,6 +39,10 @@ def test_page_lists_toners(client, operator):
     response = client.get(reverse('app:toners'))
     assert response.status_code == 200
     assert b'CF410A' in response.content
+    assert b'id="open-toner-modal"' in response.content
+    assert b'<dialog id="toner-modal"' in response.content
+    assert b'id="success-message"' in response.content
+    assert b'Toners em estoque' not in response.content
 
 
 @pytest.mark.django_db
@@ -163,4 +167,3 @@ def test_delete_toner(client, operator):
     response = client.delete(reverse('app:toner-api', args=[toner.id]))
     assert response.status_code == 200
     assert not Toner.objects.exists()
-

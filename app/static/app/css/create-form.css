@@ -139,6 +139,8 @@
 }
 
 .modal-actions .button.primary { justify-self: auto; }
+.modal-form-error { grid-column: 1 / -1; }
+
 .table-wrapper { overflow-x: auto; }
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .edit-input { width: 100%; min-width: 85px; }

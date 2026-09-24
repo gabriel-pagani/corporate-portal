@@ -5,6 +5,7 @@
 
 {% block head %}
         <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
 {% endblock head %}
 
 {% block body %}
@@ -30,43 +31,15 @@
                 <strong><i class="fas fa-circle-xmark"></i> <span id="alert-error-text"></span></strong>
             </div>
 
-            {% if permissions.add %}
-            <section class="card">
-                <h2>Adicionar toner</h2>
-                <form id="add-form" class="form-grid" autocomplete="off">
-                    <div class="field">
-                        <label for="add-name">Modelo/Toner</label>
-                        <input id="add-name" name="name" type="text" maxlength="100" placeholder="Ex: HP CF283A" required>
-                    </div>
-                    <div class="field">
-                        <label for="add-location">Impressora/Setor</label>
-                        <select id="add-location" name="location">
-                            <option value="">Sem local</option>
-                            {% for location in locations %}
-                            <option value="{{ location.id }}">{{ location.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label for="add-observations">Observação (fornecedor, código...)</label>
-                        <input id="add-observations" name="observations" type="text" maxlength="255" placeholder="Ex: Fornecedor XPTO">
-                    </div>
-                    <div class="field field-small">
-                        <label for="add-quantity">Quantidade</label>
-                        <input id="add-quantity" name="quantity" type="number" min="0" value="0" required>
-                    </div>
-                    <div class="field field-small">
-                        <label for="add-minimum">Mínimo</label>
-                        <input id="add-minimum" name="minimum_quantity" type="number" min="0" value="1" required>
-                    </div>
-                    <button type="submit" class="button primary">Adicionar</button>
-                </form>
-            </section>
-            {% endif %}
+            <div id="success-message" class="form-message" role="status" hidden></div>
 
             <section class="card">
                 <div class="card-header">
-                    <h2>Toners em estoque</h2>
+                    {% if permissions.add %}
+                    <button type="button" class="button primary" id="open-toner-modal">
+                        <i class="fas fa-plus"></i> Novo toner
+                    </button>
+                    {% endif %}
                     <div class="toolbar">
                         <label class="checkbox">
                             <input type="checkbox" id="only-low"> Apenas toners com estoque baixo
@@ -95,6 +68,49 @@
                 <div id="empty-message" class="empty" hidden></div>
                 <div id="pagination" class="pagination-container" aria-label="Paginação de toners"></div>
             </section>
+
+            {% if permissions.add %}
+            <dialog id="toner-modal" class="form-modal" aria-labelledby="toner-modal-title">
+                <div class="modal-header">
+                    <h2 id="toner-modal-title">Adicionar toner</h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="Fechar formulário">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+                <form id="add-form" class="form-grid" autocomplete="off">
+                    <div class="field">
+                        <label for="add-name">Modelo/Toner</label>
+                        <input id="add-name" name="name" type="text" maxlength="100" placeholder="Ex: HP CF283A" required>
+                    </div>
+                    <div class="field">
+                        <label for="add-location">Impressora/Setor</label>
+                        <select id="add-location" name="location">
+                            <option value="">Sem local</option>
+                            {% for location in locations %}
+                            <option value="{{ location.id }}">{{ location.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="add-observations">Observação (fornecedor, código...)</label>
+                        <input id="add-observations" name="observations" type="text" maxlength="255" placeholder="Ex: Fornecedor XPTO">
+                    </div>
+                    <div class="field field-small">
+                        <label for="add-quantity">Quantidade</label>
+                        <input id="add-quantity" name="quantity" type="number" min="0" value="0" required>
+                    </div>
+                    <div class="field field-small">
+                        <label for="add-minimum">Mínimo</label>
+                        <input id="add-minimum" name="minimum_quantity" type="number" min="0" value="1" required>
+                    </div>
+                    <div id="add-error" class="form-error modal-form-error" role="alert" hidden></div>
+                    <div class="modal-actions">
+                        <button type="button" class="button" data-close-modal>Cancelar</button>
+                        <button type="submit" class="button primary">Adicionar</button>
+                    </div>
+                </form>
+            </dialog>
+            {% endif %}
 
         </div>
 
