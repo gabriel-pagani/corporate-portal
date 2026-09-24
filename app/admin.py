@@ -1,3 +1,4 @@
+import unicodedata
 from django.contrib import admin
 from reversion.admin import VersionAdmin
 import reversion
@@ -9,11 +10,28 @@ from .models import (
 )
 
 
+def without_accents(text):
+    # O unaccent do banco tira o acento da coluna; o termo digitado chega como
+    # veio. Sem limpar os dois lados, procurar "José" deixaria de encontrar o
+    # próprio "José", que é o que a busca achava antes do unaccent existir.
+    return ''.join(
+        letter for letter in unicodedata.normalize('NFD', text)
+        if not unicodedata.combining(letter)
+    )
+
+
+class UnaccentSearchAdmin(admin.ModelAdmin):
+    """Busca que ignora acento, nos campos marcados com __unaccent."""
+
+    def get_search_results(self, request, queryset, search_term):
+        return super().get_search_results(request, queryset, without_accents(search_term))
+
+
 # Users Admin
 @admin.register(User)
-class UserAdmin(VersionAdmin, BaseUserAdmin):
+class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
     list_display = ('username', 'first_name', 'last_name', 'email', 'last_login', 'is_staff', 'is_superuser', 'is_active',)
-    search_fields = ('username', 'email', 'first_name', 'last_name', 'observations',)
+    search_fields = ('username', 'email', 'first_name__unaccent', 'last_name__unaccent', 'observations__unaccent',)
     list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups',)
     filter_horizontal = ('groups', 'user_permissions', 'dashboards',)
     model = User
@@ -55,28 +73,32 @@ class GroupDashboardsInline(admin.StackedInline):
     fields = ('dashboards',)
 
 @admin.register(Group)
-class GroupAdmin(VersionAdmin, BaseGroupAdmin):
+class GroupAdmin(VersionAdmin, UnaccentSearchAdmin, BaseGroupAdmin):
+    search_fields = ('name__unaccent',)
     inlines = (GroupDashboardsInline,)
 
 
 @admin.register(Sector)
-class SectorAdmin(VersionAdmin):
+class SectorAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('name',)
-    search_fields = ('name',)
+    search_fields = ('name__unaccent',)
 
 
 @admin.register(Contact)
-class ContactAdmin(VersionAdmin):
+class ContactAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('get_display_name', 'number', 'sector', 'machine',)
-    search_fields = ('name', 'user__username', 'user__first_name', 'user__last_name', 'number', 'sector__name', 'machine',)
+    search_fields = (
+        'name__unaccent', 'user__username', 'user__first_name__unaccent', 'user__last_name__unaccent',
+        'number', 'sector__name__unaccent', 'machine',
+    )
     list_filter = ('sector',)
     autocomplete_fields = ('sector', 'user')
 
 
 @admin.register(Dashboard)
-class DashboardAdmin(VersionAdmin):
+class DashboardAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('title', 'sector', 'status')
-    search_fields = ('title', 'sector__name')
+    search_fields = ('title__unaccent', 'sector__name__unaccent')
     filter_horizontal = ('fav_by',)
     list_filter = ('status', 'sector',)
     ordering = ('title',)
@@ -96,15 +118,15 @@ class TonerMovementInline(admin.TabularInline):
 
 
 @admin.register(TonerLocation)
-class TonerLocationAdmin(VersionAdmin):
+class TonerLocationAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('name',)
-    search_fields = ('name',)
+    search_fields = ('name__unaccent',)
 
 
 @admin.register(Toner)
-class TonerAdmin(VersionAdmin):
+class TonerAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('name', 'location', 'observations', 'quantity', 'minimum_quantity', 'is_stock_ok',)
-    search_fields = ('name', 'location__name', 'observations',)
+    search_fields = ('name', 'location__name__unaccent', 'observations__unaccent',)
     list_filter = ('location',)
     readonly_fields = ('quantity', 'updated_at',)
     autocomplete_fields = ('location',)
@@ -118,9 +140,9 @@ class TonerAdmin(VersionAdmin):
 
 
 @admin.register(TonerMovement)
-class TonerMovementAdmin(admin.ModelAdmin):
+class TonerMovementAdmin(UnaccentSearchAdmin):
     list_display = ('created_at', 'toner', 'type', 'quantity', 'reason', 'user',)
-    search_fields = ('toner__name', 'toner__location__name', 'reason', 'user__username',)
+    search_fields = ('toner__name', 'toner__location__name__unaccent', 'reason__unaccent', 'user__username',)
     list_filter = ('type', 'toner__location',)
     date_hierarchy = 'created_at'
 
@@ -132,9 +154,9 @@ class TonerMovementAdmin(admin.ModelAdmin):
 
 
 @admin.register(Notification)
-class NotificationAdmin(VersionAdmin):
+class NotificationAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('title', 'level', 'get_recipients', 'start_at', 'end_at', 'is_active', 'get_read_count',)
-    search_fields = ('title', 'message',)
+    search_fields = ('title__unaccent', 'message__unaccent',)
     list_filter = ('level', 'is_active',)
     date_hierarchy = 'start_at'
     filter_horizontal = ('users', 'groups',)

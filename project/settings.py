@@ -24,6 +24,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Registra o unaccent, usado nas buscas do painel de administração
+    'django.contrib.postgres',
     'reversion',
     'axes',
     'django_otp',
