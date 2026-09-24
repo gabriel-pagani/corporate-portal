@@ -328,6 +328,41 @@ td .edit-input.small {
   padding: 20px 0;
 }
 
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.pagination-button {
+  background-color: transparent;
+  color: #333;
+  border: none;
+  padding: 8px 12px;
+  margin: 0 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: color .3s, background-color .3s;
+  border-radius: 4px;
+}
+
+.pagination-button:hover {
+  color: #333;
+  background-color: #3333331e;
+}
+
+.pagination-button.active {
+  color: white;
+  background-color: #333;
+  font-weight: bold;
+}
+
+.pagination-ellipsis {
+  padding: 8px 4px;
+  color: #666;
+}
+
 @media (max-width: 900px) {
   .form-grid {
     grid-template-columns: 1fr 1fr;

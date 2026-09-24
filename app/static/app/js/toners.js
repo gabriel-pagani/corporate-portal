@@ -6,8 +6,10 @@ const {
 } = document.getElementById('content').dataset;
 
 const INTERVALO_ATUALIZACAO = 15000;
+const TONERS_POR_PAGINA = 7;
 
 let listaToners = [];
+let paginaAtual = 1;
 let permissoes = {};
 let locais = [];
 let editandoId = null;
@@ -224,10 +226,14 @@ function renderizar() {
     renderizarAlerta();
 
     const toners = tonersFiltrados();
+    const totalPaginas = Math.ceil(toners.length / TONERS_POR_PAGINA);
+    paginaAtual = Math.min(paginaAtual, Math.max(1, totalPaginas));
+    const inicio = (paginaAtual - 1) * TONERS_POR_PAGINA;
+    const tonersPagina = toners.slice(inicio, inicio + TONERS_POR_PAGINA);
     const corpoTabela = document.querySelector('#toners-table tbody');
     const vazio = document.getElementById('empty-message');
 
-    corpoTabela.innerHTML = toners.map((toner) => {
+    corpoTabela.innerHTML = tonersPagina.map((toner) => {
         let linhas = toner.id === editandoId ? linhaEdicao(toner) : linhaVisualizacao(toner);
         if (toner.id === movimentandoId) linhas += linhaMovimentacao(toner);
         if (toner.id === historicoId) linhas += linhaHistorico(toner);
@@ -238,6 +244,63 @@ function renderizar() {
     vazio.textContent = listaToners.length === 0
         ? 'Nenhum toner cadastrado ainda.'
         : 'Nenhum toner encontrado com os filtros atuais.';
+    renderizarPaginacao(totalPaginas);
+}
+
+function criarBotaoPagina(rotulo, pagina, ativo = false) {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.textContent = rotulo;
+    botao.classList.add('pagination-button');
+    if (ativo) {
+        botao.classList.add('active');
+        botao.setAttribute('aria-current', 'page');
+    }
+    botao.addEventListener('click', () => {
+        paginaAtual = pagina;
+        editandoId = null;
+        movimentandoId = null;
+        historicoId = null;
+        renderizar();
+    });
+    return botao;
+}
+
+function criarReticencias() {
+    const reticencias = document.createElement('span');
+    reticencias.textContent = '...';
+    reticencias.classList.add('pagination-ellipsis');
+    return reticencias;
+}
+
+function renderizarPaginacao(totalPaginas) {
+    const container = document.getElementById('pagination');
+    container.innerHTML = '';
+    if (totalPaginas <= 1) return;
+
+    const isMobile = window.innerWidth <= 480;
+    const maxVisiveis = isMobile ? 3 : 7;
+    let inicio = Math.max(1, paginaAtual - Math.floor(maxVisiveis / 2));
+    const fim = Math.min(totalPaginas, inicio + maxVisiveis - 1);
+    inicio = Math.max(1, fim - maxVisiveis + 1);
+
+    if (paginaAtual > 1) {
+        container.appendChild(criarBotaoPagina(isMobile ? '‹' : '‹ Anterior', paginaAtual - 1));
+    }
+    if (inicio > 1) {
+        container.appendChild(criarBotaoPagina('1', 1));
+        if (inicio > 2) container.appendChild(criarReticencias());
+    }
+    for (let pagina = inicio; pagina <= fim; pagina++) {
+        container.appendChild(criarBotaoPagina(pagina, pagina, pagina === paginaAtual));
+    }
+    if (fim < totalPaginas) {
+        if (fim < totalPaginas - 1) container.appendChild(criarReticencias());
+        container.appendChild(criarBotaoPagina(totalPaginas, totalPaginas));
+    }
+    if (paginaAtual < totalPaginas) {
+        container.appendChild(criarBotaoPagina(isMobile ? '›' : 'Próximo ›', paginaAtual + 1));
+    }
 }
 
 async function carregarHistorico(id) {
@@ -379,6 +442,8 @@ async function aoAdicionar(evento) {
         const dados = await requisitar(TONERS_API_URL, 'POST', dadosFormulario);
         substituirToner(dados.toner);
         formulario.reset();
+        const indice = tonersFiltrados().findIndex((toner) => toner.id === dados.toner.id);
+        if (indice >= 0) paginaAtual = Math.floor(indice / TONERS_POR_PAGINA) + 1;
         document.getElementById('add-name').focus();
         renderizar();
     } catch (erro) {
@@ -458,8 +523,15 @@ document.addEventListener('DOMContentLoaded', () => {
     locais = JSON.parse(document.getElementById('locations-data').textContent);
 
     document.querySelector('#toners-table tbody').addEventListener('click', aoClicarNaTabela);
-    document.getElementById('search-input').addEventListener('input', renderizar);
-    document.getElementById('only-low').addEventListener('change', renderizar);
+    const aoAlterarFiltro = () => {
+        paginaAtual = 1;
+        editandoId = null;
+        movimentandoId = null;
+        historicoId = null;
+        renderizar();
+    };
+    document.getElementById('search-input').addEventListener('input', aoAlterarFiltro);
+    document.getElementById('only-low').addEventListener('change', aoAlterarFiltro);
     document.getElementById('export-excel').addEventListener('click', exportarExcel);
     document.getElementById('export-pdf').addEventListener('click', exportarPdf);
 
