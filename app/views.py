@@ -94,6 +94,7 @@ def logout_view(request):
     return redirect('app:login')
 
 
+@login_required
 def contacts_view(request):
     can_add = request.user.has_perm('app.add_contact')
     can_change = request.user.has_perm('app.change_contact')
