@@ -157,6 +157,8 @@ SESSION_COOKIE_AGE = 60 * 60 * 24
 
 SESSION_SAVE_EVERY_REQUEST = True
 
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+
 ADMIN_PANEL_PATH = os.getenv('ADMIN_PANEL_PATH', 'admin')
 
 LOGIN_URL = 'app:login'
