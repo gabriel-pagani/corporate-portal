@@ -28,6 +28,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'project.middleware.PermissionsPolicyMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -159,6 +160,34 @@ RM_API_ROOT_URL = os.getenv('RM_API_ROOT_URL')
 
 # API de cadastro de clientes/fornecedores
 API_TOKEN = os.getenv('API_TOKEN')
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+if not DEBUG:
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    SESSION_COOKIE_HTTPONLY = True
+
+    X_FRAME_OPTIONS = 'DENY'
+
+    SECURE_REFERRER_POLICY = 'same-origin'
+
+    SECURE_SSL_REDIRECT = True
+
+    SESSION_COOKIE_SECURE = True
+
+    CSRF_COOKIE_SECURE = True
+
+    SECURE_HSTS_SECONDS = 31536000
+
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+    SECURE_HSTS_PRELOAD = True
+
+    SESSION_COOKIE_NAME = '__Host-sessionid'
+
+    CSRF_COOKIE_NAME = '__Host-csrftoken'
+
 
 # Auth LDAP
 from django_auth_ldap.config import LDAPSearch, ActiveDirectoryGroupType
