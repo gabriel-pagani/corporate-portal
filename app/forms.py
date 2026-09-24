@@ -34,6 +34,16 @@ class ContactForm(forms.ModelForm):
     class Meta:
         model = Contact
         fields = ['user', 'name', 'number', 'sector', 'machine']
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'Ex: Recepção'}),
+            'number': forms.TextInput(attrs={'placeholder': 'Ex: 1234'}),
+            'machine': forms.TextInput(attrs={'placeholder': 'Ex: PC-01'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['user'].empty_label = 'Selecione um usuário'
+        self.fields['sector'].empty_label = 'Selecione um setor'
 
     def clean(self):
         cleaned_data = super().clean()
