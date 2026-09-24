@@ -28,7 +28,7 @@ function campoEdicao(valor, campo) {
     input.dataset.field = campo;
     input.maxLength = 100;
     input.value = valor || '';
-    input.setAttribute('aria-label', campo === 'number' ? 'Ramal' : campo === 'machine' ? 'Máquina' : 'Nome');
+    input.setAttribute('aria-label', campo === 'number' ? 'Número' : campo === 'machine' ? 'Máquina' : 'Nome');
     return input;
 }
 
@@ -108,8 +108,8 @@ function linhaContato(contato) {
             if (isStaff && contato.machine) {
                 acoes.appendChild(botaoAcao('copiar', contato.id, 'fa-copy', 'Copiar número da máquina'));
             }
-            if (canEdit) acoes.appendChild(botaoAcao('editar', contato.id, 'fa-pen', 'Editar ramal'));
-            if (canDelete) acoes.appendChild(botaoAcao('excluir', contato.id, 'fa-trash', 'Excluir ramal', true));
+            if (canEdit) acoes.appendChild(botaoAcao('editar', contato.id, 'fa-pen', 'Editar contato'));
+            if (canDelete) acoes.appendChild(botaoAcao('excluir', contato.id, 'fa-trash', 'Excluir contato', true));
         }
         linha.appendChild(celulaCom(acoes));
     }
@@ -157,7 +157,7 @@ async function salvarContato(id) {
 
 async function excluirContato(id) {
     const contato = listaContatos.find((item) => item.id === id);
-    if (!contato || !confirm(`Excluir o ramal de "${contato.name}"?`)) return;
+    if (!contato || !confirm(`Excluir o contato de "${contato.name}"?`)) return;
     salvando = true;
     try {
         const resposta = await fetch(updateUrlTemplate.replace('/0/', `/${id}/`), {
@@ -320,12 +320,51 @@ function copiarTexto(texto) {
     }
 }
 
+function exportarPdf() {
+    if (!window.jspdf?.jsPDF) {
+        mostrarErro('Não foi possível carregar o gerador de PDF.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const documento = new jsPDF();
+    if (typeof documento.autoTable !== 'function') {
+        mostrarErro('Não foi possível carregar a tabela do PDF.');
+        return;
+    }
+
+    const cabecalho = ['Nome', 'Número', 'Setor'];
+    if (isStaff) cabecalho.push('Máquina');
+
+    const linhas = contatosFiltrados.map((contato) => {
+        const linha = [contato.name, contato.number || '-', contato.sector || '-'];
+        if (isStaff) linha.push(contato.machine || '-');
+        return linha.map(String);
+    });
+
+    mostrarErro('');
+    documento.setFontSize(14);
+    documento.text('Lista de Contatos', 14, 16);
+    documento.setFontSize(9);
+    documento.setTextColor(120);
+    documento.text('Gerado em ' + new Date().toLocaleDateString('pt-BR'), 14, 22);
+    documento.autoTable({
+        startY: 28,
+        head: [cabecalho],
+        body: linhas,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [51, 51, 51] },
+    });
+    documento.save(`lista-contatos-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     listaContatos = JSON.parse(document.getElementById('contacts-data').textContent);
     setores = JSON.parse(document.getElementById('sectors-data').textContent);
     usuarios = JSON.parse(document.getElementById('users-data').textContent);
 
     document.getElementById('search-input').addEventListener('input', filtrarContatos);
+    document.getElementById('export-pdf').addEventListener('click', exportarPdf);
     document.querySelector('#lista-contatos tbody').addEventListener('click', aoClicarNaTabela);
 
     const buscaSalva = new URLSearchParams(window.location.search).get('q');

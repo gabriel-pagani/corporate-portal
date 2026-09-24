@@ -54,10 +54,18 @@ h1 {
   align-items: center;
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 #search-input {
   width: 280px;
-  padding: 10px;
-  font-size: 16px;
+  height: 38px;
+  padding: 0 10px;
+  font-size: 15px;
   border: 1px solid #ddd;
   border-radius: 4px;
 }

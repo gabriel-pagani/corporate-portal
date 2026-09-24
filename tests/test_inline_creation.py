@@ -20,7 +20,9 @@ def test_contact_can_be_created_from_contacts_page(client):
     user_with_permission(client, 'add_contact')
     url = reverse('app:contacts')
     page = client.get(url)
-    assert b'Cadastrar ramal' in page.content
+    assert b'Cadastrar contato' in page.content
+    assert b'id="export-pdf"' in page.content
+    assert b'Contatos cadastrados' in page.content
     assert list(page.context['contact_form'].fields)[:2] == ['user', 'name']
 
     response = client.post(url, {'name': 'Recepcao', 'number': '1234', 'machine': 'PC-1'})

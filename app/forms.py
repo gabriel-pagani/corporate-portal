@@ -40,5 +40,5 @@ class ContactForm(forms.ModelForm):
         if not cleaned_data.get('user') and not cleaned_data.get('name', '').strip():
             self.add_error('name', 'Informe um nome ou selecione um usuário.')
         if not cleaned_data.get('number', '').strip():
-            self.add_error('number', 'Informe o ramal.')
+            self.add_error('number', 'Informe o número do contato.')
         return cleaned_data

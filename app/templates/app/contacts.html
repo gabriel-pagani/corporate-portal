@@ -31,7 +31,7 @@
             </div>
             {% if contact_form %}
             <section class="card">
-                <h2>Cadastrar ramal</h2>
+                <h2>Cadastrar contato</h2>
                 <form method="post" class="form-grid contact-grid">
                     {% csrf_token %}
                     {% for field in contact_form %}
@@ -49,15 +49,18 @@
             {% endif %}
             <section class="card">
                 <div class="card-header">
-                    <h2>Ramais cadastrados</h2>
-                    <input type="search" id="search-input" placeholder="Pesquise aqui..." aria-label="Pesquisar ramais">
+                    <h2>Contatos cadastrados</h2>
+                    <div class="toolbar">
+                        <input type="search" id="search-input" placeholder="Pesquise aqui..." aria-label="Pesquisar contatos">
+                        <button type="button" class="button" id="export-pdf"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                 <table id="lista-contatos">
                 <thead>
                     <tr>
                     <th><div class="header-cell">Nome</div></th>
-                    <th><div class="header-cell">Ramal</div></th>
+                    <th><div class="header-cell">Número</div></th>
                     <th><div class="header-cell">Setor</div></th>
                     {% if request.user.is_staff %}
                     <th><div class="header-cell">Máquina</div></th>
@@ -76,5 +79,7 @@
         {{ contacts|json_script:"contacts-data" }}
         {{ sectors|json_script:"sectors-data" }}
         {{ users|json_script:"users-data" }}
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
         <script src="{% static 'app/js/contacts.js' %}"></script>
 {% endblock body %}

@@ -104,7 +104,7 @@ def contacts_view(request):
         form = ContactForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Ramal cadastrado com sucesso.')
+            messages.success(request, 'Contato cadastrado com sucesso.')
             return redirect('app:contacts')
     elif can_add:
         form = ContactForm()
