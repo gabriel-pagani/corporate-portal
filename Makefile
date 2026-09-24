@@ -2,16 +2,16 @@ MAKEFLAGS += --no-print-directory
 
 COMPOSE = docker compose -f deploy/docker-compose.yml
 
-build-system:
+build:
 	@$(COMPOSE) up -d --build
 
-start-system:
+start:
 	@$(COMPOSE) up -d
 
-stop-system:
+stop:
 	@$(COMPOSE) down
 
-restart-system:
+restart:
 	@$(COMPOSE) down && $(COMPOSE) up -d
 
 backup-database:
@@ -37,7 +37,7 @@ protect-login:
 create-app-role:
 	@$(COMPOSE) run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/create_app_role.py
 
-make-migrations:
+migrations:
 	@$(COMPOSE) run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
 
 run-tests:
@@ -46,8 +46,8 @@ run-tests:
 django-shell:
 	@$(COMPOSE) exec django python manage.py shell
 
-container-terminal:
+terminal:
 	@$(COMPOSE) exec $(container) sh
 
-containers-logs:
+logs:
 	@$(COMPOSE) logs -f $(container)
