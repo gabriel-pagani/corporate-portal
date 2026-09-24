@@ -6,7 +6,7 @@ const canDelete = document.getElementById('content').dataset.canDelete === '1';
 const csrfToken = document.getElementById('content').dataset.csrfToken;
 const updateUrlTemplate = document.getElementById('content').dataset.updateUrl;
 
-const CONTATOS_POR_PAGINA = 6;
+const CONTATOS_POR_PAGINA = 8;
 
 let listaContatos = [];
 let contatosFiltrados = [];
