@@ -31,6 +31,9 @@ create-superuser:
 create-totp:
 	@$(COMPOSE) exec -T -e TOTP_USER="$(user)" django python manage.py shell < scripts/create_totp.py
 
+protect-login:
+	@$(COMPOSE) run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/cloudflare_login_rule.py $(args)
+
 create-app-role:
 	@$(COMPOSE) run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/create_app_role.py
 
