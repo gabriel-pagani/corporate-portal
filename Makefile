@@ -31,6 +31,9 @@ create-superuser:
 create-totp:
 	@$(COMPOSE) exec -T -e TOTP_USER="$(user)" django python manage.py shell < scripts/create_totp.py
 
+create-app-role:
+	@$(COMPOSE) run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/create_app_role.py
+
 make-migrations:
 	@$(COMPOSE) run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
 
