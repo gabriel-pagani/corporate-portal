@@ -30,11 +30,17 @@
 
             <section class="card">
                 <div class="card-header">
-                    {% if permissions.add %}
-                    <button type="button" class="button primary" id="open-toner-modal">
-                        <i class="fas fa-plus"></i> Novo toner
-                    </button>
-                    {% endif %}
+                    <div class="toner-actions">
+                        {% if permissions.add %}
+                        <button type="button" class="button primary" id="open-toner-modal">
+                            <i class="fas fa-plus"></i> Novo toner
+                        </button>
+                        {% endif %}
+                        <span class="low-stock-notice" id="low-stock-notice" role="status" hidden>
+                            <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                            Há toners com estoque baixo
+                        </span>
+                    </div>
                     <div class="toolbar">
                         <label class="checkbox">
                             <input type="checkbox" id="only-low"> Apenas toners com estoque baixo

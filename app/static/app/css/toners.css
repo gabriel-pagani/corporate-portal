@@ -83,6 +83,22 @@ h2 {
   align-items: center;
 }
 
+.toner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.low-stock-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #a32d2d;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 /* Alertas */
 .alert {
   background-color: #fcebeb;

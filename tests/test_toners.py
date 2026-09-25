@@ -45,7 +45,9 @@ def test_page_lists_toners(client, operator):
     assert b'<dialog id="toner-modal"' in response.content
     assert b'id="success-message"' in response.content
     assert b'Toners em estoque' not in response.content
-    assert b'Estoque baixo' not in response.content
+    assert b'low-stock-notice' in response.content
+    notice = response.content.split(b'low-stock-notice', 1)[1].split(b'</span>', 1)[0]
+    assert b'CF410A' not in notice
 
 
 @pytest.mark.django_db
@@ -102,6 +104,8 @@ def test_low_stock_notifies_toner_managers_for_one_day():
     outsider.user_permissions.add(
         Permission.objects.get(content_type__app_label='app', codename='view_toner')
     )
+    inactive_manager = User.objects.create_user(username='gestor-inativo', password='senha', is_active=False)
+    inactive_manager.user_permissions.add(permissions['change_toner'])
 
     toner = Toner.objects.create(name='CF414A', quantity=3, minimum_quantity=2)
     assert not Notification.objects.exists()
@@ -115,6 +119,7 @@ def test_low_stock_notifies_toner_managers_for_one_day():
     assert notification.end_at - notification.start_at == timedelta(days=1)
     assert set(notification.users.all()) == set(recipients)
     assert outsider not in notification.users.all()
+    assert inactive_manager not in notification.users.all()
 
 
 @pytest.mark.django_db

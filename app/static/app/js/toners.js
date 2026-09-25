@@ -228,6 +228,9 @@ function renderizar() {
     const tonersPagina = toners.slice(inicio, inicio + TONERS_POR_PAGINA);
     const corpoTabela = document.querySelector('#toners-table tbody');
     const vazio = document.getElementById('empty-message');
+    const avisoEstoqueBaixo = document.getElementById('low-stock-notice');
+
+    avisoEstoqueBaixo.hidden = !listaToners.some((toner) => toner.is_low);
 
     corpoTabela.innerHTML = tonersPagina.map((toner) => {
         let linhas = toner.id === editandoId ? linhaEdicao(toner) : linhaVisualizacao(toner);
