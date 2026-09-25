@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
         U: 'fa-circle-exclamation',
     };
     const exibidas = new Map();
+    const dispensadas = new Set();
 
     function atualizarContador(quantidade) {
         if (!contadorNaoLidas) return;
@@ -35,18 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const elemento = exibidas.get(id);
         if (!elemento) return;
         exibidas.delete(id);
-        atualizarContador(exibidas.size);
         elemento.classList.add('leaving');
         elemento.addEventListener('animationend', () => elemento.remove(), { once: true });
     }
 
-    async function marcarComoLida(id) {
+    function dispensar(id) {
+        dispensadas.add(id);
         remover(id);
-        try {
-            await requisitar(`${container.dataset.apiUrl}${id}/read/`, 'POST');
-        } catch (erro) {
-            // Se falhar, a notificação volta na próxima atualização
-        }
     }
 
     function criar(notificacao) {
@@ -81,9 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const fechar = document.createElement('button');
         fechar.type = 'button';
         fechar.className = 'notification-close';
-        fechar.title = 'Marcar como lida';
+        fechar.title = 'Fechar notifica\u00e7\u00e3o';
         fechar.innerHTML = '<i class="fas fa-xmark"></i>';
-        fechar.addEventListener('click', () => marcarComoLida(notificacao.id));
+        fechar.addEventListener('click', () => dispensar(notificacao.id));
 
         corpo.append(titulo, mensagem, data);
         elemento.append(icone, corpo, fechar);
@@ -101,13 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const ids = new Set(dados.notifications.map((n) => n.id));
         atualizarContador(ids.size);
 
+        for (const id of dispensadas) {
+            if (!ids.has(id)) dispensadas.delete(id);
+        }
+
         // Some da tela o que foi lido em outra aba ou desativado no admin
         for (const id of [...exibidas.keys()]) {
             if (!ids.has(id)) remover(id);
         }
 
         for (const notificacao of dados.notifications) {
-            if (exibidas.has(notificacao.id)) continue;
+            if (exibidas.has(notificacao.id) || dispensadas.has(notificacao.id)) continue;
             const elemento = criar(notificacao);
             exibidas.set(notificacao.id, elemento);
             container.appendChild(elemento);
