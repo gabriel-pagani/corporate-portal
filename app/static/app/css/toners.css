@@ -93,12 +93,6 @@ h2 {
   margin-bottom: 20px;
 }
 
-.alert ul {
-  list-style: disc;
-  margin-top: 4px;
-  padding-left: 22px;
-}
-
 /* Formulários */
 .form-grid {
   display: grid;

@@ -1,8 +1,10 @@
+from datetime import timedelta
 import json
 import pytest
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
-from app.models import User, Toner, TonerLocation, TonerMovement
+from app.models import Notification, User, Toner, TonerLocation, TonerMovement
+from app.utils.toners.stock import register_movement
 
 
 def make_user(*codenames):
@@ -43,6 +45,7 @@ def test_page_lists_toners(client, operator):
     assert b'<dialog id="toner-modal"' in response.content
     assert b'id="success-message"' in response.content
     assert b'Toners em estoque' not in response.content
+    assert b'Estoque baixo' not in response.content
 
 
 @pytest.mark.django_db
@@ -68,6 +71,67 @@ def test_create_records_initial_stock_as_movement(client, operator, location):
     assert (toner.quantity, toner.minimum_quantity, toner.location) == (5, 2, location)
     movement = toner.movements.get()
     assert (movement.type, movement.quantity, movement.user) == (TonerMovement.ENTRY, 5, operator)
+    assert not Notification.objects.exists()
+
+
+@pytest.mark.django_db
+def test_low_stock_notifies_toner_managers_for_one_day():
+    permissions = {
+        permission.codename: permission
+        for permission in Permission.objects.filter(
+            content_type__app_label='app',
+            content_type__model='toner',
+            codename__in=('add_toner', 'change_toner', 'delete_toner'),
+        )
+    }
+    recipients = []
+    for codename in permissions:
+        user = User.objects.create_user(username=codename, password='senha')
+        user.user_permissions.add(permissions[codename])
+        recipients.append(user)
+
+    group_user = User.objects.create_user(username='grupo-toner', password='senha')
+    group = Group.objects.create(name='Gestores de toner')
+    group.permissions.add(permissions['change_toner'])
+    group_user.groups.add(group)
+    recipients.append(group_user)
+
+    superuser = User.objects.create_superuser(username='admin', password='senha')
+    recipients.append(superuser)
+    outsider = User.objects.create_user(username='consulta', password='senha')
+    outsider.user_permissions.add(
+        Permission.objects.get(content_type__app_label='app', codename='view_toner')
+    )
+
+    toner = Toner.objects.create(name='CF414A', quantity=3, minimum_quantity=2)
+    assert not Notification.objects.exists()
+
+    register_movement(toner.id, TonerMovement.EXIT, 1)
+
+    notification = Notification.objects.get()
+    assert notification.title == 'Estoque baixo'
+    assert notification.message == 'O toner CF414A está com apenas 2 unidades disponíveis.'
+    assert notification.level == Notification.WARNING
+    assert notification.end_at - notification.start_at == timedelta(days=1)
+    assert set(notification.users.all()) == set(recipients)
+    assert outsider not in notification.users.all()
+
+
+@pytest.mark.django_db
+def test_low_stock_notifies_again_only_after_stock_recovers():
+    manager = User.objects.create_user(username='gestor', password='senha')
+    manager.user_permissions.add(
+        Permission.objects.get(content_type__app_label='app', codename='change_toner')
+    )
+    toner = Toner.objects.create(name='CF415A', quantity=4, minimum_quantity=2)
+
+    register_movement(toner.id, TonerMovement.EXIT, 2)
+    register_movement(toner.id, TonerMovement.EXIT, 1)
+    assert Notification.objects.count() == 1
+
+    register_movement(toner.id, TonerMovement.ENTRY, 3)
+    register_movement(toner.id, TonerMovement.EXIT, 3)
+    assert Notification.objects.count() == 2
 
 
 @pytest.mark.django_db
@@ -97,6 +161,7 @@ def test_update_does_not_change_quantity(client, operator, location):
 
     toner.refresh_from_db()
     assert (toner.quantity, toner.minimum_quantity, toner.location) == (4, 5, location)
+    assert set(Notification.objects.get().users.all()) == {operator}
 
 
 @pytest.mark.django_db

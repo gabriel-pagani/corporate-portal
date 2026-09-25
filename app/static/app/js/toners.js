@@ -101,14 +101,6 @@ function tonersFiltrados() {
     });
 }
 
-function renderizarAlerta() {
-    const baixos = ordenarToners(listaToners.filter((toner) => toner.is_low));
-    document.getElementById('alert-low').hidden = baixos.length === 0;
-    document.getElementById('alert-low-list').innerHTML = baixos.map((toner) =>
-        `<li>${escaparHtml(toner.name)}${toner.location ? ' - ' + escaparHtml(toner.location) : ''}</li>`
-    ).join('');
-}
-
 // Os locais são cadastrados apenas pelo portal de administração
 function opcoesDeLocal(idSelecionado) {
     return [
@@ -229,8 +221,6 @@ function linhaHistorico(toner) {
 }
 
 function renderizar() {
-    renderizarAlerta();
-
     const toners = tonersFiltrados();
     const totalPaginas = Math.ceil(toners.length / TONERS_POR_PAGINA);
     paginaAtual = Math.min(paginaAtual, Math.max(1, totalPaginas));

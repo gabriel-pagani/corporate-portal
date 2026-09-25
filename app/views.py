@@ -377,11 +377,17 @@ def toner_create(request):
         return JsonResponse({'detail': 'Informe uma quantidade válida.'}, status=400)
 
     with transaction.atomic():
-        toner = form.save()
+        toner = form.save(commit=False)
+        toner.quantity = initial_quantity
+        toner.save()
         # O estoque inicial entra como movimentação para o histórico ficar consistente
         if initial_quantity:
-            toner, _ = register_movement(
-                toner.id, TonerMovement.ENTRY, initial_quantity, 'Estoque inicial', request.user,
+            TonerMovement.objects.create(
+                toner=toner,
+                type=TonerMovement.ENTRY,
+                quantity=initial_quantity,
+                reason='Estoque inicial',
+                user=request.user,
             )
 
     return JsonResponse({'toner': serialize_toner(toner)}, status=201)
