@@ -85,7 +85,9 @@ def test_cannot_mark_notification_of_someone_else(client, user, other_user):
 
 @pytest.mark.django_db
 def test_pages_include_notifications_only_when_logged_in(client, user):
-    assert b'id="notifications"' in client.get(reverse('app:home')).content
+    content = client.get(reverse('app:home')).content
+    assert b'id="notifications"' in content
+    assert b'id="notification-unread-badge"' in content
 
     client.logout()
     assert b'id="notifications"' not in client.get(reverse('app:login')).content

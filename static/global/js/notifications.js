@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('notifications');
     if (!container) return;
 
+    const contadorNaoLidas = document.getElementById('notification-unread-badge');
+
     const INTERVALO_ATUALIZACAO = 60000;
     const ICONES = {
         I: 'fa-circle-info',
@@ -9,6 +11,16 @@ document.addEventListener('DOMContentLoaded', () => {
         U: 'fa-circle-exclamation',
     };
     const exibidas = new Map();
+
+    function atualizarContador(quantidade) {
+        if (!contadorNaoLidas) return;
+        contadorNaoLidas.hidden = quantidade === 0;
+        contadorNaoLidas.textContent = quantidade > 99 ? '99+' : quantidade;
+        contadorNaoLidas.setAttribute(
+            'aria-label',
+            `${quantidade} notifica\u00e7\u00e3${quantidade === 1 ? 'o n\u00e3o lida' : '\u00f5es n\u00e3o lidas'}`,
+        );
+    }
 
     async function requisitar(url, metodo = 'GET') {
         const resposta = await fetch(url, {
@@ -23,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const elemento = exibidas.get(id);
         if (!elemento) return;
         exibidas.delete(id);
+        atualizarContador(exibidas.size);
         elemento.classList.add('leaving');
         elemento.addEventListener('animationend', () => elemento.remove(), { once: true });
     }
@@ -86,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const ids = new Set(dados.notifications.map((n) => n.id));
+        atualizarContador(ids.size);
 
         // Some da tela o que foi lido em outra aba ou desativado no admin
         for (const id of [...exibidas.keys()]) {
