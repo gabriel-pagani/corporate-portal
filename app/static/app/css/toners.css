@@ -94,6 +94,9 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background-color: #fcebeb;
   color: #a32d2d;
   font-size: 14px;
   font-weight: 600;
