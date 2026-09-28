@@ -6,7 +6,7 @@ const {
 } = document.getElementById('content').dataset;
 
 const INTERVALO_ATUALIZACAO = 15000;
-const TONERS_POR_PAGINA = 15;
+const TONERS_POR_PAGINA = 12;
 
 let listaToners = [];
 let paginaAtual = 1;
