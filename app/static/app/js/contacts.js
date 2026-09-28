@@ -35,6 +35,8 @@ function campoEdicao(valor, campo) {
     input.maxLength = 100;
     input.value = valor || '';
     input.setAttribute('aria-label', campo === 'number' ? 'Número' : campo === 'machine' ? 'Máquina' : 'Nome');
+    if (campo === 'number') input.placeholder = 'Ex: 1234';
+    if (campo === 'machine') input.placeholder = 'Ex: PC-01';
     return input;
 }
 
