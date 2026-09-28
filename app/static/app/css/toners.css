@@ -36,6 +36,12 @@ body {
   margin-bottom: 20px;
 }
 
+.header-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .logo {
   width: 130px;
   height: auto;
@@ -43,7 +49,9 @@ body {
 }
 
 h1 {
+  margin: 0;
   font-size: 34px;
+  line-height: 1.2;
   color: #333;
 }
 
@@ -238,6 +246,11 @@ tbody tr {
   border-bottom: 1px solid #eee;
 }
 
+tbody > tr:not(.detail-row) > td {
+  height: 40px;
+  box-sizing: border-box;
+}
+
 tbody tr.low td {
   background-color: #fcebeb;
 }
@@ -285,6 +298,7 @@ tbody tr.detail-row td {
 
 .row-actions .button {
   height: 28px;
+  min-height: 28px;
   width: 28px;
   padding: 0;
   font-size: 14px;

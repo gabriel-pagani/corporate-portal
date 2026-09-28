@@ -45,7 +45,9 @@ body {
 }
 
 h1 {
+  margin: 0;
   font-size: 34px;
+  line-height: 1.2;
   color: #333;
 }
 
@@ -121,6 +123,11 @@ th {
 
 tbody tr { border-bottom: 1px solid #eee; }
 
+tbody > tr > td {
+  height: 40px;
+  box-sizing: border-box;
+}
+
 .header-cell {
   display: flex;
   justify-content: space-between;
@@ -132,7 +139,7 @@ tbody tr { border-bottom: 1px solid #eee; }
   text-align: right;
 }
 
-.row-actions .button { width: 30px; height: 30px; padding: 0; }
+.row-actions .button { width: 28px; height: 28px; min-height: 28px; padding: 0; }
 .row-actions .button.danger { color: #a32d2d; border-color: #f09595; }
 .row-actions .button.danger:hover { background: #fcebeb; }
 
