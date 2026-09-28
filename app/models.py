@@ -120,7 +120,7 @@ class Contact(models.Model):
     def get_display_name(self):
         if self.user:
             return self.user.get_full_name() or self.user.username
-        return self.name or 'Sem Nome'
+        return self.name or '-'
 
     def __str__(self):
         return self.get_display_name()

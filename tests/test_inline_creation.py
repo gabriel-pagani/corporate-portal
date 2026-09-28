@@ -40,7 +40,7 @@ def test_contact_can_be_created_from_contacts_page(client):
 
 
 @pytest.mark.django_db
-def test_contact_creation_checks_permission_and_required_fields(client):
+def test_contact_creation_checks_permission_and_rejects_completely_empty_record(client):
     url = reverse('app:contacts')
     assert client.post(url, {'name': 'Recepcao', 'number': '1234'}).status_code == 403
     assert not Contact.objects.exists()
@@ -48,8 +48,14 @@ def test_contact_creation_checks_permission_and_required_fields(client):
     user_with_permission(client, 'add_contact')
     response = client.post(url, {'name': '', 'number': ''})
     assert response.status_code == 200
-    assert response.context['contact_form'].errors
+    assert response.context['contact_form'].non_field_errors() == [
+        'Preencha pelo menos um campo do contato.'
+    ]
     assert not Contact.objects.exists()
+
+    response = client.post(url, {'name': 'Recepcao'})
+    assert response.status_code == 302
+    assert Contact.objects.get().name == 'Recepcao'
 
 
 @pytest.mark.django_db
@@ -89,9 +95,9 @@ def test_contact_edit_updates_row_and_checks_permission(client):
 
     payload['number'] = ''
     response = client.post(url, json.dumps(payload), content_type='application/json')
-    assert response.status_code == 400
+    assert response.status_code == 200
     contact.refresh_from_db()
-    assert contact.number == '5678'
+    assert contact.number == ''
 
 
 @pytest.mark.django_db
@@ -148,9 +154,9 @@ def test_edit_can_change_or_unlink_contact_user(client):
     assert contact.name == 'Recepcao'
 
     payload['name'] = ''
-    assert client.post(url, json.dumps(payload), content_type='application/json').status_code == 400
+    assert client.post(url, json.dumps(payload), content_type='application/json').status_code == 200
     contact.refresh_from_db()
-    assert contact.name == 'Recepcao'
+    assert contact.name == ''
 
 
 @pytest.mark.django_db
