@@ -222,7 +222,7 @@ table {
 
 th,
 td {
-  padding: 10px 8px;
+  padding: 6px 8px;
   text-align: left;
   font-size: 15px;
   color: #000;
@@ -284,8 +284,8 @@ tbody tr.detail-row td {
 }
 
 .row-actions .button {
-  height: 30px;
-  width: 30px;
+  height: 28px;
+  width: 28px;
   padding: 0;
   font-size: 14px;
 }

@@ -80,7 +80,7 @@ table {
 
 th,
 td {
-  padding: 10px 8px;
+  padding: 6px 8px;
   text-align: left;
   font-size: 15px;
   color: #000;
@@ -132,7 +132,7 @@ tbody tr { border-bottom: 1px solid #eee; }
   text-align: right;
 }
 
-.row-actions .button { width: 34px; padding: 0; }
+.row-actions .button { width: 30px; height: 30px; padding: 0; }
 .row-actions .button.danger { color: #a32d2d; border-color: #f09595; }
 .row-actions .button.danger:hover { background: #fcebeb; }
 
