@@ -301,6 +301,9 @@ tbody tr.detail-row td {
   min-height: 28px;
   width: 28px;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
 }
 

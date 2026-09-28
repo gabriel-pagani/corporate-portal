@@ -139,7 +139,15 @@ tbody > tr > td {
   text-align: right;
 }
 
-.row-actions .button { width: 28px; height: 28px; min-height: 28px; padding: 0; }
+.row-actions .button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .row-actions .button.danger { color: #a32d2d; border-color: #f09595; }
 .row-actions .button.danger:hover { background: #fcebeb; }
 
