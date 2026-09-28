@@ -35,7 +35,7 @@ class ContactForm(forms.ModelForm):
         model = Contact
         fields = ['user', 'name', 'number', 'sector', 'machine']
         widgets = {
-            'name': forms.TextInput(attrs={'placeholder': 'Ex: Recepção'}),
+            'name': forms.TextInput(attrs={'placeholder': 'Ex: Fulano'}),
             'number': forms.TextInput(attrs={'placeholder': 'Ex: 1234'}),
             'machine': forms.TextInput(attrs={'placeholder': 'Ex: PC-01'}),
         }

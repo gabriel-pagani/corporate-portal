@@ -63,7 +63,6 @@ function editorNome(contato) {
     usuario.value = contato.user_id == null ? '' : String(contato.user_id);
 
     const nome = campoEdicao(contato.custom_name, 'name');
-    nome.placeholder = 'Nome sem vínculo';
     nome.title = 'Com usuário vinculado, o nome exibido vem do usuário.';
     campos.append(usuario, nome);
     return campos;
