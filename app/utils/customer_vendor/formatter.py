@@ -66,12 +66,12 @@ def format_street(street: str) -> list:
 
 
 def format_number(number: str) -> str:
-    if not number:
-        return ""
+    if number is None:
+        return "S/N"
 
-    # se não tem dígito retorna ""
+    number = str(number).strip()
     if not re.search(r"\d", number):
-        return ""
+        return "S/N"
 
     return number.upper().strip()
 
