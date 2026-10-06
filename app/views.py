@@ -263,6 +263,21 @@ def customers_vendors_api(request):
     return JsonResponse(data, status=status)
 
 
+@login_required
+@permission_required('app.register_customers_suppliers', raise_exception=True)
+@require_http_methods(['GET', 'POST'])
+def customers_vendors_view(request):
+    entry = {'cnpj': '', 'ie': '', 'type': 'c'}
+    data = None
+    if request.method == 'POST':
+        entry = {field: request.POST.get(field, '') for field in entry}
+        data = register_customers_vendors([entry])
+    return render(request, 'app/customers_vendors.html', {
+        'entry': entry,
+        'registration': data,
+    })
+
+
 def json_login_required(view):
     # Equivalente ao login_required, mas respondendo JSON para as chamadas da API
     @wraps(view)

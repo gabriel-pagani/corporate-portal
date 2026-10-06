@@ -20,6 +20,12 @@
             </div>
 
             <nav class="menu">
+                {% if perms.app.register_customers_suppliers %}
+                <a href="{% url 'app:customers-vendors' %}" title="Cadastrar clientes e fornecedores">
+                    <i class="fas fa-address-card"></i>
+                    <span class="text">Cadastro de Clientes e Fornecedores</span>
+                </a>
+                {% endif %}
                 <a href="{% url "app:contacts" %}" title="Acessar lista de contatos">
                     <i class="fas fa-phone"></i>
                     <span class="text">Lista de Contatos</span>

@@ -73,6 +73,11 @@ class User(AbstractUser):
     observations = models.TextField(blank=True, null=True, verbose_name='Observações')
     dashboards = models.ManyToManyField(Dashboard, blank=True, verbose_name='Dashboards')
 
+    class Meta(AbstractUser.Meta):
+        permissions = [
+            ('register_customers_suppliers', 'Can register customers and suppliers'),
+        ]
+
     def clean(self):
         super().clean()
         if self.email:

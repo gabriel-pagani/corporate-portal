@@ -1,0 +1,54 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Clientes e Fornecedores{% endblock %}
+{% block head %}
+<link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+<link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
+<link href="{% static 'app/css/customers-vendors.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block body %}
+<main class="container">
+    <div class="header">
+        <a href="{% url 'app:home' %}"><img src="{% static 'global/images/black_logo.png' %}" alt="Voltar ao menu principal" class="logo"></a>
+        <div class="header-text"><h1>Clientes e Fornecedores</h1></div>
+    </div>
+    <section class="card">
+        <h2>Novo cadastro</h2>
+        <form method="post" class="form-grid" id="registration-form">
+            {% csrf_token %}
+            <div class="field">
+                <label for="cnpj">CNPJ</label>
+                <input id="cnpj" name="cnpj" type="text" value="{{ entry.cnpj }}" placeholder="00.000.000/0000-00" required>
+            </div>
+            <div class="field">
+                <label for="ie">Inscrição estadual</label>
+                <input id="ie" name="ie" type="text" value="{{ entry.ie }}" placeholder="Número ou isento">
+            </div>
+            <div class="field">
+                <label for="type">Tipo de cadastro</label>
+                <select id="type" name="type" required>
+                    <option value="c" {% if entry.type == 'c' %}selected{% endif %}>Cliente</option>
+                    <option value="f" {% if entry.type == 'f' %}selected{% endif %}>Fornecedor</option>
+                    <option value="a" {% if entry.type == 'a' %}selected{% endif %}>Cliente e fornecedor</option>
+                </select>
+            </div>
+            <p class="form-hint">Informe a inscrição estadual ou “isento”. Deixe em branco se não informada.</p>
+            <button type="submit" class="button primary" id="register-button">Cadastrar</button>
+        </form>
+    </section>
+    {% if registration %}
+    <section class="card" aria-live="polite">
+        <h2>Resultado do cadastro</h2>
+        {% for result in registration.results %}
+        <div class="registration-result result-{{ result.status }}" role="status">
+            <strong>{% if result.status == 'created' %}Cadastrado{% elif result.status == 'skipped' %}Já cadastrado{% else %}Erro{% endif %}</strong>
+            <p>{{ result.message }}</p>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+</main>
+<script src="{% static 'app/js/customers-vendors.js' %}"></script>
+{% endblock %}
