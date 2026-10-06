@@ -55,7 +55,7 @@
     </section>
     {% if registration %}
     <section class="card" aria-live="polite">
-        <h2>Resultado do cadastro</h2>
+        <h2>Resultado dos cadastros</h2>
         <p class="registration-summary">Cadastrados: {{ registration.summary.created }} · Já cadastrados: {{ registration.summary.skipped }} · Erros: {{ registration.summary.errors }}</p>
         {% for result in registration.results %}
         <div class="registration-result result-{{ result.status }}" role="status">
