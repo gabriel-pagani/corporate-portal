@@ -45,8 +45,12 @@
       const actions = document.createElement('td');
       const remove = document.createElement('button');
       remove.type = 'button';
-      remove.className = 'button small';
-      remove.textContent = 'Remover';
+      remove.className = 'button danger';
+      remove.title = 'Remover';
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-trash';
+      icon.setAttribute('aria-hidden', 'true');
+      remove.appendChild(icon);
       remove.setAttribute('aria-label', `Remover CNPJ ${entry.cnpj}`);
       remove.addEventListener('click', () => {
         if (submitting) return;
