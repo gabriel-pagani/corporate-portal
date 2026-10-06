@@ -20,12 +20,6 @@
             </div>
 
             <nav class="menu">
-                {% if perms.app.register_customers_suppliers %}
-                <a href="{% url 'app:customers-vendors' %}" title="Cadastrar clientes e fornecedores">
-                    <i class="fas fa-address-card"></i>
-                    <span class="text">Cadastro de Clientes e Fornecedores</span>
-                </a>
-                {% endif %}
                 <a href="{% url "app:contacts" %}" title="Acessar lista de contatos">
                     <i class="fas fa-phone"></i>
                     <span class="text">Lista de Contatos</span>
@@ -43,6 +37,12 @@
                 <a href="{% url "app:toners" %}" title="Acessar controle de toners">
                     <i class="fas fa-print"></i>
                     <span class="text">Controle de Toners</span>
+                </a>
+                {% endif %}
+                {% if perms.app.register_customers_suppliers %}
+                <a href="{% url 'app:customers-vendors' %}" title="Cadastrar clientes e fornecedores">
+                    <i class="fas fa-address-card"></i>
+                    <span class="text">Clientes e Fornecedores</span>
                 </a>
                 {% endif %}
                 <a href="http://servicos.gruposmi.com.br/front/ticket.php" title="Acessar central de chamados">
