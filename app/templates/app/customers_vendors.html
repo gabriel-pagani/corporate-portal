@@ -24,7 +24,8 @@
             </div>
             <div class="field">
                 <label for="ie">Inscrição estadual</label>
-                <input id="ie" name="ie" type="text" value="{{ entry.ie }}" placeholder="Número ou isento">
+                <input id="ie" name="ie" type="text" value="{{ entry.ie }}" placeholder="Número ou isento" aria-describedby="ie-hint">
+                <p class="form-hint" id="ie-hint">Informe a inscrição estadual ou “isento”. Deixe em branco se não for contribuinte.</p>
             </div>
             <div class="field">
                 <label for="type">Tipo de cadastro</label>
@@ -34,7 +35,6 @@
                     <option value="a" {% if entry.type == 'a' %}selected{% endif %}>Cliente e fornecedor</option>
                 </select>
             </div>
-            <p class="form-hint">Informe a inscrição estadual ou “isento”. Deixe em branco se não informada.</p>
             <button type="submit" class="button primary" id="register-button">Cadastrar</button>
         </form>
     </section>
