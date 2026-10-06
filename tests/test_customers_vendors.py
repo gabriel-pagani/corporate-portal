@@ -1,4 +1,5 @@
 from unittest.mock import patch
+import json
 
 import pytest
 from django.contrib.auth.models import Permission
@@ -64,3 +65,35 @@ def test_invalid_cnpj_uses_existing_validation(client, operator):
         })
         query.assert_not_called()
     assert 'Cnpj inválido!'.encode() in response.content
+
+
+@pytest.mark.django_db
+def test_batch_registration_preserves_failed_entries(client, operator):
+    entries = [
+        {'cnpj': '123', 'ie': '', 'type': 'c'},
+        {'cnpj': '456', 'ie': 'isento', 'type': 'f'},
+    ]
+    data = {
+        'summary': {'total': 2, 'created': 1, 'skipped': 0, 'errors': 1},
+        'results': [
+            {'status': 'created', 'message': 'Primeiro cadastrado'},
+            {'status': 'error', 'message': 'Segundo com erro'},
+        ],
+    }
+    with patch('app.views.register_customers_vendors', return_value=data) as register:
+        response = client.post(reverse('app:customers-vendors'), {
+            'customers_vendors': json.dumps(entries),
+        })
+    register.assert_called_once_with(entries)
+    assert response.context['pending'] == [entries[1]]
+    assert b'Primeiro cadastrado' in response.content
+    assert b'Segundo com erro' in response.content
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('payload', ['[]', '{}', 'invalid'])
+def test_invalid_batch_does_not_register(client, operator, payload):
+    with patch('app.views.register_customers_vendors') as register:
+        response = client.post(reverse('app:customers-vendors'), {'customers_vendors': payload})
+    register.assert_not_called()
+    assert response.context['batch_error']

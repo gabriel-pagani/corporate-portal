@@ -16,8 +16,7 @@
     </div>
     <section class="card">
         <h2>Novo cadastro</h2>
-        <form method="post" class="form-grid" id="registration-form">
-            {% csrf_token %}
+        <form class="form-grid" id="registration-form">
             <div class="field">
                 <label for="cnpj">CNPJ</label>
                 <input id="cnpj" name="cnpj" type="text" value="{{ entry.cnpj }}" placeholder="00.000.000/0000-00" required>
@@ -34,12 +33,30 @@
                     <option value="a" {% if entry.type == 'a' %}selected{% endif %}>Cliente e fornecedor</option>
                 </select>
             </div>
-            <button type="submit" class="button primary" id="register-button">Cadastrar</button>
+            <button type="submit" class="button primary" id="add-button">Adicionar à lista</button>
         </form>
+    </section>
+    <section class="card">
+        <h2>Cadastros pendentes (<span id="pending-count">0</span>)</h2>
+        <p id="queue-error" class="form-error" role="alert" hidden></p>
+        <p id="empty-queue">Adicione os CNPJs acima antes de cadastrar.</p>
+        <div class="table-wrapper">
+            <table id="pending-table" hidden>
+                <thead><tr><th>CNPJ</th><th>Inscrição estadual</th><th>Tipo</th><th>Ações</th></tr></thead>
+                <tbody id="pending-entries"></tbody>
+            </table>
+        </div>
+        <form method="post" id="batch-form">
+            {% csrf_token %}
+            <input type="hidden" name="customers_vendors" id="batch-payload" value="[]">
+            <button type="submit" class="button primary" id="register-button" disabled>Cadastrar todos</button>
+        </form>
+        {% if batch_error %}<p class="form-error" role="alert">{{ batch_error }}</p>{% endif %}
     </section>
     {% if registration %}
     <section class="card" aria-live="polite">
         <h2>Resultado do cadastro</h2>
+        <p class="registration-summary">Cadastrados: {{ registration.summary.created }} · Já cadastrados: {{ registration.summary.skipped }} · Erros: {{ registration.summary.errors }}</p>
         {% for result in registration.results %}
         <div class="registration-result result-{{ result.status }}" role="status">
             <strong>{% if result.status == 'created' %}Cadastrado{% elif result.status == 'skipped' %}Já cadastrado{% else %}Erro{% endif %}</strong>
@@ -49,5 +66,6 @@
     </section>
     {% endif %}
 </main>
+{{ pending|json_script:"pending-data" }}
 <script src="{% static 'app/js/customers-vendors.js' %}"></script>
 {% endblock %}

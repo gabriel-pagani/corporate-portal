@@ -269,12 +269,28 @@ def customers_vendors_api(request):
 def customers_vendors_view(request):
     entry = {'cnpj': '', 'ie': '', 'type': 'c'}
     data = None
+    pending = []
+    batch_error = None
     if request.method == 'POST':
-        entry = {field: request.POST.get(field, '') for field in entry}
-        data = register_customers_vendors([entry])
+        if 'customers_vendors' in request.POST:
+            try:
+                entries = json.loads(request.POST['customers_vendors'])
+            except (ValueError, TypeError):
+                entries = None
+            if not isinstance(entries, list) or not entries:
+                batch_error = 'Adicione pelo menos um CNPJ à lista de cadastros.'
+        else:
+            entry = {field: request.POST.get(field, '') for field in entry}
+            entries = [entry]
+        if batch_error is None:
+            data = register_customers_vendors(entries)
+            pending = [item for item, result in zip(entries, data['results'])
+                       if result['status'] == 'error' and isinstance(item, dict)]
     return render(request, 'app/customers_vendors.html', {
         'entry': entry,
         'registration': data,
+        'pending': pending,
+        'batch_error': batch_error,
     })
 
 
