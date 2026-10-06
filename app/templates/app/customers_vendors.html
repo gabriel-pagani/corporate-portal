@@ -33,12 +33,13 @@
                     <option value="a" {% if entry.type == 'a' %}selected{% endif %}>Cliente e fornecedor</option>
                 </select>
             </div>
+            <p id="queue-error" class="form-error field-wide" role="alert" hidden></p>
+            {% if batch_error %}<p class="form-error field-wide" role="alert">{{ batch_error }}</p>{% endif %}
             <button type="submit" class="button primary" id="add-button">Adicionar à lista</button>
         </form>
     </section>
     <section class="card">
         <h2>Cadastros pendentes (<span id="pending-count">0</span>)</h2>
-        <p id="queue-error" class="form-error" role="alert" hidden></p>
         <p id="empty-queue">Adicione os CNPJs acima antes de cadastrar.</p>
         <div class="table-wrapper">
             <table id="pending-table" hidden>
@@ -51,7 +52,6 @@
             <input type="hidden" name="customers_vendors" id="batch-payload" value="[]">
             <button type="submit" class="button primary" id="register-button" disabled>Cadastrar todos</button>
         </form>
-        {% if batch_error %}<p class="form-error" role="alert">{{ batch_error }}</p>{% endif %}
     </section>
     {% if registration %}
     <section class="card" aria-live="polite">
