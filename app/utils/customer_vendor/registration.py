@@ -27,20 +27,21 @@ def format_cnpj(cnpj: str) -> str:
 
 def sanitize_entry(entry: dict) -> dict:
     """Normaliza e valida um item da lista, replicando as regras de `add_cnpj_to_list`."""
-    cnpj = re.sub(r"\D", "", str(entry.get('cnpj') or ''))
+    raw_cnpj = str(entry.get('cnpj') or '').strip()
+    cnpj = re.sub(r"\D", "", raw_cnpj)
 
     raw_ie = str(entry.get('ie') or '').strip()
-    ie = 'isento' if raw_ie.lower() == 'isento' else re.sub(r"\D", "", raw_ie)
+    ie = 'isento' if raw_ie.lower() == 'isento' else raw_ie
 
     type_ = str(entry.get('type') or '').strip().lower()
 
     if not cnpj:
         raise ValueError('Campo "cnpj" obrigatório!')
 
-    if not is_valid_cnpj(cnpj):
+    if not re.fullmatch(r'(?:[0-9]{14}|[0-9]{2}\.[0-9]{3}\.[0-9]{3}/[0-9]{4}-[0-9]{2})', raw_cnpj) or not is_valid_cnpj(cnpj):
         raise ValueError('Cnpj inválido!')
 
-    if ie and ie != 'isento' and not ie.isdigit():
+    if ie and ie != 'isento' and not re.fullmatch(r'[0-9]+', ie):
         raise ValueError('Inscrição estadual inválida!')
 
     if type_ not in TYPE_LABELS:

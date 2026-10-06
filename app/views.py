@@ -7,7 +7,7 @@ from app.forms import (
 from app.utils import throttle
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
-from app.utils.customer_vendor.registration import register_customers_vendors
+from app.utils.customer_vendor.registration import register_customers_vendors, sanitize_entry
 from app.utils.toners.stock import (
     serialize_toner, serialize_movement, register_movement, toners_queryset, has_movements,
 )
@@ -279,6 +279,20 @@ def customers_vendors_view(request):
                 entries = None
             if not isinstance(entries, list) or not entries:
                 batch_error = 'Adicione pelo menos um CNPJ à lista de cadastros.'
+            else:
+                seen = set()
+                for index, item in enumerate(entries, start=1):
+                    try:
+                        if not isinstance(item, dict):
+                            raise ValueError('Cada cadastro deve informar CNPJ, inscrição estadual e tipo.')
+                        normalized = sanitize_entry(item)
+                        if normalized['cnpj'] in seen:
+                            raise ValueError('Esse CNPJ está duplicado na lista!')
+                        seen.add(normalized['cnpj'])
+                    except ValueError as error:
+                        batch_error = f'Cadastro {index}: {error}'
+                        pending = [item for item in entries if isinstance(item, dict)]
+                        break
         else:
             entry = {field: request.POST.get(field, '') for field in entry}
             entries = [entry]
