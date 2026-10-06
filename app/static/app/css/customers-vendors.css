@@ -4,6 +4,8 @@
 }
 #add-button { grid-column: 1 / -1; }
 #batch-form { margin-top: 16px; }
+#pending-table th:last-child,
+#pending-table td:last-child { text-align: right; width: 1%; white-space: nowrap; }
 .registration-summary { margin-bottom: 12px; }
 .registration-result + .registration-result { margin-top: 10px; }
 .registration-result { padding: 14px; border-radius: 4px; overflow-wrap: anywhere; }
