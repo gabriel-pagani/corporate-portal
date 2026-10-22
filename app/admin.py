@@ -3,7 +3,9 @@ from django.contrib import admin, messages
 from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
-from django.contrib.auth.models import Group as BaseGroup
+from django.contrib.auth.models import Group as BaseGroup, Permission
+from django.db.models import Q
+from django.utils.html import format_html_join
 from .models import (
     User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
     Notification,
@@ -113,6 +115,51 @@ class DashboardAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_filter = ('status', 'sector',)
     ordering = ('title',)
     autocomplete_fields = ('sector',)
+    readonly_fields = ('get_users_with_access',)
+
+    # Mesmas regras do get_user_dashboards: acesso direto, por grupo ou pela permissão de ver todos
+    @admin.display(description='Usuários com acesso')
+    def get_users_with_access(self, obj):
+        if not obj.pk:
+            return '-'
+
+        view_all = Permission.objects.filter(codename='view_all_dashboards', content_type__app_label='app')
+        view_all_ids = set(
+            User.objects.filter(Q(user_permissions__in=view_all) | Q(groups__permissions__in=view_all))
+            .values_list('id', flat=True)
+        )
+        direct_ids = set(obj.user_set.values_list('id', flat=True))
+        groups_with_access = {group.id: group.name for group in BaseGroup.objects.filter(perfil__dashboards=obj)}
+
+        users = (
+            User.objects.filter(is_active=True)
+            .filter(
+                Q(id__in=direct_ids) | Q(id__in=view_all_ids) | Q(is_superuser=True)
+                | Q(groups__id__in=groups_with_access)
+            )
+            .distinct()
+            .prefetch_related('groups')
+            .order_by('username')
+        )
+
+        rows = []
+        for user in users:
+            origins = []
+            if user.is_superuser:
+                origins.append('Superusuário')
+            if user.id in view_all_ids:
+                origins.append('Ver todos os dashboards')
+            if user.id in direct_ids:
+                origins.append('Direto')
+            origins += [
+                f'Grupo {groups_with_access[group.id]}'
+                for group in user.groups.all() if group.id in groups_with_access
+            ]
+            rows.append((user.get_full_name() or user.username, user.username, ', '.join(origins)))
+
+        if not rows:
+            return '-'
+        return format_html_join('<br>', '{} ({}) — {}', rows)
 
 
 # A quantidade só muda por movimentação, para o histórico sempre fechar com o estoque
