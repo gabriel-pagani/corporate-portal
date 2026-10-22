@@ -28,7 +28,7 @@
                 </div>
                 <div class="alert no-results">Nenhum dashboard encontrado</div>
                 {% if dashboards %}
-                    <ul class="menu-list" data-favorite-url="{% url "app:favorite-dashboard" 12345 %}">
+                    <ul class="menu-list" data-favorite-url="{% url "app:favorite-dashboard" 12345 %}" data-csrf-token="{{ csrf_token }}">
                         {% for sector, sector_dashboards in dashboards.items %}
                             <li class="menu-item">
                                 <div class="sector-header" title="{{ sector }}">

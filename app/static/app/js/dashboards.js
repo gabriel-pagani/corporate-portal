@@ -16,8 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// O token vem do template: em produção o cookie se chama __Host-csrftoken, então não dá para lê-lo pelo nome padrão
 function getCsrfToken() {
-    return document.cookie.split('; ').find((linha) => linha.startsWith('csrftoken='))?.split('=')[1];
+    return document.querySelector('.menu-list').dataset.csrfToken;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
