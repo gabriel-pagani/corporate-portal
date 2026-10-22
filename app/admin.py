@@ -117,6 +117,9 @@ class DashboardAdmin(VersionAdmin, UnaccentSearchAdmin):
     autocomplete_fields = ('sector',)
     readonly_fields = ('get_users_with_access',)
 
+    class Media:
+        css = {'all': ('app/css/admin-dashboards.css',)}
+
     # Mesmas regras do get_user_dashboards: acesso direto, por grupo ou pela permissão de ver todos
     @admin.display(description='Usuários com acesso')
     def get_users_with_access(self, obj):

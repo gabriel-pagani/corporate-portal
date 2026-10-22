@@ -1,0 +1,8 @@
+/* A tabela de usuários com acesso ocupa toda a largura que sobra ao lado do rótulo */
+.field-get_users_with_access .readonly {
+    flex: 1;
+}
+
+.field-get_users_with_access table {
+    width: 100%;
+}
