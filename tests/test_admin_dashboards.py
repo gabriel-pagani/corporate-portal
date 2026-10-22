@@ -36,10 +36,11 @@ def test_dashboard_admin_lists_users_with_access_and_origin():
 
     result = site._registry[Dashboard].get_users_with_access(dashboard)
 
-    assert '(direto) — Direto' in result
-    assert '(porgrupo) — Grupo RH' in result
-    assert '(vetodos) — Ver todos os dashboards' in result
-    assert '(admin) — Superusuário' in result
+    assert '<td>direto</td><td>Direto</td>' in result
+    assert '<td>porgrupo</td><td>Grupo RH</td>' in result
+    assert '<td>vetodos</td><td>Ver todos os dashboards</td>' in result
+    assert '<td>admin</td><td>Superusuário</td>' in result
+    assert '&lt;' not in result
     assert 'semacesso' not in result
     assert 'inativo' not in result
 

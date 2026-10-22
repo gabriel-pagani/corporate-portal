@@ -5,7 +5,7 @@ import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup, Permission
 from django.db.models import Q
-from django.utils.html import format_html_join
+from django.utils.html import format_html, format_html_join
 from .models import (
     User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
     Notification,
@@ -159,7 +159,11 @@ class DashboardAdmin(VersionAdmin, UnaccentSearchAdmin):
 
         if not rows:
             return '-'
-        return format_html_join('<br>', '{} ({}) — {}', rows)
+        return format_html(
+            '<table><thead><tr><th>Nome</th><th>Usuário</th><th>Origem do acesso</th></tr></thead>'
+            '<tbody>{}</tbody></table>',
+            format_html_join('', '<tr><td>{}</td><td>{}</td><td>{}</td></tr>', rows),
+        )
 
 
 # A quantidade só muda por movimentação, para o histórico sempre fechar com o estoque
