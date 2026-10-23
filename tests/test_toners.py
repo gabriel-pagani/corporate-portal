@@ -312,7 +312,9 @@ def test_request_failure_keeps_toner_pending(client, operator, webhook):
     webhook.side_effect = requests.ConnectionError
 
     response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 2}]})
-    assert response.status_code == 502
+    # 502 seria trocado pela página de erro da Cloudflare
+    assert response.status_code == 503
+    assert response.json()['detail'] == 'Não foi possível se comunicar com o n8n. Tente novamente.'
 
     toner.refresh_from_db()
     assert toner.requested_quantity == 0
@@ -321,10 +323,26 @@ def test_request_failure_keeps_toner_pending(client, operator, webhook):
 @pytest.mark.django_db
 def test_request_reports_webhook_error_status(client, operator, webhook):
     toner = Toner.objects.create(name='CF423A', idprd=105)
-    webhook.return_value.raise_for_status.side_effect = requests.HTTPError
+    n8n_response = requests.Response()
+    n8n_response.status_code = 404
+    webhook.return_value.raise_for_status.side_effect = requests.HTTPError(response=n8n_response)
 
     response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 2}]})
-    assert response.status_code == 502
+    assert response.status_code == 503
+    assert response.json()['detail'] == 'O n8n recusou a solicitação (erro 404). Nada foi registrado.'
+
+    toner.refresh_from_db()
+    assert toner.requested_quantity == 0
+
+
+@pytest.mark.django_db
+def test_request_timeout_warns_to_check_rm(client, operator, webhook):
+    toner = Toner.objects.create(name='CF433A', idprd=111)
+    webhook.side_effect = requests.Timeout
+
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 2}]})
+    assert response.status_code == 503
+    assert 'Confira no RM' in response.json()['detail']
 
     toner.refresh_from_db()
     assert toner.requested_quantity == 0

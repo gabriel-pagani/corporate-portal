@@ -521,10 +521,21 @@ def toner_requests_api(request):
         toners = request_toners(payload.get('items'))
     except ValidationError as error:
         return JsonResponse({'detail': error.messages[0]}, status=400)
+    # As falhas do n8n saem como 503, não 502: a Cloudflare troca qualquer 502
+    # da origem pela página de erro dela, e a mensagem daqui se perderia
     except RuntimeError as error:
         return JsonResponse({'detail': str(error)}, status=503)
+    except requests.HTTPError as error:
+        return JsonResponse({
+            'detail': f'O n8n recusou a solicitação (erro {error.response.status_code}). Nada foi registrado.',
+        }, status=503)
+    except requests.Timeout:
+        # O n8n pode ter terminado depois que o portal desistiu de esperar
+        return JsonResponse({
+            'detail': 'O n8n não respondeu a tempo. Confira no RM se a solicitação foi criada antes de tentar de novo.',
+        }, status=503)
     except requests.RequestException:
-        return JsonResponse({'detail': 'Não foi possível enviar a solicitação ao RM. Tente novamente.'}, status=502)
+        return JsonResponse({'detail': 'Não foi possível se comunicar com o n8n. Tente novamente.'}, status=503)
 
     return JsonResponse({'toners': [serialize_toner(toner) for toner in toners]}, status=201)
 
