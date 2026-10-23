@@ -27,7 +27,7 @@ def test_contact_can_be_created_from_contacts_page(client):
     assert b'id="export-pdf"' in page.content
     assert b'Contatos cadastrados' not in page.content
     assert list(page.context['contact_form'].fields)[:2] == ['user', 'name']
-    assert 'placeholder="Ex: Recepção"'.encode() in page.content
+    assert b'placeholder="Ex: Fulano"' in page.content
     assert b'placeholder="Ex: 1234"' in page.content
     assert b'placeholder="Ex: PC-01"' in page.content
     assert 'Selecione um usuário'.encode() in page.content
@@ -42,6 +42,8 @@ def test_contact_can_be_created_from_contacts_page(client):
 @pytest.mark.django_db
 def test_contact_creation_checks_permission_and_rejects_completely_empty_record(client):
     url = reverse('app:contacts')
+    assert client.post(url, {'name': 'Recepcao', 'number': '1234'}).status_code == 302
+    client.force_login(User.objects.create_user(username='sem-permissao'))
     assert client.post(url, {'name': 'Recepcao', 'number': '1234'}).status_code == 403
     assert not Contact.objects.exists()
 
