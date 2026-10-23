@@ -18,6 +18,7 @@ let movimentandoId = null;
 let historicoId = null;
 let historico = null;
 let tonersSolicitaveis = [];
+let itensSolicitacao = [];
 let enviando = false;
 
 function escaparHtml(texto) {
@@ -539,47 +540,69 @@ function abrirSolicitacao() {
     document.querySelector('#request-table tbody').innerHTML = tonersSolicitaveis.map(linhaSolicitacao).join('');
     pesquisa.value = '';
     filtrarSolicitacao();
-    document.getElementById('request-error').hidden = true;
+    mostrarEtapaSolicitacao(false);
     document.getElementById('request-modal').showModal();
     pesquisa.focus();
 }
 
-async function aoSolicitar(evento) {
+// A revisão troca o conteúdo do modal sem mexer na escolha: ao voltar, as quantidades continuam lá
+function mostrarEtapaSolicitacao(revisando) {
+    document.getElementById('request-modal-title').textContent = revisando ? 'Revisar solicitação' : 'Solicitar toners';
+    document.getElementById('request-step-select').hidden = revisando;
+    document.getElementById('request-step-review').hidden = !revisando;
+    document.getElementById('request-review').hidden = revisando;
+    document.getElementById('request-back').hidden = !revisando;
+    document.getElementById('request-send').hidden = !revisando;
+    document.getElementById('request-error').hidden = true;
+}
+
+function linhaRevisao(item) {
+    const toner = tonersSolicitaveis.find((t) => t.id === item.toner);
+    const pendente = toner.requested_quantity > 0
+        ? ` <span class="badge requested" title="Já existe solicitação aguardando entrega">Já solicitado</span>`
+        : '';
+    return `
+        <tr class="${toner.is_low ? 'low' : ''}">
+            <td>${escaparHtml(toner.name)}${pendente}</td>
+            <td>${escaparHtml(toner.location || '-')}</td>
+            <td><span class="quantity-value">${toner.quantity}</span></td>
+            <td>${toner.expected_quantity}</td>
+            <td>${toner.minimum_quantity}</td>
+            <td><span class="quantity-value">${item.quantity}</span></td>
+        </tr>`;
+}
+
+// A revisão inclui o que a pesquisa escondeu, para nada ser enviado sem o usuário ver
+function aoRevisarSolicitacao(evento) {
     evento.preventDefault();
-    const formulario = evento.currentTarget;
-    const botao = formulario.querySelector('button[type="submit"]');
     const erroSolicitacao = document.getElementById('request-error');
-    const itens = [...formulario.querySelectorAll('input[data-toner]')]
+    itensSolicitacao = [...evento.currentTarget.querySelectorAll('input[data-toner]')]
         .map((campo) => ({ toner: Number(campo.dataset.toner), quantity: parseInt(campo.value, 10) || 0 }))
         .filter((item) => item.quantity > 0);
 
-    if (itens.length === 0) {
+    if (itensSolicitacao.length === 0) {
         erroSolicitacao.textContent = 'Informe a quantidade de pelo menos um toner.';
         erroSolicitacao.hidden = false;
         return;
     }
 
-    const tonerDoItem = (item) => tonersSolicitaveis.find((toner) => toner.id === item.toner);
-    const pendentes = itens
-        .map(tonerDoItem)
-        .filter((toner) => toner.requested_quantity > 0)
-        .map((toner) => toner.name);
-    // A lista inclui o que a pesquisa escondeu, para nada ser enviado sem o usuário ver
-    let pergunta = 'Enviar ao RM a solicitação de:\n\n' + itens
-        .map((item) => `• ${tonerDoItem(item).name}: ${item.quantity}`)
-        .join('\n');
-    if (pendentes.length) {
-        pergunta += `\n\nJá existe solicitação aguardando entrega para: ${pendentes.join(', ')}.`;
-    }
-    if (!confirm(pergunta)) return;
+    document.querySelector('#request-review-table tbody').innerHTML = itensSolicitacao.map(linhaRevisao).join('');
+    mostrarEtapaSolicitacao(true);
+    // O foco fica no Voltar: um Enter a mais vindo da quantidade não envia sem a revisão ser vista
+    document.getElementById('request-back').focus();
+}
+
+async function enviarSolicitacao() {
+    const botoes = [document.getElementById('request-send'), document.getElementById('request-back')];
+    const erroSolicitacao = document.getElementById('request-error');
 
     enviando = true;
-    botao.disabled = true;
+    botoes.forEach((botao) => { botao.disabled = true; });
     try {
         erroSolicitacao.hidden = true;
         mostrarSucesso('');
         mostrarErro('');
-        const dados = await requisitar(SOLICITACOES_API_URL, 'POST', { items: itens });
+        const dados = await requisitar(SOLICITACOES_API_URL, 'POST', { items: itensSolicitacao });
         dados.toners.forEach(substituirToner);
         document.getElementById('request-modal').close();
         mostrarSucesso('Solicitação enviada ao RM com sucesso.');
@@ -589,7 +612,7 @@ async function aoSolicitar(evento) {
         erroSolicitacao.hidden = false;
     } finally {
         enviando = false;
-        botao.disabled = false;
+        botoes.forEach((botao) => { botao.disabled = false; });
     }
 }
 
@@ -681,8 +704,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (formularioSolicitar) {
         const modal = document.getElementById('request-modal');
         const pesquisa = document.getElementById('request-search');
-        formularioSolicitar.addEventListener('submit', aoSolicitar);
+        formularioSolicitar.addEventListener('submit', aoRevisarSolicitacao);
         document.getElementById('open-request-modal').addEventListener('click', abrirSolicitacao);
+        document.getElementById('request-send').addEventListener('click', enviarSolicitacao);
+        document.getElementById('request-back').addEventListener('click', () => {
+            mostrarEtapaSolicitacao(false);
+            pesquisa.focus();
+        });
         pesquisa.addEventListener('input', filtrarSolicitacao);
         // Enter na pesquisa não deve enviar a solicitação
         pesquisa.addEventListener('keydown', (evento) => {

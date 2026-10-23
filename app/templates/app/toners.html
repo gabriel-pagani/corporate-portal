@@ -129,27 +129,48 @@
                     </button>
                 </div>
                 <form id="request-form" autocomplete="off">
-                    <input type="search" id="request-search" class="request-search" placeholder="Pesquise aqui..." aria-label="Pesquisar toners">
-                    <div class="table-wrapper request-table-wrapper">
-                        <table id="request-table">
-                            <thead>
-                                <tr>
-                                    <th>Toner</th>
-                                    <th>Local</th>
-                                    <th>Estoque</th>
-                                    <th>Quantidade Prevista</th>
-                                    <th>Mínimo</th>
-                                    <th>Solicitar</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                    <div id="request-step-select">
+                        <input type="search" id="request-search" class="request-search" placeholder="Pesquise aqui..." aria-label="Pesquisar toners">
+                        <div class="table-wrapper request-table-wrapper">
+                            <table id="request-table">
+                                <thead>
+                                    <tr>
+                                        <th>Toner</th>
+                                        <th>Local</th>
+                                        <th>Estoque</th>
+                                        <th>Quantidade Prevista</th>
+                                        <th>Mínimo</th>
+                                        <th>Solicitar</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div id="request-empty" class="empty" hidden>Nenhum toner tem o IDPRD do RM cadastrado.</div>
                     </div>
-                    <div id="request-empty" class="empty" hidden>Nenhum toner tem o IDPRD do RM cadastrado.</div>
+                    <div id="request-step-review" hidden>
+                        <div class="table-wrapper request-table-wrapper">
+                            <table id="request-review-table">
+                                <thead>
+                                    <tr>
+                                        <th>Toner</th>
+                                        <th>Local</th>
+                                        <th>Estoque</th>
+                                        <th>Quantidade Prevista</th>
+                                        <th>Mínimo</th>
+                                        <th>Solicitar</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
                     <div id="request-error" class="form-error" role="alert" hidden></div>
                     <div class="modal-actions">
                         <button type="button" class="button" data-close-modal>Cancelar</button>
-                        <button type="submit" class="button primary">Enviar ao RM</button>
+                        <button type="button" class="button" id="request-back" hidden>Voltar</button>
+                        <button type="submit" class="button primary" id="request-review">Revisar solicitação</button>
+                        <button type="button" class="button primary" id="request-send" hidden>Enviar ao RM</button>
                     </div>
                 </form>
             </dialog>
