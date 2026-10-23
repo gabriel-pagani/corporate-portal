@@ -1,7 +1,11 @@
 from datetime import timedelta
+from unittest.mock import patch
 import json
 import pytest
+import requests
+from requests.auth import HTTPBasicAuth
 from django.contrib.auth.models import Group, Permission
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 from app.models import Notification, User, Toner, TonerLocation, TonerMovement
 from app.utils.toners.stock import register_movement
@@ -24,7 +28,7 @@ def location(db):
 
 @pytest.fixture
 def operator(client):
-    user = make_user('view_toner', 'add_toner', 'change_toner', 'delete_toner', 'add_tonermovement')
+    user = make_user('view_toner', 'add_toner', 'change_toner', 'delete_toner', 'add_tonermovement', 'request_toner')
     client.force_login(user)
     return user
 
@@ -237,3 +241,171 @@ def test_delete_toner(client, operator):
     response = client.delete(reverse('app:toner-api', args=[toner.id]))
     assert response.status_code == 200
     assert not Toner.objects.exists()
+
+
+@pytest.fixture
+def webhook(settings):
+    settings.TONER_REQUEST_WEBHOOK_URL = 'https://n8n.local/webhook/toners'
+    settings.RM_USER = 'usuario-rm'
+    settings.RM_PASSWORD = 'senha-rm'
+    with patch('app.utils.toners.request.requests.post') as post:
+        yield post
+
+
+@pytest.mark.django_db
+def test_entry_settles_requested_quantity():
+    toner = Toner.objects.create(name='CF416A', quantity=0, requested_quantity=5)
+
+    register_movement(toner.id, TonerMovement.ENTRY, 3)
+    toner.refresh_from_db()
+    assert (toner.quantity, toner.requested_quantity) == (3, 2)
+
+    register_movement(toner.id, TonerMovement.EXIT, 1)
+    toner.refresh_from_db()
+    assert toner.requested_quantity == 2
+
+    register_movement(toner.id, TonerMovement.ENTRY, 4)
+    toner.refresh_from_db()
+    assert (toner.quantity, toner.requested_quantity) == (6, 0)
+
+
+@pytest.mark.django_db
+def test_api_hides_idprd(client, operator):
+    Toner.objects.create(name='CF417A', idprd=987654321)
+    Toner.objects.create(name='CF418A')
+    toners = {t['name']: t for t in client.get(reverse('app:toners-api')).json()['toners']}
+
+    assert toners['CF417A']['can_request'] is True
+    assert toners['CF418A']['can_request'] is False
+    assert b'987654321' not in client.get(reverse('app:toners')).content
+    assert all('idprd' not in toner for toner in toners.values())
+
+
+@pytest.mark.django_db
+def test_request_sends_idprds_and_marks_requested(client, operator, webhook):
+    first = Toner.objects.create(name='CF419A', idprd=101, quantity=4, requested_quantity=1)
+    second = Toner.objects.create(name='CF420A', idprd=102)
+    untouched = Toner.objects.create(name='CF421A', idprd=103)
+
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [
+        {'toner': first.id, 'quantity': 2},
+        {'toner': second.id, 'quantity': 3},
+    ]})
+    assert response.status_code == 201
+    assert {t['name']: t['requested_quantity'] for t in response.json()['toners']} == {'CF419A': 3, 'CF420A': 3}
+    # A quantidade prevista soma o estoque ao que foi solicitado e ainda não chegou
+    assert {t['name']: t['expected_quantity'] for t in response.json()['toners']} == {'CF419A': 7, 'CF420A': 3}
+
+    webhook.assert_called_once()
+    args, kwargs = webhook.call_args
+    assert args == ('https://n8n.local/webhook/toners',)
+    assert kwargs['json'] == {'items': [{'idprd': 101, 'quantity': 2}, {'idprd': 102, 'quantity': 3}]}
+    assert kwargs['auth'] == HTTPBasicAuth('usuario-rm', 'senha-rm')
+
+    untouched.refresh_from_db()
+    assert untouched.requested_quantity == 0
+
+
+@pytest.mark.django_db
+def test_request_failure_keeps_toner_pending(client, operator, webhook):
+    toner = Toner.objects.create(name='CF422A', idprd=104)
+    webhook.side_effect = requests.ConnectionError
+
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 2}]})
+    assert response.status_code == 502
+
+    toner.refresh_from_db()
+    assert toner.requested_quantity == 0
+
+
+@pytest.mark.django_db
+def test_request_reports_webhook_error_status(client, operator, webhook):
+    toner = Toner.objects.create(name='CF423A', idprd=105)
+    webhook.return_value.raise_for_status.side_effect = requests.HTTPError
+
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 2}]})
+    assert response.status_code == 502
+
+    toner.refresh_from_db()
+    assert toner.requested_quantity == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('items', [
+    [],
+    [{'toner': 1}],
+    [{'toner': 1, 'quantity': 0}],
+    [{'toner': 1, 'quantity': 'dois'}],
+    ['toner'],
+])
+def test_request_rejects_invalid_items(client, operator, webhook, items):
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': items})
+    assert response.status_code == 400
+    webhook.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_request_rejects_toner_without_idprd(client, operator, webhook):
+    ready = Toner.objects.create(name='CF424A', idprd=106)
+    missing = Toner.objects.create(name='CF425A')
+
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [
+        {'toner': ready.id, 'quantity': 1},
+        {'toner': missing.id, 'quantity': 1},
+    ]})
+    assert response.status_code == 400
+    assert response.json()['detail'] == 'O toner CF425A não tem o IDPRD do RM cadastrado.'
+    webhook.assert_not_called()
+
+    ready.refresh_from_db()
+    assert ready.requested_quantity == 0
+
+
+@pytest.mark.django_db
+def test_request_rejects_repeated_toner(client, operator, webhook):
+    toner = Toner.objects.create(name='CF426A', idprd=107)
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [
+        {'toner': toner.id, 'quantity': 1},
+        {'toner': toner.id, 'quantity': 2},
+    ]})
+    assert response.status_code == 400
+    webhook.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_request_without_webhook_configured(client, operator, webhook, settings):
+    settings.TONER_REQUEST_WEBHOOK_URL = None
+    toner = Toner.objects.create(name='CF427A', idprd=108)
+
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 1}]})
+    assert response.status_code == 503
+    webhook.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_request_requires_permission(client, webhook):
+    client.force_login(make_user('view_toner', 'change_toner'))
+    toner = Toner.objects.create(name='CF428A', idprd=109)
+
+    assert b'id="open-request-modal"' not in client.get(reverse('app:toners')).content
+    response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 1}]})
+    assert response.status_code == 403
+    webhook.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_page_shows_request_button_with_permission(client, operator):
+    content = client.get(reverse('app:toners')).content
+    assert b'id="open-request-modal"' in content
+    assert b'<dialog id="request-modal"' in content
+
+
+@pytest.mark.django_db
+def test_idprd_is_unique_but_optional():
+    Toner.objects.create(name='CF429A', idprd=110)
+    Toner.objects.create(name='CF430A')
+    Toner.objects.create(name='CF431A')
+
+    with pytest.raises(ValidationError) as error:
+        Toner(name='CF432A', idprd=110).full_clean()
+    assert error.value.message_dict['idprd'] == ['Já existe um toner cadastrado com este IDPRD.']

@@ -169,11 +169,29 @@ class Toner(models.Model):
         verbose_name='Quantidade Mínima',
         help_text='Quando a quantidade chegar a este valor o toner é sinalizado para compra.',
     )
+    idprd = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        unique=True,
+        error_messages={'unique': 'Já existe um toner cadastrado com este IDPRD.'},
+        verbose_name='IDPRD',
+        help_text='Código do produto no RM. Sem ele o toner não pode ser solicitado pelo portal.',
+    )
+    requested_quantity = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Quantidade Solicitada',
+        help_text='Quantidade pedida ao RM e ainda não recebida. Diminui conforme as entradas são registradas.',
+    )
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
 
     @property
     def is_low(self):
         return self.quantity <= self.minimum_quantity
+
+    # O que haverá em estoque quando chegar tudo o que já foi solicitado
+    @property
+    def expected_quantity(self):
+        return self.quantity + self.requested_quantity
 
     @admin.display(boolean=True, description='Estoque OK')
     def is_stock_ok(self):
@@ -186,6 +204,9 @@ class Toner(models.Model):
         ordering = ['location__name', 'name']
         verbose_name = 'Toner'
         verbose_name_plural = 'Toners'
+        permissions = [
+            ('request_toner', 'Can request toners'),
+        ]
 
 
 class TonerMovement(models.Model):

@@ -189,7 +189,7 @@ class TonerLocationAdmin(VersionAdmin, UnaccentSearchAdmin):
 
 @admin.register(Toner)
 class TonerAdmin(VersionAdmin, UnaccentSearchAdmin):
-    list_display = ('name', 'location', 'observations', 'quantity', 'minimum_quantity', 'is_stock_ok',)
+    list_display = ('name', 'location', 'observations', 'idprd', 'quantity', 'minimum_quantity', 'requested_quantity', 'is_stock_ok',)
     search_fields = ('name', 'location__name__unaccent', 'observations__unaccent',)
     list_filter = ('location',)
     readonly_fields = ('quantity', 'updated_at',)

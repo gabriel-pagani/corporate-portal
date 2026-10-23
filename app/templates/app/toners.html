@@ -12,6 +12,7 @@
         <div id="content" class="container"
             data-csrf-token="{{ csrf_token }}"
             data-api-url="{% url 'app:toners-api' %}"
+            data-requests-url="{% url 'app:toner-requests-api' %}"
         >
             <div class="header">
                 <a href="{% url "app:home" %}">
@@ -36,6 +37,11 @@
                             <i class="fas fa-plus"></i> Novo toner
                         </button>
                         {% endif %}
+                        {% if permissions.request %}
+                        <button type="button" class="button" id="open-request-modal">
+                            <i class="fas fa-cart-shopping"></i> Solicitar toners
+                        </button>
+                        {% endif %}
                         <span class="low-stock-notice" id="low-stock-notice" role="status" hidden>
                             <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
                             Há toners com estoque baixo
@@ -58,6 +64,7 @@
                                 <th>Local</th>
                                 <th>Observação</th>
                                 <th>Quantidade</th>
+                                <th>Quantidade Prevista</th>
                                 <th>Mínimo</th>
                                 <th>Status</th>
                                 <th></th>
@@ -108,6 +115,40 @@
                     <div class="modal-actions">
                         <button type="button" class="button" data-close-modal>Cancelar</button>
                         <button type="submit" class="button primary">Adicionar</button>
+                    </div>
+                </form>
+            </dialog>
+            {% endif %}
+
+            {% if permissions.request %}
+            <dialog id="request-modal" class="form-modal request-modal" aria-labelledby="request-modal-title">
+                <div class="modal-header">
+                    <h2 id="request-modal-title">Solicitar toners</h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="Fechar solicitação">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+                <form id="request-form" autocomplete="off">
+                    <div class="table-wrapper request-table-wrapper">
+                        <table id="request-table">
+                            <thead>
+                                <tr>
+                                    <th>Toner</th>
+                                    <th>Local</th>
+                                    <th>Estoque</th>
+                                    <th>Quantidade Prevista</th>
+                                    <th>Mínimo</th>
+                                    <th>Solicitar</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="request-empty" class="empty" hidden>Nenhum toner tem o IDPRD do RM cadastrado.</div>
+                    <div id="request-error" class="form-error" role="alert" hidden></div>
+                    <div class="modal-actions">
+                        <button type="button" class="button" data-close-modal>Cancelar</button>
+                        <button type="submit" class="button primary">Enviar ao RM</button>
                     </div>
                 </form>
             </dialog>

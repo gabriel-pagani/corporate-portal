@@ -290,6 +290,12 @@ tbody tr.detail-row td {
   color: #3b6d11;
 }
 
+.badge.requested {
+  background-color: #fdf3dc;
+  color: #8a5a00;
+  border: 1px solid #f0c674;
+}
+
 .row-actions {
   display: flex;
   gap: 6px;
@@ -356,6 +362,23 @@ td .edit-input.small {
   color: #999;
   text-align: center;
   padding: 20px 0;
+}
+
+/* Solicitação ao RM */
+.form-modal.request-modal {
+  width: min(860px, calc(100% - 32px));
+}
+
+.request-table-wrapper {
+  max-height: 55vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.request-table-wrapper thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .pagination-container {

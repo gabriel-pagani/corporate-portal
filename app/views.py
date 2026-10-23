@@ -1,4 +1,5 @@
 import json
+import requests
 from functools import wraps
 from app.models import Contact, Sector, Toner, TonerLocation, TonerMovement, User
 from app.forms import (
@@ -9,7 +10,7 @@ from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors, sanitize_entry
 from app.utils.toners.stock import (
-    serialize_toner, serialize_movement, register_movement, toners_queryset, has_movements,
+    serialize_toner, serialize_movement, register_movement, request_toners, toners_queryset, has_movements,
 )
 from app.utils.notifications.delivery import (
     visible_notifications, unread_notifications, serialize_notification,
@@ -388,6 +389,7 @@ def toners_view(request):
             'change': user.has_perm('app.change_toner'),
             'delete': user.has_perm('app.delete_toner'),
             'move': user.has_perm('app.add_tonermovement'),
+            'request': user.has_perm('app.request_toner'),
         },
     })
 
@@ -506,6 +508,25 @@ def toner_movement_create(request, toner_id):
         return JsonResponse({'detail': error.messages[0]}, status=400)
 
     return JsonResponse({'toner': serialize_toner(toner), 'movement': serialize_movement(movement)}, status=201)
+
+
+@require_POST
+@json_permission_required('app.request_toner')
+def toner_requests_api(request):
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    try:
+        toners = request_toners(payload.get('items'))
+    except ValidationError as error:
+        return JsonResponse({'detail': error.messages[0]}, status=400)
+    except RuntimeError as error:
+        return JsonResponse({'detail': str(error)}, status=503)
+    except requests.RequestException:
+        return JsonResponse({'detail': 'Não foi possível enviar a solicitação ao RM. Tente novamente.'}, status=502)
+
+    return JsonResponse({'toners': [serialize_toner(toner) for toner in toners]}, status=201)
 
 
 @login_required

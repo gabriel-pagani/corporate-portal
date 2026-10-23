@@ -3,6 +3,7 @@
 const {
     csrfToken: CSRF_TOKEN,
     apiUrl: TONERS_API_URL,
+    requestsUrl: SOLICITACOES_API_URL,
 } = document.getElementById('content').dataset;
 
 const INTERVALO_ATUALIZACAO = 15000;
@@ -110,10 +111,16 @@ function opcoesDeLocal(idSelecionado) {
     ].join('');
 }
 
+// Um toner baixo que já foi pedido ao RM não precisa ser solicitado de novo
+function textoStatus(toner) {
+    if (!toner.is_low) return 'OK';
+    return toner.requested_quantity > 0 ? 'Solicitado' : 'Comprar';
+}
+
 function badgeStatus(toner) {
-    return toner.is_low
-        ? '<span class="badge low">Comprar</span>'
-        : '<span class="badge ok">OK</span>';
+    const classe = { OK: 'ok', Comprar: 'low', Solicitado: 'requested' };
+    const texto = textoStatus(toner);
+    return `<span class="badge ${classe[texto]}">${texto}</span>`;
 }
 
 function linhaVisualizacao(toner) {
@@ -130,6 +137,7 @@ function linhaVisualizacao(toner) {
             <td>${escaparHtml(toner.location || '-')}</td>
             <td class="muted">${escaparHtml(toner.observations || '-')}</td>
             <td><span class="quantity-value">${toner.quantity}</span></td>
+            <td>${toner.expected_quantity}</td>
             <td>${toner.minimum_quantity}</td>
             <td>${badgeStatus(toner)}</td>
             <td><div class="row-actions">${acoes}</div></td>
@@ -145,6 +153,7 @@ function linhaEdicao(toner) {
             <td><select class="edit-input" id="edit-location">${opcoesDeLocal(toner.location_id)}</select></td>
             <td><input class="edit-input" id="edit-observations" type="text" maxlength="255" value="${escaparHtml(toner.observations)}"></td>
             <td><span class="quantity-value" title="A quantidade muda apenas por entradas e saídas">${toner.quantity}</span></td>
+            <td>${toner.expected_quantity}</td>
             <td><input class="edit-input small" id="edit-minimum" type="number" min="0" value="${toner.minimum_quantity}"></td>
             <td>${badgeStatus(toner)}</td>
             <td>
@@ -159,7 +168,7 @@ function linhaEdicao(toner) {
 function linhaMovimentacao(toner) {
     return `
         <tr class="detail-row">
-            <td colspan="7">
+            <td colspan="8">
                 <div class="inline-form">
                     <div class="field">
                         <label for="move-type">Tipo</label>
@@ -211,7 +220,7 @@ function linhaHistorico(toner) {
 
     return `
         <tr class="detail-row">
-            <td colspan="7">
+            <td colspan="8">
                 <div class="history">
                     ${conteudo}
                     <button class="button small" data-action="fechar-historico" data-id="${toner.id}">Fechar histórico</button>
@@ -473,18 +482,94 @@ async function atualizarLista() {
     }
 }
 
+// Leva o estoque para acima do mínimo, descontando o que já foi pedido e ainda não chegou
+function sugestaoDeCompra(toner) {
+    return Math.max(0, toner.minimum_quantity + 1 - toner.expected_quantity);
+}
+
+function linhaSolicitacao(toner) {
+    return `
+        <tr class="${toner.is_low ? 'low' : ''}">
+            <td>${escaparHtml(toner.name)}</td>
+            <td>${escaparHtml(toner.location || '-')}</td>
+            <td><span class="quantity-value">${toner.quantity}</span></td>
+            <td>${toner.expected_quantity}</td>
+            <td>${toner.minimum_quantity}</td>
+            <td><input class="edit-input small" type="number" min="0" value="${sugestaoDeCompra(toner)}" data-toner="${toner.id}" aria-label="Quantidade a solicitar de ${escaparHtml(toner.name)}"></td>
+        </tr>`;
+}
+
+// Toners sem IDPRD ficam de fora porque o RM não teria como identificá-los
+function abrirSolicitacao() {
+    const solicitaveis = ordenarToners(listaToners)
+        .filter((toner) => toner.can_request)
+        .sort((a, b) => b.is_low - a.is_low);
+
+    document.querySelector('#request-table tbody').innerHTML = solicitaveis.map(linhaSolicitacao).join('');
+    document.getElementById('request-table').hidden = solicitaveis.length === 0;
+    document.getElementById('request-empty').hidden = solicitaveis.length > 0;
+    document.getElementById('request-error').hidden = true;
+    document.getElementById('request-modal').showModal();
+}
+
+async function aoSolicitar(evento) {
+    evento.preventDefault();
+    const formulario = evento.currentTarget;
+    const botao = formulario.querySelector('button[type="submit"]');
+    const erroSolicitacao = document.getElementById('request-error');
+    const itens = [...formulario.querySelectorAll('input[data-toner]')]
+        .map((campo) => ({ toner: Number(campo.dataset.toner), quantity: parseInt(campo.value, 10) || 0 }))
+        .filter((item) => item.quantity > 0);
+
+    if (itens.length === 0) {
+        erroSolicitacao.textContent = 'Informe a quantidade de pelo menos um toner.';
+        erroSolicitacao.hidden = false;
+        return;
+    }
+
+    const pendentes = itens
+        .map((item) => listaToners.find((toner) => toner.id === item.toner))
+        .filter((toner) => toner && toner.requested_quantity > 0)
+        .map((toner) => toner.name);
+    let pergunta = `Enviar ao RM a solicitação de ${itens.length} toner(s)?`;
+    if (pendentes.length) {
+        pergunta += `\n\nJá existe solicitação aguardando entrega para: ${pendentes.join(', ')}.`;
+    }
+    if (!confirm(pergunta)) return;
+
+    enviando = true;
+    botao.disabled = true;
+    try {
+        erroSolicitacao.hidden = true;
+        mostrarSucesso('');
+        mostrarErro('');
+        const dados = await requisitar(SOLICITACOES_API_URL, 'POST', { items: itens });
+        dados.toners.forEach(substituirToner);
+        document.getElementById('request-modal').close();
+        mostrarSucesso('Solicitação enviada ao RM com sucesso.');
+        renderizar();
+    } catch (erro) {
+        erroSolicitacao.textContent = erro.message;
+        erroSolicitacao.hidden = false;
+    } finally {
+        enviando = false;
+        botao.disabled = false;
+    }
+}
+
 function linhasExportacao() {
     return tonersFiltrados().map((toner) => [
         toner.name,
         toner.location || '-',
         toner.observations || '-',
         toner.quantity,
+        toner.expected_quantity,
         toner.minimum_quantity,
-        toner.is_low ? 'Comprar' : 'OK',
+        textoStatus(toner),
     ]);
 }
 
-const CABECALHO_EXPORTACAO = ['Toner', 'Local', 'Observação', 'Quantidade', 'Mínimo', 'Status'];
+const CABECALHO_EXPORTACAO = ['Toner', 'Local', 'Observação', 'Quantidade', 'Quantidade Prevista', 'Mínimo', 'Status'];
 
 function dataArquivo() {
     return new Date().toISOString().slice(0, 10);
@@ -492,7 +577,7 @@ function dataArquivo() {
 
 function exportarExcel() {
     const planilha = XLSX.utils.aoa_to_sheet([CABECALHO_EXPORTACAO, ...linhasExportacao()]);
-    planilha['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+    planilha['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 12 }];
     const pasta = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(pasta, planilha, 'Estoque de Toners');
     XLSX.writeFile(pasta, `estoque-toners-${dataArquivo()}.xlsx`);
@@ -515,7 +600,7 @@ function exportarPdf() {
         styles: { fontSize: 9 },
         headStyles: { fillColor: [51, 51, 51] },
         didParseCell(celula) {
-            if (celula.section === 'body' && celula.row.raw[5] === 'Comprar') {
+            if (celula.section === 'body' && celula.row.raw[6] === 'Comprar') {
                 celula.cell.styles.fillColor = [252, 235, 235];
                 celula.cell.styles.textColor = [163, 45, 45];
             }
@@ -551,6 +636,16 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.showModal();
             document.getElementById('add-name').focus();
         });
+        modal.querySelectorAll('[data-close-modal]').forEach((botao) => {
+            botao.addEventListener('click', () => modal.close());
+        });
+    }
+
+    const formularioSolicitar = document.getElementById('request-form');
+    if (formularioSolicitar) {
+        const modal = document.getElementById('request-modal');
+        formularioSolicitar.addEventListener('submit', aoSolicitar);
+        document.getElementById('open-request-modal').addEventListener('click', abrirSolicitacao);
         modal.querySelectorAll('[data-close-modal]').forEach((botao) => {
             botao.addEventListener('click', () => modal.close());
         });
