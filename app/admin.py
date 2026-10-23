@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils.html import format_html, format_html_join
 from .models import (
     User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
-    Notification,
+    TonerRequest, TonerRequestItem, Notification,
 )
 
 
@@ -209,6 +209,40 @@ class TonerMovementAdmin(UnaccentSearchAdmin):
     search_fields = ('toner__name', 'toner__location__name__unaccent', 'reason__unaccent', 'user__username',)
     list_filter = ('type', 'toner__location',)
     date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class TonerRequestItemInline(admin.TabularInline):
+    model = TonerRequestItem
+    extra = 0
+    can_delete = False
+    fields = ('toner', 'idprd', 'quantity',)
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+# O registro mostra o que foi enviado ao RM; editar aqui não mudaria o pedido de lá
+@admin.register(TonerRequest)
+class TonerRequestAdmin(UnaccentSearchAdmin):
+    list_display = ('created_at', 'status', 'get_items', 'user',)
+    search_fields = ('items__toner__name', 'user__username',)
+    list_filter = ('status',)
+    date_hierarchy = 'created_at'
+    inlines = (TonerRequestItemInline,)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user').prefetch_related('items__toner')
+
+    @admin.display(description='Itens')
+    def get_items(self, obj):
+        return ', '.join(f'{item.toner.name}: {item.quantity}' for item in obj.items.all())
 
     def has_add_permission(self, request):
         return False

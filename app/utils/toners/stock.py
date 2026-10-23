@@ -1,7 +1,8 @@
+import requests
 from django.db import transaction
 from django.db.models import Exists, OuterRef
 from django.core.exceptions import ValidationError
-from app.models import Toner, TonerMovement
+from app.models import Toner, TonerMovement, TonerRequest, TonerRequestItem
 from app.utils.toners.request import send_toner_request
 
 
@@ -50,6 +51,20 @@ def serialize_movement(movement):
     }
 
 
+# Sai no mesmo formato da movimentação para entrar na mesma lista do histórico
+def serialize_request_item(item):
+    user = item.request.user
+    return {
+        'id': item.id,
+        'type': 'R',
+        'type_display': 'Solicitação',
+        'quantity': item.quantity,
+        'reason': item.request.get_status_display(),
+        'user': (user.get_full_name() or user.username) if user else '',
+        'created_at': item.request.created_at.isoformat(),
+    }
+
+
 def register_movement(toner_id, type, quantity, reason='', user=None):
     # O lock na linha evita que duas movimentações simultâneas se sobrescrevam
     with transaction.atomic():
@@ -92,7 +107,21 @@ def parse_request_items(items):
     return quantities
 
 
-def request_toners(items):
+def record_request(status, toners, quantities, user):
+    with transaction.atomic():
+        toner_request = TonerRequest.objects.create(status=status, user=user)
+        TonerRequestItem.objects.bulk_create([
+            TonerRequestItem(
+                request=toner_request,
+                toner=toners[toner_id],
+                idprd=toners[toner_id].idprd,
+                quantity=quantity,
+            )
+            for toner_id, quantity in quantities.items()
+        ])
+
+
+def request_toners(items, user=None):
     quantities = parse_request_items(items)
     toners = Toner.objects.in_bulk(quantities.keys())
 
@@ -103,10 +132,18 @@ def request_toners(items):
         if toner.idprd is None:
             raise ValidationError(f'O toner {toner.name} não tem o IDPRD do RM cadastrado.')
 
-    send_toner_request([
-        {'idprd': toners[toner_id].idprd, 'quantity': quantity}
-        for toner_id, quantity in quantities.items()
-    ])
+    # Toda tentativa que chega a sair do portal fica registrada, mesmo a que falha
+    try:
+        send_toner_request([
+            {'idprd': toners[toner_id].idprd, 'quantity': quantity}
+            for toner_id, quantity in quantities.items()
+        ])
+    except requests.Timeout:
+        record_request(TonerRequest.NO_RESPONSE, toners, quantities, user)
+        raise
+    except requests.RequestException:
+        record_request(TonerRequest.FAILED, toners, quantities, user)
+        raise
 
     # Só conta como solicitado depois que o n8n aceitou o pedido: se o envio
     # falhar, o toner continua aparecendo como pendente de compra
@@ -115,5 +152,6 @@ def request_toners(items):
         for toner in Toner.objects.select_for_update().filter(pk__in=quantities).order_by('pk'):
             toner.requested_quantity += quantities[toner.id]
             toner.save(update_fields=['requested_quantity', 'updated_at'])
+        record_request(TonerRequest.SENT, toners, quantities, user)
 
     return toners_queryset().filter(pk__in=quantities)

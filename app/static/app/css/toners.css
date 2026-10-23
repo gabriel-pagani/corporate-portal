@@ -290,7 +290,8 @@ tbody tr.detail-row td {
   color: #3b6d11;
 }
 
-.badge.requested {
+.badge.requested,
+.movement-tag.R {
   background-color: #fdf3dc;
   color: #8a5a00;
   border: 1px solid #f0c674;

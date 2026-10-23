@@ -323,7 +323,11 @@ async function carregarHistorico(id) {
     renderizar();
     try {
         const dados = await requisitar(`${urlToner(id)}movements/`);
-        if (historicoId === id) historico = dados.movements;
+        // As solicitações ao RM entram na mesma linha do tempo das entradas e saídas
+        if (historicoId === id) {
+            historico = [...dados.movements, ...dados.requests]
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        }
     } catch (erro) {
         historicoId = null;
         mostrarErro(erro.message);
@@ -613,6 +617,11 @@ async function enviarSolicitacao() {
     } finally {
         enviando = false;
         botoes.forEach((botao) => { botao.disabled = false; });
+    }
+
+    // Deu certo ou não, a tentativa entrou no histórico do toner que estiver aberto
+    if (itensSolicitacao.some((item) => item.toner === historicoId)) {
+        await carregarHistorico(historicoId);
     }
 }
 

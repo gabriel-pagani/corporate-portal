@@ -239,6 +239,52 @@ class TonerMovement(models.Model):
         verbose_name_plural = 'Movimentações de Toner'
 
 
+class TonerRequest(models.Model):
+    SENT = 'E'
+    FAILED = 'F'
+    NO_RESPONSE = 'S'
+    STATUS = [
+        (SENT, 'Enviada ao RM'),
+        (FAILED, 'Falha no envio'),
+        # Sem resposta a tempo o RM pode ter criado o pedido mesmo assim
+        (NO_RESPONSE, 'Sem resposta do RM'),
+    ]
+
+    status = models.CharField(max_length=1, choices=STATUS, verbose_name='Situação')
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='Usuário'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data')
+
+    def __str__(self):
+        return f'Solicitação {self.pk} - {self.get_status_display()}'
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Solicitação de Toner'
+        verbose_name_plural = 'Solicitações de Toner'
+
+
+class TonerRequestItem(models.Model):
+    request = models.ForeignKey(TonerRequest, on_delete=models.CASCADE, related_name='items', verbose_name='Solicitação')
+    toner = models.ForeignKey(Toner, on_delete=models.CASCADE, related_name='request_items', verbose_name='Toner')
+    # O IDPRD enviado fica guardado mesmo que o do toner seja corrigido depois
+    idprd = models.PositiveIntegerField(verbose_name='IDPRD')
+    quantity = models.PositiveIntegerField(verbose_name='Quantidade')
+
+    def __str__(self):
+        return f'{self.quantity} - {self.toner}'
+
+    class Meta:
+        ordering = ['-request__created_at', 'id']
+        verbose_name = 'Item da Solicitação'
+        verbose_name_plural = 'Itens da Solicitação'
+
+
 class Notification(models.Model):
     INFO = 'I'
     WARNING = 'A'

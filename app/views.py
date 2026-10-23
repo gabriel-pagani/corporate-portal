@@ -10,7 +10,8 @@ from app.utils.dashboards.access import get_user_dashboards
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors, sanitize_entry
 from app.utils.toners.stock import (
-    serialize_toner, serialize_movement, register_movement, request_toners, toners_queryset, has_movements,
+    serialize_toner, serialize_movement, serialize_request_item, register_movement, request_toners,
+    toners_queryset, has_movements,
 )
 from app.utils.notifications.delivery import (
     visible_notifications, unread_notifications, serialize_notification,
@@ -482,7 +483,11 @@ def toner_movements_api(request, toner_id):
 def toner_movements_list(request, toner_id):
     toner = get_object_or_404(Toner, id=toner_id)
     movements = toner.movements.select_related('user')
-    return JsonResponse({'movements': [serialize_movement(movement) for movement in movements]})
+    request_items = toner.request_items.select_related('request__user')
+    return JsonResponse({
+        'movements': [serialize_movement(movement) for movement in movements],
+        'requests': [serialize_request_item(item) for item in request_items],
+    })
 
 
 @json_permission_required('app.add_tonermovement')
@@ -518,7 +523,7 @@ def toner_requests_api(request):
         return JsonResponse({'detail': 'JSON inválido.'}, status=400)
 
     try:
-        toners = request_toners(payload.get('items'))
+        toners = request_toners(payload.get('items'), request.user)
     except ValidationError as error:
         return JsonResponse({'detail': error.messages[0]}, status=400)
     # As falhas da integração saem como 503, não 502: a Cloudflare troca qualquer

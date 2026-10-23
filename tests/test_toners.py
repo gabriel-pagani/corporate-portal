@@ -4,10 +4,12 @@ import json
 import pytest
 import requests
 from requests.auth import HTTPBasicAuth
+from django.contrib.admin.sites import site
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
 from django.urls import reverse
-from app.models import Notification, User, Toner, TonerLocation, TonerMovement
+from app.admin import TonerRequestAdmin
+from app.models import Notification, User, Toner, TonerLocation, TonerMovement, TonerRequest
 from app.utils.toners.stock import register_movement
 
 
@@ -305,6 +307,12 @@ def test_request_sends_idprds_and_marks_requested(client, operator, webhook):
     untouched.refresh_from_db()
     assert untouched.requested_quantity == 0
 
+    toner_request = TonerRequest.objects.get()
+    assert (toner_request.status, toner_request.user) == (TonerRequest.SENT, operator)
+    assert sorted(toner_request.items.values_list('toner__name', 'idprd', 'quantity')) == [
+        ('CF419A', 101, 2), ('CF420A', 102, 3),
+    ]
+
 
 def http_error(status_code):
     response = requests.Response()
@@ -313,8 +321,12 @@ def http_error(status_code):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize('failure', ['connection', 'timeout', 'http'])
-def test_request_failure_keeps_toner_pending(client, operator, webhook, failure):
+@pytest.mark.parametrize('failure, status', [
+    ('connection', TonerRequest.FAILED),
+    ('timeout', TonerRequest.NO_RESPONSE),
+    ('http', TonerRequest.FAILED),
+])
+def test_request_failure_keeps_toner_pending(client, operator, webhook, failure, status):
     toner = Toner.objects.create(name='CF422A', idprd=104)
     if failure == 'connection':
         webhook.side_effect = requests.ConnectionError
@@ -330,6 +342,10 @@ def test_request_failure_keeps_toner_pending(client, operator, webhook, failure)
 
     toner.refresh_from_db()
     assert toner.requested_quantity == 0
+    # A tentativa fica registrada mesmo sem ter dado certo
+    toner_request = TonerRequest.objects.get()
+    assert (toner_request.status, toner_request.user) == (status, operator)
+    assert list(toner_request.items.values_list('toner', 'idprd', 'quantity')) == [(toner.id, 104, 2)]
 
 
 @pytest.mark.django_db
@@ -344,6 +360,7 @@ def test_request_rejects_invalid_items(client, operator, webhook, items):
     response = post_json(client, reverse('app:toner-requests-api'), {'items': items})
     assert response.status_code == 400
     webhook.assert_not_called()
+    assert not TonerRequest.objects.exists()
 
 
 @pytest.mark.django_db
@@ -382,6 +399,7 @@ def test_request_without_webhook_configured(client, operator, webhook, settings)
     response = post_json(client, reverse('app:toner-requests-api'), {'items': [{'toner': toner.id, 'quantity': 1}]})
     assert response.status_code == 503
     webhook.assert_not_called()
+    assert not TonerRequest.objects.exists()
 
 
 @pytest.mark.django_db
@@ -411,3 +429,39 @@ def test_idprd_is_unique_but_optional():
     with pytest.raises(ValidationError) as error:
         Toner(name='CF432A', idprd=110).full_clean()
     assert error.value.message_dict['idprd'] == ['Já existe um toner cadastrado com este IDPRD.']
+
+
+@pytest.mark.django_db
+def test_history_lists_requests_of_the_toner(client, operator, webhook):
+    toner = Toner.objects.create(name='CF434A', idprd=112)
+    other = Toner.objects.create(name='CF435A', idprd=113)
+    url = reverse('app:toner-requests-api')
+
+    post_json(client, url, {'items': [{'toner': toner.id, 'quantity': 2}, {'toner': other.id, 'quantity': 5}]})
+    webhook.side_effect = requests.ConnectionError
+    post_json(client, url, {'items': [{'toner': toner.id, 'quantity': 1}]})
+
+    history = client.get(reverse('app:toner-movements-api', args=[toner.id])).json()
+    assert history['movements'] == []
+    assert [(r['type'], r['quantity'], r['reason'], r['user']) for r in history['requests']] == [
+        ('R', 1, 'Falha no envio', 'operador'),
+        ('R', 2, 'Enviada ao RM', 'operador'),
+    ]
+
+
+# Como nos outros testes do painel: entrar pela URL exigiria o segundo fator conferido
+@pytest.mark.django_db
+def test_admin_shows_request_items_and_is_read_only(client, operator, webhook):
+    first = Toner.objects.create(name='CF436A', idprd=114)
+    second = Toner.objects.create(name='CF437A', idprd=115)
+    post_json(client, reverse('app:toner-requests-api'), {'items': [
+        {'toner': first.id, 'quantity': 3}, {'toner': second.id, 'quantity': 1},
+    ]})
+
+    request_admin = TonerRequestAdmin(TonerRequest, site)
+    toner_request = request_admin.get_queryset(None).get()
+    assert request_admin.get_items(toner_request) == 'CF436A: 3, CF437A: 1'
+    found, _ = request_admin.get_search_results(None, request_admin.get_queryset(None), 'cf437')
+    assert list(found) == [toner_request]
+    assert not request_admin.has_add_permission(None)
+    assert not request_admin.has_change_permission(None, toner_request)
