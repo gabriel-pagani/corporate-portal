@@ -371,6 +371,11 @@ async function executarAcao(acao, id) {
             break;
         }
         case 'historico':
+            // Clicar de novo no botão fecha o histórico que já está aberto
+            if (historicoId === id) {
+                historicoId = null;
+                break;
+            }
             historicoId = id;
             movimentandoId = null;
             editandoId = null;
