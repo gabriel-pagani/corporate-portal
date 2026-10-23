@@ -369,6 +369,11 @@ td .edit-input.small {
   width: min(860px, calc(100% - 32px));
 }
 
+.request-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
 .request-table-wrapper {
   max-height: 55vh;
   overflow-y: auto;

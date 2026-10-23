@@ -17,6 +17,7 @@ let editandoId = null;
 let movimentandoId = null;
 let historicoId = null;
 let historico = null;
+let tonersSolicitaveis = [];
 let enviando = false;
 
 function escaparHtml(texto) {
@@ -86,19 +87,24 @@ function ordenarToners(toners) {
 }
 
 // Prefixar a busca com "-" inverte o filtro, igual à lista de contatos
+function correspondeABusca(toner, entrada) {
+    const busca = entrada.toLowerCase().trim();
+    const buscaInversa = busca.startsWith('-');
+    const termo = removerAcentos(buscaInversa ? busca.slice(1).trim() : busca);
+    if (!termo) return true;
+
+    const contemTermo = [toner.name, toner.location, toner.observations]
+        .some((campo) => removerAcentos(campo.toLowerCase()).includes(termo));
+    return buscaInversa ? !contemTermo : contemTermo;
+}
+
 function tonersFiltrados() {
-    const entrada = document.getElementById('search-input').value.toLowerCase().trim();
+    const entrada = document.getElementById('search-input').value;
     const somenteBaixos = document.getElementById('only-low').checked;
-    const buscaInversa = entrada.startsWith('-');
-    const termo = removerAcentos(buscaInversa ? entrada.slice(1).trim() : entrada);
 
     return ordenarToners(listaToners).filter((toner) => {
         if (somenteBaixos && !toner.is_low) return false;
-        if (!termo) return true;
-
-        const contemTermo = [toner.name, toner.location, toner.observations]
-            .some((campo) => removerAcentos(campo.toLowerCase()).includes(termo));
-        return buscaInversa ? !contemTermo : contemTermo;
+        return correspondeABusca(toner, entrada);
     });
 }
 
@@ -494,7 +500,7 @@ function sugestaoDeCompra(toner) {
 
 function linhaSolicitacao(toner) {
     return `
-        <tr class="${toner.is_low ? 'low' : ''}">
+        <tr class="${toner.is_low ? 'low' : ''}" data-toner="${toner.id}">
             <td>${escaparHtml(toner.name)}</td>
             <td>${escaparHtml(toner.location || '-')}</td>
             <td><span class="quantity-value">${toner.quantity}</span></td>
@@ -504,17 +510,38 @@ function linhaSolicitacao(toner) {
         </tr>`;
 }
 
+// A pesquisa só esconde as linhas: montar a tabela de novo apagaria as quantidades já digitadas
+function filtrarSolicitacao() {
+    const entrada = document.getElementById('request-search').value;
+    let visiveis = 0;
+
+    document.querySelectorAll('#request-table tbody tr').forEach((linha) => {
+        const toner = tonersSolicitaveis.find((t) => t.id === Number(linha.dataset.toner));
+        linha.hidden = !correspondeABusca(toner, entrada);
+        if (!linha.hidden) visiveis++;
+    });
+
+    const vazio = document.getElementById('request-empty');
+    document.getElementById('request-table').hidden = visiveis === 0;
+    vazio.hidden = visiveis > 0;
+    vazio.textContent = tonersSolicitaveis.length
+        ? 'Nenhum toner encontrado com essa pesquisa.'
+        : 'Nenhum toner tem o IDPRD do RM cadastrado.';
+}
+
 // Toners sem IDPRD ficam de fora porque o RM não teria como identificá-los
 function abrirSolicitacao() {
-    const solicitaveis = ordenarToners(listaToners)
+    tonersSolicitaveis = ordenarToners(listaToners)
         .filter((toner) => toner.can_request)
         .sort((a, b) => b.is_low - a.is_low);
 
-    document.querySelector('#request-table tbody').innerHTML = solicitaveis.map(linhaSolicitacao).join('');
-    document.getElementById('request-table').hidden = solicitaveis.length === 0;
-    document.getElementById('request-empty').hidden = solicitaveis.length > 0;
+    const pesquisa = document.getElementById('request-search');
+    document.querySelector('#request-table tbody').innerHTML = tonersSolicitaveis.map(linhaSolicitacao).join('');
+    pesquisa.value = '';
+    filtrarSolicitacao();
     document.getElementById('request-error').hidden = true;
     document.getElementById('request-modal').showModal();
+    pesquisa.focus();
 }
 
 async function aoSolicitar(evento) {
@@ -532,11 +559,15 @@ async function aoSolicitar(evento) {
         return;
     }
 
+    const tonerDoItem = (item) => tonersSolicitaveis.find((toner) => toner.id === item.toner);
     const pendentes = itens
-        .map((item) => listaToners.find((toner) => toner.id === item.toner))
-        .filter((toner) => toner && toner.requested_quantity > 0)
+        .map(tonerDoItem)
+        .filter((toner) => toner.requested_quantity > 0)
         .map((toner) => toner.name);
-    let pergunta = `Enviar ao RM a solicitação de ${itens.length} toner(s)?`;
+    // A lista inclui o que a pesquisa escondeu, para nada ser enviado sem o usuário ver
+    let pergunta = 'Enviar ao RM a solicitação de:\n\n' + itens
+        .map((item) => `• ${tonerDoItem(item).name}: ${item.quantity}`)
+        .join('\n');
     if (pendentes.length) {
         pergunta += `\n\nJá existe solicitação aguardando entrega para: ${pendentes.join(', ')}.`;
     }
@@ -649,8 +680,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const formularioSolicitar = document.getElementById('request-form');
     if (formularioSolicitar) {
         const modal = document.getElementById('request-modal');
+        const pesquisa = document.getElementById('request-search');
         formularioSolicitar.addEventListener('submit', aoSolicitar);
         document.getElementById('open-request-modal').addEventListener('click', abrirSolicitacao);
+        pesquisa.addEventListener('input', filtrarSolicitacao);
+        // Enter na pesquisa não deve enviar a solicitação
+        pesquisa.addEventListener('keydown', (evento) => {
+            if (evento.key === 'Enter') evento.preventDefault();
+        });
         modal.querySelectorAll('[data-close-modal]').forEach((botao) => {
             botao.addEventListener('click', () => modal.close());
         });
