@@ -1,10 +1,12 @@
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
 
 from app.models import Dashboard, GroupDashboards
-from app.utils.permissions_report import user_permissions_report
+from app.utils.permissions_report import permissions_report_pdf, user_permissions_report
 from tests.conftest import sign_in
 
 
@@ -86,3 +88,15 @@ def test_permissions_report_action_downloads_a_pdf(client, report_users):
     assert response['Content-Disposition'].startswith('attachment; filename="relatorio-permissoes-')
     # O nome com & e < chega escapado à ReportLab: sem isso, o PDF nem seria gerado
     assert response.content.startswith(b'%PDF')
+
+
+@pytest.mark.django_db
+def test_permissions_report_starts_the_user_on_the_first_page():
+    user = User.objects.create_user(username='operador', password='senha')
+    user.user_permissions.add(*Permission.objects.order_by('pk')[:30])
+
+    pdf = permissions_report_pdf(user_permissions_report(User.objects.all()), 'admin')
+
+    # Uma tabela que não cabe no resto da página começa nela e continua na seguinte:
+    # empurrada inteira para a página 2, a primeira ficava só com o título do relatório
+    assert re.search(rb'/Count (\d+)', pdf).group(1) == b'2'

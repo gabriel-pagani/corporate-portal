@@ -7,7 +7,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import CondPageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from app.models import Dashboard
 
 
@@ -132,10 +132,11 @@ def user_section(item):
         flowables.append(Paragraph('Superusuário: tem todas as permissões do sistema, mesmo as que não estão listadas abaixo.', NOTE))
 
     flowables += [Paragraph('Grupos', SECTION), Paragraph(text(', '.join(item['groups']) or 'Nenhum grupo.'), TEXT)]
-    # O título da seção não fica sozinho no fim da página, separado da tabela
-    header = flowables[:]
 
-    permissions = [Paragraph('Permissões', SECTION)]
+    # Os títulos não ficam sozinhos no fim da página, separados da tabela: só se
+    # pula de página quando não cabem nem as primeiras linhas. Um KeepTogether com
+    # a tabela inteira mandaria tudo para a página seguinte e deixaria esta vazia
+    permissions = [CondPageBreak(3 * cm), Paragraph('Permissões', SECTION)]
     if item['permissions']:
         permissions.append(table(
             ['Aplicação', 'Modelo', 'Permissão', 'Código', 'Origem'],
@@ -148,7 +149,7 @@ def user_section(item):
     else:
         permissions.append(Paragraph('Nenhuma permissão atribuída diretamente ou por grupo.', TEXT))
 
-    dashboards = [Paragraph('Dashboards', SECTION)]
+    dashboards = [CondPageBreak(3 * cm), Paragraph('Dashboards', SECTION)]
     if item['dashboards']:
         dashboards.append(table(
             ['Dashboard', 'Origem'],
@@ -158,7 +159,7 @@ def user_section(item):
     else:
         dashboards.append(Paragraph('Nenhum dashboard.', TEXT))
 
-    return [KeepTogether(header + permissions[:2])] + permissions[2:] + [KeepTogether(dashboards[:2])] + dashboards[2:]
+    return [CondPageBreak(6 * cm)] + flowables + permissions + dashboards
 
 
 def permissions_report_pdf(report, generated_by):
