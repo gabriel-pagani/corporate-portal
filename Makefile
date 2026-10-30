@@ -2,8 +2,11 @@ MAKEFLAGS += --no-print-directory
 
 COMPOSE = docker compose -f deploy/docker-compose.yml
 
+# As tags das imagens (postgres:16, python:3.12-slim-bookworm...) recebem as
+# correções de segurança sem mudar de nome. Sem o pull, o build reaproveita a
+# imagem que já está na máquina, e o Dependabot não avisa porque a tag é a mesma.
 build:
-	@$(COMPOSE) up -d --build
+	@$(COMPOSE) pull --ignore-buildable && $(COMPOSE) build --pull && $(COMPOSE) up -d
 
 start:
 	@$(COMPOSE) up -d
