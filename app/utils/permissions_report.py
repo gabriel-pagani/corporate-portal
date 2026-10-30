@@ -128,8 +128,6 @@ def user_section(item):
     ]
     if not user.is_active:
         flowables.append(Paragraph('Usuário inativo: nenhuma das permissões abaixo vale enquanto a conta estiver desativada.', NOTE))
-    if user.is_superuser:
-        flowables.append(Paragraph('Superusuário: tem todas as permissões do sistema, mesmo as que não estão listadas abaixo.', NOTE))
 
     flowables += [Paragraph('Grupos', SECTION), Paragraph(text(', '.join(item['groups']) or 'Nenhum grupo.'), TEXT)]
 
@@ -137,6 +135,8 @@ def user_section(item):
     # pula de página quando não cabem nem as primeiras linhas. Um KeepTogether com
     # a tabela inteira mandaria tudo para a página seguinte e deixaria esta vazia
     permissions = [CondPageBreak(3 * cm), Paragraph('Permissões', SECTION)]
+    if user.is_superuser:
+        permissions.append(Paragraph('Superusuário: tem todas as permissões do sistema, mesmo as que não estão listadas abaixo.', NOTE))
     if item['permissions']:
         permissions.append(table(
             ['Aplicação', 'Modelo', 'Permissão', 'Código', 'Origem'],
