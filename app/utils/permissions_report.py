@@ -91,7 +91,7 @@ SUBTITLE = ParagraphStyle('ReportSubtitle', parent=STYLES['Normal'], fontSize=9,
 USER = ParagraphStyle('ReportUser', parent=STYLES['Heading2'], fontSize=13, spaceBefore=14, spaceAfter=4)
 SECTION = ParagraphStyle('ReportSection', parent=STYLES['Heading4'], fontSize=10, spaceBefore=8, spaceAfter=3)
 TEXT = ParagraphStyle('ReportText', parent=STYLES['Normal'], fontSize=9, leading=12)
-NOTE = ParagraphStyle('ReportNote', parent=TEXT, textColor=colors.HexColor('#a32d2d'), spaceAfter=6)
+INACTIVE_USER = ParagraphStyle('ReportInactiveUser', parent=USER, textColor=colors.HexColor('#a32d2d'))
 CELL = ParagraphStyle('ReportCell', parent=TEXT, fontSize=8, leading=10)
 HEADER_CELL = ParagraphStyle('ReportHeaderCell', parent=CELL, textColor=colors.white, fontName='Helvetica-Bold')
 
@@ -129,11 +129,9 @@ def user_section(item):
     )
 
     flowables = [
-        Paragraph(text(f'{user.username} — {name}' if name else user.username), USER),
+        Paragraph(text(f'{user.username} — {name}' if name else user.username), USER if user.is_active else INACTIVE_USER),
         Paragraph(text(flags), TEXT),
     ]
-    if not user.is_active:
-        flowables.append(Paragraph('Usuário inativo: nenhuma das permissões abaixo vale enquanto a conta estiver desativada.', NOTE))
 
     flowables += [Paragraph('Grupos', SECTION), Paragraph(text(', '.join(item['groups']) or 'Nenhum grupo.'), TEXT)]
 
