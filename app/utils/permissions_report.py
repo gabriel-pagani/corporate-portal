@@ -85,7 +85,7 @@ SUBTITLE = ParagraphStyle('ReportSubtitle', parent=STYLES['Normal'], fontSize=9,
 USER = ParagraphStyle('ReportUser', parent=STYLES['Heading2'], fontSize=13, spaceBefore=14, spaceAfter=4)
 SECTION = ParagraphStyle('ReportSection', parent=STYLES['Heading4'], fontSize=10, spaceBefore=8, spaceAfter=3)
 TEXT = ParagraphStyle('ReportText', parent=STYLES['Normal'], fontSize=9, leading=12)
-NOTE = ParagraphStyle('ReportNote', parent=TEXT, textColor=colors.HexColor('#a32d2d'))
+NOTE = ParagraphStyle('ReportNote', parent=TEXT, textColor=colors.HexColor('#a32d2d'), spaceAfter=6)
 CELL = ParagraphStyle('ReportCell', parent=TEXT, fontSize=8, leading=10)
 HEADER_CELL = ParagraphStyle('ReportHeaderCell', parent=CELL, textColor=colors.white, fontName='Helvetica-Bold')
 
