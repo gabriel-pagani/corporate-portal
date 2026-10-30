@@ -66,7 +66,9 @@ def get_safe_next_url(request, next_url):
 
 @login_required
 def home_view(request):
-    return render(request, 'app/home.html')
+    return render(request, 'app/home.html', {
+        'has_dashboards': get_user_dashboards(request.user).exists(),
+    })
 
 
 def login_view(request):

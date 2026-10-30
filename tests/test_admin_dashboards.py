@@ -56,3 +56,40 @@ def test_dashboard_admin_change_page_shows_users_with_access(client):
 
     assert response.status_code == 200
     assert 'Usuários com acesso' in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_home_hides_dashboards_menu_without_accessible_dashboard(client):
+    Dashboard.objects.create(title='Faturamento')
+    user = User.objects.create_user(username='semacesso', password='senha')
+    sign_in(client, user)
+
+    content = client.get(reverse('app:home')).content.decode()
+
+    assert reverse('app:dashboards') not in content
+
+
+@pytest.mark.django_db
+def test_home_shows_dashboards_menu_with_direct_access(client):
+    dashboard = Dashboard.objects.create(title='Faturamento')
+    user = User.objects.create_user(username='direto', password='senha')
+    user.dashboards.add(dashboard)
+    sign_in(client, user)
+
+    content = client.get(reverse('app:home')).content.decode()
+
+    assert reverse('app:dashboards') in content
+
+
+@pytest.mark.django_db
+def test_home_shows_dashboards_menu_with_group_access(client):
+    dashboard = Dashboard.objects.create(title='Faturamento')
+    group = Group.objects.create(name='Financeiro')
+    GroupDashboards.objects.create(group=group).dashboards.add(dashboard)
+    user = User.objects.create_user(username='porgrupo', password='senha')
+    user.groups.add(group)
+    sign_in(client, user)
+
+    content = client.get(reverse('app:home')).content.decode()
+
+    assert reverse('app:dashboards') in content
