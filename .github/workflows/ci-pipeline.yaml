@@ -8,6 +8,11 @@ on:
     branches:
       - main
 
+# O job só lê o código; sem isto o token recebe as permissões padrão do
+# repositório, que podem incluir escrita.
+permissions:
+  contents: read
+
 jobs:
   tests:
     runs-on: ubuntu-latest
