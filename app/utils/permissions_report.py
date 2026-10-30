@@ -125,11 +125,11 @@ def user_section(item):
     name = user.get_full_name()
     last_login = timezone.localtime(user.last_login).strftime('%d/%m/%Y %H:%M') if user.last_login else 'nunca'
     flags = (
-        f'Ativo: {yes_no(user.is_active)} · Membro da equipe: {yes_no(user.is_staff)} · Superusuário: {yes_no(user.is_superuser)}'
+        f'Ativo: {yes_no(user.is_active)} · Membro da equipe: {yes_no(user.is_staff)} · Super usuário: {yes_no(user.is_superuser)}'
     )
 
     flowables = [
-        Paragraph(text(f'{user.username} — {name}' if name else user.username), USER if user.is_active else INACTIVE_USER),
+        Paragraph(text(f'{user.username} - {name}' if name else user.username), USER if user.is_active else INACTIVE_USER),
         Paragraph(text(flags), TEXT),
     ]
 
