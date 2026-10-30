@@ -118,3 +118,49 @@ body {
   color: #7ce8ac;
   border: 1px solid rgba(25, 135, 84, 0.4);
 }
+
+.auth-aside {
+  margin: 22px 0 0;
+  text-align: center;
+  color: #bbb;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.auth-aside a {
+  color: white;
+}
+
+.otp-qr {
+  width: 220px;
+  margin: 22px auto 0;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: white;
+}
+
+.otp-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.otp-secret {
+  word-break: break-all;
+  color: white;
+  font-size: 15px;
+}
+
+.otp-form {
+  margin-top: 22px;
+}
+
+.auth-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: white;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

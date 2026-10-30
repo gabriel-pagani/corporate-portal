@@ -4,7 +4,7 @@ from app.views import (
     home_view, contacts_view, dashboards_view, dashboard_view, favorite_dashboard,
     login_view, logout_view, customers_vendors_api, toners_view, toners_api, toner_api,
     toner_movements_api, toner_requests_api, notifications_view, notifications_api, notification_read_api,
-    notifications_read_all_api, contact_update_api, customers_vendors_view,
+    notifications_read_all_api, contact_update_api, customers_vendors_view, login_token_view, otp_setup_view,
 )
 
 app_name = 'app'
@@ -12,7 +12,9 @@ app_name = 'app'
 urlpatterns = [
     path('', home_view, name='home'),
     path('login/', login_view, name='login'),
+    path('login/token/', login_token_view, name='login-token'),
     path('logout/', logout_view, name='logout'),
+    path('two-factor/', otp_setup_view, name='otp-setup'),
     path('contacts/', contacts_view, name='contacts'),
     path('dashboards/', dashboards_view, name='dashboards'),
     path('dashboard/<int:dashboard_id>/', dashboard_view, name='dashboard'),

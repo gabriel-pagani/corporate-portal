@@ -2,6 +2,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
+from tests.conftest import sign_in
+
 
 User = get_user_model()
 
@@ -12,7 +14,7 @@ def test_admin_can_deactivate_selected_users(client):
     first = User.objects.create_user(username='primeiro', password='senha')
     second = User.objects.create_user(username='segundo', password='senha')
     already_inactive = User.objects.create_user(username='inativo', password='senha', is_active=False)
-    client.force_login(admin_user)
+    sign_in(client, admin_user)
 
     response = client.post(reverse('admin:app_user_changelist'), {
         'action': 'deactivate_users',

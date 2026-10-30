@@ -1,9 +1,9 @@
 """Cria o dispositivo TOTP de um usuário e mostra o QR Code de cadastro.
 
 Executado pelo alvo create-superuser do Makefile, logo após o createsuperuser.
-O painel de administração usa OTPAdminSite, que exige segundo fator: um
-superusuário sem dispositivo tem senha válida e ainda assim é devolvido para a
-tela de login, sem mensagem explicando o motivo.
+Administrador só entra com o segundo fator. Sem dispositivo, o próprio portal
+mostra o QR Code no primeiro login; este script é o atalho de quem já está no
+terminal criando o superusuário.
 
 Sem TOTP_USER definido, age sobre o superusuário criado há menos tempo, que é
 o que acabou de sair do createsuperuser. Para um usuário específico, use:

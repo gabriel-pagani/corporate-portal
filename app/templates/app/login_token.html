@@ -1,0 +1,29 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Verificação{% endblock title %}
+
+{% block head %}
+<link href="{% static 'app/css/auth.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+<div class="container" id="tela-login">
+  <h2>Verificação</h2>
+  {% include 'app/auth_messages.html' %}
+
+  <form method="post" action="{% url 'app:login-token' %}" novalidate>
+    {% csrf_token %}
+    <div class="input-group">
+      <i class="fas fa-shield-halved input-icon"></i>
+      <input type="text" name="token" placeholder="Código do aplicativo" inputmode="numeric"
+        autocomplete="one-time-code" maxlength="8" spellcheck="false" autofocus />
+    </div>
+
+    <button type="submit" class="btn">Entrar</button>
+  </form>
+
+  {% comment %}Voltar recomeça: a tela da senha descarta a espera do código.{% endcomment %}
+  <p class="auth-aside"><a href="{% url 'app:login' %}">Voltar</a></p>
+</div>
+{% endblock body %}

@@ -4,6 +4,7 @@ from django.contrib.auth.models import Permission
 from django.urls import reverse
 
 from app.models import Contact, Notification, Sector, User
+from tests.conftest import sign_in
 
 
 def user_with_permission(client, codename):
@@ -187,7 +188,7 @@ def test_contact_delete_requires_permission_and_keeps_linked_user(client):
 @pytest.mark.django_db
 def test_staff_sees_actions_column_for_copy_without_edit_permission(client):
     staff = User.objects.create_user(username='equipe', password='senha', is_staff=True)
-    client.force_login(staff)
+    sign_in(client, staff)
     Contact.objects.create(name='Recepcao', number='1234', machine='PC-1')
 
     response = client.get(reverse('app:contacts'))

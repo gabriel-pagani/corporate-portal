@@ -1,0 +1,41 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Verificação em Duas Etapas{% endblock title %}
+
+{% block head %}
+<link href="{% static 'app/css/auth.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% comment %}Sem o mural de avisos: daqui só se sai cadastrando ou saindo.{% endcomment %}
+{% block notifications %}{% endblock notifications %}
+
+{% block body %}
+<div class="container" id="tela-login">
+  <h2>Verificação em Duas Etapas</h2>
+  {% include 'app/auth_messages.html' %}
+
+  <div class="otp-qr">{{ qr }}</div>
+
+  <p class="auth-aside">
+    Sem câmera? Digite esta chave no aplicativo:<br>
+    <code class="otp-secret">{{ secret }}</code>
+  </p>
+
+  <form class="otp-form" method="post" action="{% url 'app:otp-setup' %}" novalidate>
+    {% csrf_token %}
+    <div class="input-group">
+      <i class="fas fa-shield-halved input-icon"></i>
+      <input type="text" name="token" placeholder="Código do aplicativo" inputmode="numeric"
+        autocomplete="one-time-code" maxlength="8" spellcheck="false" autofocus />
+    </div>
+
+    <button type="submit" class="btn">Ativar</button>
+  </form>
+
+  <form class="auth-aside" method="post" action="{% url 'app:logout' %}">
+    {% csrf_token %}
+    <button type="submit" class="auth-link">Sair</button>
+  </form>
+</div>
+{% endblock body %}

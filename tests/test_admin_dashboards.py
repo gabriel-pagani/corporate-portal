@@ -5,6 +5,7 @@ from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
 
 from app.models import Dashboard, GroupDashboards
+from tests.conftest import sign_in
 
 
 User = get_user_model()
@@ -49,7 +50,7 @@ def test_dashboard_admin_lists_users_with_access_and_origin():
 def test_dashboard_admin_change_page_shows_users_with_access(client):
     superuser = User.objects.create_superuser(username='admin', password='senha')
     dashboard = Dashboard.objects.create(title='Folha de Pagamento')
-    client.force_login(superuser)
+    sign_in(client, superuser)
 
     response = client.get(reverse('admin:app_dashboard_change', args=[dashboard.pk]))
 

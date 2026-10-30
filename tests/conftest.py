@@ -1,5 +1,7 @@
 import pytest
 from django.core.cache import cache
+from django_otp import DEVICE_ID_SESSION_KEY
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 
 # O cache guarda o teto de tentativas de login e, em produção, as sessões. Os
@@ -28,3 +30,17 @@ def serving(settings):
         **settings.STORAGES,
         'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
     }
+
+
+# Administrador só anda no portal com o segundo fator, então a sessão do teste
+# nasce como a de quem entrou pela tela com o código na mão. Quem testa o
+# próprio login ou o cadastro monta a sessão por conta, sem isto.
+def sign_in(client, user):
+    device = TOTPDevice.objects.create(user=user, name='default', confirmed=True)
+    client.force_login(user)
+
+    session = client.session
+    session[DEVICE_ID_SESSION_KEY] = device.persistent_id
+    session.save()
+
+    return device
