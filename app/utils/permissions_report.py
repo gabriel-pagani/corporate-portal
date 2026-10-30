@@ -1,6 +1,7 @@
 from io import BytesIO
 from xml.sax.saxutils import escape
 from django.apps import apps
+from django.contrib.auth.models import Permission
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from reportlab.lib import colors
@@ -31,6 +32,7 @@ def user_permissions_report(users):
         'dashboards',
     ).order_by('username')
     all_dashboards = list(Dashboard.objects.select_related('sector'))
+    all_permissions = list(Permission.objects.select_related('content_type'))
 
     report = []
     for user in users:
@@ -44,6 +46,10 @@ def user_permissions_report(users):
         for group in groups:
             for permission in group.permissions.all():
                 permissions.setdefault(permission, []).append(f'Grupo {group.name}')
+        # O superusuário passa em qualquer verificação de permissão, listada ou não
+        if user.is_superuser:
+            for permission in all_permissions:
+                permissions.setdefault(permission, []).append('Superusuário')
 
         rows = sorted(
             ({**describe_permission(permission), 'sources': sources} for permission, sources in permissions.items()),
@@ -135,8 +141,6 @@ def user_section(item):
     # pula de página quando não cabem nem as primeiras linhas. Um KeepTogether com
     # a tabela inteira mandaria tudo para a página seguinte e deixaria esta vazia
     permissions = [CondPageBreak(3 * cm), Paragraph('Permissões', SECTION)]
-    if user.is_superuser:
-        permissions.append(Paragraph('Superusuário: tem todas as permissões do sistema, mesmo as que não estão listadas abaixo.', NOTE))
     if item['permissions']:
         permissions.append(table(
             ['Aplicação', 'Modelo', 'Permissão', 'Código', 'Origem'],

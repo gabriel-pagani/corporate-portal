@@ -70,6 +70,9 @@ def test_permissions_report_shows_where_each_access_comes_from(report_users):
     ]
     assert report['sem-acesso']['permissions'] == [] and report['sem-acesso']['dashboards'] == []
     assert [row['sources'] for row in report['admin']['dashboards']] == [['Superusuário'], ['Superusuário']]
+    # O superusuário aparece com todas as permissões do sistema, cada uma com a origem dele
+    assert len(report['admin']['permissions']) == Permission.objects.count()
+    assert {tuple(row['sources']) for row in report['admin']['permissions']} == {('Superusuário',)}
 
 
 @pytest.mark.django_db
