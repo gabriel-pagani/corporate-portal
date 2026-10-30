@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+    ignore:
+      # Trocar de major do Postgres exige migrar o volume de dados
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      # Minor ímpar do nginx é mainline; fica só no estável (minor par)
+      # ponytail: lista até ~2033, estender quando chegar perto
+      - dependency-name: nginx
+        versions:
+          - ">= 1.31, < 1.32"
+          - ">= 1.33, < 1.34"
+          - ">= 1.35, < 1.36"
+          - ">= 1.37, < 1.38"
+          - ">= 1.39, < 1.40"
+          - ">= 1.41, < 1.42"
+          - ">= 1.43, < 1.44"
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
