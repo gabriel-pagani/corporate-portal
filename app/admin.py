@@ -5,14 +5,14 @@ import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.models import Group as BaseGroup, Permission
 from django.db.models import Q
-from django.template.response import TemplateResponse
+from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from .models import (
     User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
     TonerRequest, TonerRequestItem, Notification,
 )
-from .utils.permissions_report import user_permissions_report
+from .utils.permissions_report import permissions_report_pdf, user_permissions_report
 
 
 def without_accents(text):
@@ -76,12 +76,13 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
 
     @admin.action(description='Gerar relatório de permissões dos usuários selecionados')
     def permissions_report(self, request, queryset):
-        return TemplateResponse(request, 'admin/app/user/permissions_report.html', {
-            **self.admin_site.each_context(request),
-            'title': 'Relatório de permissões',
-            'opts': self.model._meta,
-            'report': user_permissions_report(queryset),
-            'generated_at': timezone.now(),
+        pdf = permissions_report_pdf(
+            user_permissions_report(queryset),
+            request.user.get_full_name() or request.user.username,
+        )
+        file_name = f'relatorio-permissoes-{timezone.localtime():%Y%m%d-%H%M}.pdf'
+        return HttpResponse(pdf, content_type='application/pdf', headers={
+            'Content-Disposition': f'attachment; filename="{file_name}"',
         })
 
 

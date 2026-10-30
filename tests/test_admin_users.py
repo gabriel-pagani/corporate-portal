@@ -4,6 +4,7 @@ from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
 
 from app.models import Dashboard, GroupDashboards
+from app.utils.permissions_report import user_permissions_report
 from tests.conftest import sign_in
 
 
@@ -34,35 +35,26 @@ def test_admin_can_deactivate_selected_users(client):
     assert b'2 usu\xc3\xa1rio(s) desativado(s) com sucesso.' in response.content
 
 
-@pytest.mark.django_db
-def test_permissions_report_shows_where_each_access_comes_from(client):
-    from django.contrib.auth.models import Group, Permission
-    from app.models import Dashboard, GroupDashboards
-
-    admin_user = User.objects.create_superuser(username='admin', password='senha')
+@pytest.fixture
+def report_users():
     group = Group.objects.create(name='Almoxarifado')
     view_toner = Permission.objects.get(content_type__app_label='app', codename='view_toner')
     change_toner = Permission.objects.get(content_type__app_label='app', codename='change_toner')
     group.permissions.add(view_toner, change_toner)
-    group_dashboard = Dashboard.objects.create(title='Estoque')
-    GroupDashboards.objects.create(group=group).dashboards.add(group_dashboard)
-    own_dashboard = Dashboard.objects.create(title='Frota')
+    GroupDashboards.objects.create(group=group).dashboards.add(Dashboard.objects.create(title='Estoque'))
 
-    operator = User.objects.create_user(username='operador', password='senha', first_name='Ana', is_active=False)
+    operator = User.objects.create_user(username='operador', password='senha', first_name='Ana & <Cia>', is_active=False)
     operator.groups.add(group)
     operator.user_permissions.add(view_toner)
-    operator.dashboards.add(own_dashboard)
-    plain = User.objects.create_user(username='sem-acesso', password='senha')
-    sign_in(client, admin_user)
+    operator.dashboards.add(Dashboard.objects.create(title='Frota'))
+    User.objects.create_user(username='sem-acesso', password='senha')
+    User.objects.create_superuser(username='admin', password='senha')
+    return User.objects.all()
 
-    response = client.post(reverse('admin:app_user_changelist'), {
-        'action': 'permissions_report',
-        '_selected_action': [operator.pk, plain.pk, admin_user.pk],
-        'index': '0',
-    })
 
-    assert response.status_code == 200
-    report = {item['user'].username: item for item in response.context['report']}
+@pytest.mark.django_db
+def test_permissions_report_shows_where_each_access_comes_from(report_users):
+    report = {item['user'].username: item for item in user_permissions_report(report_users)}
     assert list(report) == ['admin', 'operador', 'sem-acesso']
 
     permissions = {row['codename']: row['sources'] for row in report['operador']['permissions']}
@@ -77,7 +69,20 @@ def test_permissions_report_shows_where_each_access_comes_from(client):
     assert report['sem-acesso']['permissions'] == [] and report['sem-acesso']['dashboards'] == []
     assert [row['sources'] for row in report['admin']['dashboards']] == [['Superusuário'], ['Superusuário']]
 
-    content = response.content.decode()
-    assert 'Usuário inativo' in content
-    assert 'Superusuário: tem todas as permissões do sistema' in content
-    assert 'Direta, Grupo Almoxarifado' in content
+
+@pytest.mark.django_db
+def test_permissions_report_action_downloads_a_pdf(client, report_users):
+    admin_user = User.objects.get(username='admin')
+    sign_in(client, admin_user)
+
+    response = client.post(reverse('admin:app_user_changelist'), {
+        'action': 'permissions_report',
+        '_selected_action': [user.pk for user in report_users],
+        'index': '0',
+    })
+
+    assert response.status_code == 200
+    assert response['Content-Type'] == 'application/pdf'
+    assert response['Content-Disposition'].startswith('attachment; filename="relatorio-permissoes-')
+    # O nome com & e < chega escapado à ReportLab: sem isso, o PDF nem seria gerado
+    assert response.content.startswith(b'%PDF')
