@@ -87,6 +87,9 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': os.getenv('REDIS_URL', 'redis://redis:6379/0'),
+        # Fora do REDIS_URL para a senha não ter de ser escapada dentro da URL.
+        # Sem a variável, como no CI, conecta sem senha.
+        'OPTIONS': {'password': os.getenv('REDIS_PASSWORD')},
     }
 }
 

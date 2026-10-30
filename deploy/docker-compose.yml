@@ -15,14 +15,23 @@ services:
       timeout: 5s
       retries: 12
     networks:
-      - network
+      - backend
     restart: unless-stopped
 
   redis:
     image: redis:8-alpine
     expose:
       - "6379"
-    command: redis-server --appendonly yes --save ""
+    # O Redis guarda as sessões, e o cache do Django lê pickle dele: quem escreve
+    # aqui forja a sessão de qualquer um e executa código no Django. A imagem
+    # oficial sobe sem senha e sem protected-mode.
+    #
+    # A senha vai pela variável, e não pela linha de comando do compose, para não
+    # aparecer no docker inspect. O redis-cli do healthcheck lê a mesma variável.
+    # O docker-entrypoint.sh é o que troca o root pelo usuário redis.
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no deploy/.env}
+    command: ["sh", "-c", "exec docker-entrypoint.sh redis-server --requirepass \"$$REDISCLI_AUTH\" --appendonly yes --save ''"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -31,7 +40,7 @@ services:
       timeout: 5s
       retries: 12
     networks:
-      - network
+      - backend
     restart: unless-stopped
 
   django:
@@ -46,6 +55,8 @@ services:
       - static_volume:/app/static_root
     env_file:
       - .env
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,8 +71,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    # O único na frente e atrás: o proxy fala com ele, e ele com o banco. A rede
+    # da frente também é a saída dele para o AD, o RM e o Metabase.
     networks:
-      - network
+      - backend
+      - frontend
     restart: unless-stopped
 
   tests:
@@ -87,7 +101,7 @@ services:
     profiles:
       - tests
     networks:
-      - network
+      - backend
 
   nginx:
     image: nginx:1.30-alpine
@@ -107,7 +121,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - network
+      - frontend
     restart: unless-stopped
 
   cloudflare:
@@ -119,7 +133,7 @@ services:
       nginx:
         condition: service_healthy
     networks:
-      - network
+      - frontend
     restart: unless-stopped
 
 volumes:
@@ -128,4 +142,8 @@ volumes:
   redis_data:
 
 networks:
-  network:
+  # Banco e Redis ficam só aqui: sem saída para fora, e fora do alcance do nginx
+  # e do túnel, que são as peças expostas.
+  backend:
+    internal: true
+  frontend:
