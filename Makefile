@@ -41,7 +41,7 @@ create-app-role:
 	@$(COMPOSE) run --rm --no-deps -T -v "$(PWD)/scripts:/app/scripts" django python scripts/create_app_role.py
 
 migrations:
-	@$(COMPOSE) run --rm --no-deps -v "$(PWD)/app:/app/app" django python manage.py makemigrations $(app)
+	@$(COMPOSE) run --rm --no-deps -v "$(PWD)/app:/app/app" -v "$(PWD)/journey_audit:/app/journey_audit" django python manage.py makemigrations $(app)
 
 run-tests:
 	@$(COMPOSE) run --rm tests python -m pytest -vv $(args)

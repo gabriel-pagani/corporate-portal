@@ -1,0 +1,456 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Auditoria de Jornada{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
+        <link href="{% static 'journey_audit/css/journey-audit.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div id="content" class="container journey-audit"
+            data-csrf-token="{{ csrf_token }}"
+            data-competencies-url="{% url 'journey_audit:competencies-api' %}"
+            data-competency-url="{% url 'journey_audit:competency-api' 0 %}"
+            data-finish-url="{% url 'journey_audit:competency-finish-api' 0 %}"
+            data-reports-url="{% url 'journey_audit:reports-api' %}"
+            data-treatments-url="{% url 'journey_audit:treatments-api' 0 %}"
+            data-recurrence-url="{% url 'journey_audit:recurrence-api' %}"
+        >
+            <div class="header">
+                <a href="{% url "app:home" %}">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
+                </a>
+                <div class="header-text">
+                    <h1>Auditoria de Jornada</h1>
+                </div>
+            </div>
+
+            <div id="alert-error" class="alert" role="alert" hidden>
+                <strong><i class="fas fa-circle-xmark"></i> <span id="alert-error-text"></span></strong>
+            </div>
+
+            <div id="success-message" class="form-message" role="status" hidden></div>
+
+            <section class="card competency-bar" aria-label="Competência">
+                <div class="field competency-field">
+                    <label for="competency-select">Competência salva</label>
+                    <select id="competency-select"></select>
+                </div>
+                <div class="field">
+                    <label for="start-date">Início da competência</label>
+                    <input type="date" id="start-date">
+                </div>
+                <div class="field">
+                    <label for="end-date">Fim da competência</label>
+                    <input type="date" id="end-date">
+                </div>
+                <button type="button" class="button primary" id="open-period">Abrir competência</button>
+                <p class="competency-status" id="competency-status" role="status" hidden></p>
+            </section>
+
+            <nav class="tabs" aria-label="Seções da auditoria">
+                <button type="button" class="tab" data-tab="visao-geral"><i class="fas fa-table-cells-large"></i> Visão geral</button>
+                <button type="button" class="tab" data-tab="ocorrencias"><i class="fas fa-list-check"></i> Ocorrências</button>
+                <button type="button" class="tab" data-tab="intervalos"><i class="fas fa-mug-hot"></i> Intervalos</button>
+                <button type="button" class="tab" data-tab="horas-extras"><i class="fas fa-business-time"></i> Horas extras</button>
+                <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos e indicadores</button>
+                <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-rotate"></i> Recorrência de batidas</button>
+                <button type="button" class="tab" data-tab="competencias"><i class="fas fa-box-archive"></i> Competências</button>
+            </nav>
+
+            <div class="tab-panel" data-panel="visao-geral">
+                <section class="card">
+                    <h2>Relatórios do Ahgora</h2>
+                    <p class="section-hint" id="reports-hint">Importe os relatórios originais do Ahgora em .xlsx ou .csv. As ocorrências são montadas a partir do Sumarizado; as batidas ímpares e as ausências complementam cada dia.</p>
+                    <div class="upload-grid">
+                        <div class="upload-slot">
+                            <h3>1. Batidas ímpares</h3>
+                            <p class="muted">Marcações que precisam de conferência e observação do ajuste mensal.</p>
+                            {% if permissions.change %}
+                            <input type="file" accept=".xlsx,.csv" data-report-input="I" aria-label="Importar o relatório de batidas ímpares">
+                            {% endif %}
+                            <p class="report-state" data-report-state="I"></p>
+                        </div>
+                        <div class="upload-slot">
+                            <h3>2. Ausências</h3>
+                            <p class="muted">Faltas integrais, saldos parciais e afastamentos do relatório.</p>
+                            {% if permissions.change %}
+                            <input type="file" accept=".xlsx,.csv" data-report-input="A" aria-label="Importar o relatório de ausências">
+                            {% endif %}
+                            <p class="report-state" data-report-state="A"></p>
+                        </div>
+                        <div class="upload-slot">
+                            <h3>3. Sumarizado</h3>
+                            <p class="muted">Escala, batidas, horas trabalhadas e horas extras.</p>
+                            {% if permissions.change %}
+                            <input type="file" accept=".xlsx,.csv" data-report-input="S" aria-label="Importar o relatório sumarizado">
+                            {% endif %}
+                            <p class="report-state" data-report-state="S"></p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="kpi-grid" aria-label="Indicadores da competência">
+                    <button type="button" class="kpi" data-shortcut="pending">
+                        <span class="kpi-label"><i class="fas fa-hourglass-half kpi-icon icon-pending" aria-hidden="true"></i> Tratativas pendentes</span>
+                        <strong class="kpi-value" id="kpi-pending">0</strong>
+                        <span class="kpi-hint">Batidas ímpares, faltas e intervalos</span>
+                    </button>
+                    <button type="button" class="kpi" data-shortcut="absences">
+                        <span class="kpi-label"><i class="fas fa-user-xmark kpi-icon icon-alert" aria-hidden="true"></i> Faltas a confirmar</span>
+                        <strong class="kpi-value" id="kpi-absences">0</strong>
+                        <span class="kpi-hint">Conferir justificativas antes de concluir</span>
+                    </button>
+                    <button type="button" class="kpi" data-shortcut="missing-break">
+                        <span class="kpi-label"><i class="fas fa-circle-question kpi-icon icon-neutral" aria-hidden="true"></i> Intervalos sem marcação suficiente</span>
+                        <strong class="kpi-value" id="kpi-missing-break">0</strong>
+                        <span class="kpi-hint">Não presume intervalo zerado</span>
+                    </button>
+                    <button type="button" class="kpi" data-shortcut="done">
+                        <span class="kpi-label"><i class="fas fa-circle-check kpi-icon icon-done" aria-hidden="true"></i> Tratativas concluídas</span>
+                        <strong class="kpi-value" id="kpi-done">0</strong>
+                        <span class="kpi-hint">Ocorrências com tratativa registrada</span>
+                    </button>
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-calendar-days kpi-icon icon-neutral" aria-hidden="true"></i> Dias / registros analisados</span>
+                        <strong class="kpi-value" id="kpi-rows">0</strong>
+                        <span class="kpi-hint">Linhas do Sumarizado na competência</span>
+                    </div>
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-list kpi-icon icon-neutral" aria-hidden="true"></i> Ocorrências encontradas</span>
+                        <strong class="kpi-value" id="kpi-total">0</strong>
+                        <span class="kpi-hint">Alertas informativos e tratativas</span>
+                    </div>
+                    <button type="button" class="kpi" data-shortcut="odd-punches">
+                        <span class="kpi-label"><i class="fas fa-fingerprint kpi-icon icon-pending" aria-hidden="true"></i> Batidas ímpares</span>
+                        <strong class="kpi-value" id="kpi-odd-punches">0</strong>
+                        <span class="kpi-hint">Tratativa com observação</span>
+                    </button>
+                    <button type="button" class="kpi" data-shortcut="short-break">
+                        <span class="kpi-label"><i class="fas fa-mug-hot kpi-icon icon-neutral" aria-hidden="true"></i> Intervalo abaixo de 1h</span>
+                        <strong class="kpi-value" id="kpi-short-break">0</strong>
+                        <span class="kpi-hint">Calculado entre a 2ª e a 3ª batida</span>
+                    </button>
+                    <button type="button" class="kpi" data-shortcut="long-overtime">
+                        <span class="kpi-label"><i class="fas fa-business-time kpi-icon icon-alert" aria-hidden="true"></i> Horas extras acima de 2h</span>
+                        <strong class="kpi-value" id="kpi-long-overtime">0</strong>
+                        <span class="kpi-hint">Alerta diário, sem tratativa obrigatória</span>
+                    </button>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Conferência da competência</h2>
+                        {% if permissions.change %}
+                        <button type="button" class="button" id="finish-review">
+                            <i class="fas fa-flag-checkered"></i> Marcar conferência como finalizada
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="meter" id="review-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Tratativas obrigatórias concluídas"><span></span></div>
+                    <p class="muted" id="review-count"></p>
+                    <p class="review-finished" id="review-finished" hidden></p>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Casos prioritários pendentes</h2>
+                        <button type="button" class="button" data-go-tab="ocorrencias">Ver todas as ocorrências</button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="priority-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Ocorrência</th>
+                                    <th>Tratativa</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="priority-empty" class="empty" hidden></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="ocorrencias" hidden>
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Ocorrências e tratativas</h2>
+                        <div class="toolbar">
+                            <button type="button" class="button" id="clear-filters"><i class="fas fa-rotate-left"></i> Limpar filtros</button>
+                            <button type="button" class="button" id="export-excel"><i class="fas fa-file-excel"></i> Excel</button>
+                        </div>
+                    </div>
+                    <div class="filters">
+                        <input type="search" id="occurrence-search" placeholder="Pesquise colaborador, matrícula, tipo ou batidas..." aria-label="Pesquisar ocorrências">
+                        <select id="filter-employee" aria-label="Colaborador"></select>
+                        <select id="filter-type" aria-label="Tipo de ocorrência"></select>
+                        <select id="filter-department" aria-label="Departamento"></select>
+                        <select id="filter-priority" aria-label="Prioridade">
+                            <option value="">Todas as prioridades</option>
+                            <option>Alta</option>
+                            <option>Média</option>
+                            <option>Baixa</option>
+                        </select>
+                        <select id="filter-treatment" aria-label="Tratativa"></select>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="occurrences-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Ocorrência</th>
+                                    <th>Evidência / batidas</th>
+                                    <th>Conferência</th>
+                                    <th>Prioridade</th>
+                                    <th>Tratativa</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="occurrences-empty" class="empty" hidden></div>
+                    <p class="table-status" id="occurrences-status"></p>
+                    <div id="occurrences-pagination" class="pagination-container" aria-label="Paginação das ocorrências"></div>
+                </section>
+
+                <details class="card help">
+                    <summary>Como interpretar os alertas</summary>
+                    <div class="help-text">
+                        <p><strong>Tratativa obrigatória somente em três situações:</strong> batidas ímpares (registrar a observação do ajuste mensal), falta ou ausência integral (confirmar se a falta procede) e intervalo sem marcações suficientes (verificar e lançar quando necessário).</p>
+                        <p><strong>Intervalo:</strong> é calculado pelas colunas Batida 2 e Batida 3. Se uma delas estiver ausente, o alerta exibe todas as batidas disponíveis, identificadas por posição. Se não houver nenhuma batida, não é criado alerta de intervalo; a falta depende do relatório de ausências.</p>
+                        <p><strong>Horas extras e intrajornada inferior a 1h:</strong> aparecem como alertas informativos, sem exigir tratativa.</p>
+                        <p><strong>Ajuste mensal:</strong> cada matrícula aceita um único "Ajuste realizado" de batida ímpar por mês do calendário, mesmo que o outro dia do mês esteja em outra competência.</p>
+                        <p><strong>Histórico:</strong> as tratativas ficam salvas no portal e são compartilhadas com todos que acessam a auditoria. Cada registro guarda quem salvou e quando.</p>
+                    </div>
+                </details>
+            </div>
+
+            <div class="tab-panel" data-panel="intervalos" hidden>
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Auditoria de intervalos</h2>
+                        <div class="toolbar">
+                            <input type="search" id="interval-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar intervalos">
+                            <select id="interval-kind" aria-label="Tipo de alerta de intervalo"></select>
+                        </div>
+                    </div>
+                    <p class="section-hint">Alertas calculados pelas marcações disponíveis. A ausência de batidas suficientes não significa, por si só, que o intervalo foi zero.</p>
+                    <div class="table-wrapper">
+                        <table id="intervals-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Alerta</th>
+                                    <th>Batidas / evidência</th>
+                                    <th>Confiança</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="intervals-empty" class="empty" hidden></div>
+                    <div id="intervals-pagination" class="pagination-container" aria-label="Paginação dos intervalos"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="horas-extras" hidden>
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Horas extras</h2>
+                        <div class="toolbar">
+                            <input type="search" id="overtime-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar horas extras">
+                            <select id="overtime-kind" aria-label="Tipo de alerta de horas extras"></select>
+                        </div>
+                    </div>
+                    <p class="section-hint">Horas extras conforme o relatório Sumarizado. Acima de 2h no dia gera alerta informativo, sem tratativa obrigatória.</p>
+                    <div class="table-wrapper">
+                        <table id="overtime-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Departamento</th>
+                                    <th>Horas extras</th>
+                                    <th>Escala</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="overtime-empty" class="empty" hidden></div>
+                    <div id="overtime-pagination" class="pagination-container" aria-label="Paginação das horas extras"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="graficos" hidden>
+                <section class="kpi-grid" aria-label="Indicadores gerenciais">
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-list kpi-icon icon-neutral" aria-hidden="true"></i> Ocorrências identificadas</span>
+                        <strong class="kpi-value" id="chart-kpi-total">0</strong>
+                        <span class="kpi-hint">Todos os tipos de alerta</span>
+                    </div>
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-hourglass-half kpi-icon icon-pending" aria-hidden="true"></i> Tratativas pendentes</span>
+                        <strong class="kpi-value" id="chart-kpi-pending">0</strong>
+                        <span class="kpi-hint">Exigem ação do RH</span>
+                    </div>
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-sitemap kpi-icon icon-neutral" aria-hidden="true"></i> Departamentos envolvidos</span>
+                        <strong class="kpi-value" id="chart-kpi-departments">0</strong>
+                        <span class="kpi-hint">Com pelo menos uma ocorrência</span>
+                    </div>
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-circle-check kpi-icon icon-done" aria-hidden="true"></i> Tratativas concluídas</span>
+                        <strong class="kpi-value" id="chart-kpi-done">0</strong>
+                        <span class="kpi-hint">Registradas no histórico</span>
+                    </div>
+                </section>
+
+                <div class="chart-grid">
+                    <section class="card chart-card chart-wide">
+                        <h2>Ocorrências por departamento e tipo</h2>
+                        <p class="section-hint">Compare o volume e a composição das ocorrências de cada setor. Clique num setor para ver as ocorrências dele.</p>
+                        <div id="chart-departments" class="stack-chart"></div>
+                        <div id="chart-departments-legend" class="chart-legend"></div>
+                    </section>
+
+                    <section class="card chart-card chart-tall">
+                        <h2>Ocorrências por tipo</h2>
+                        <p class="section-hint">Tipos com maior volume na competência.</p>
+                        <div id="chart-types" class="rank-chart"></div>
+                    </section>
+
+                    <section class="card chart-card">
+                        <h2>Tratativas obrigatórias</h2>
+                        <p class="section-hint">Somente as ocorrências que exigem uma ação do RH.</p>
+                        <div id="chart-treatments"></div>
+                    </section>
+
+                    <section class="card chart-card">
+                        <h2>Resumo da competência</h2>
+                        <p class="section-hint">Indicadores operacionais para apoiar a reunião.</p>
+                        <dl id="chart-summary" class="summary-list"></dl>
+                    </section>
+
+                    <section class="card chart-card chart-wide">
+                        <h2>Departamento × ocorrência</h2>
+                        <p class="section-hint">As células mais escuras concentram mais registros. Clique numa célula para ver as ocorrências.</p>
+                        <div id="chart-heatmap" class="table-wrapper"></div>
+                        <div id="chart-heatmap-scale" class="heat-scale"></div>
+                    </section>
+                </div>
+
+                <p class="chart-note">Os gráficos refletem os dados e as tratativas da competência selecionada. Os números são contagens de ocorrências, não necessariamente de colaboradores únicos.</p>
+            </div>
+
+            <div class="tab-panel" data-panel="recorrencia" hidden>
+                <section class="card">
+                    <h2>Recorrência de batidas ímpares</h2>
+                    <p class="section-hint">Soma todas as competências salvas. Diferencie a quantidade de ocorrências dos ajustes efetivamente realizados; o limite para acompanhamento é indicativo e pode ser ajustado pela gestão.</p>
+                    <div class="table-wrapper">
+                        <table id="recurrence-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Ocorrências históricas</th>
+                                    <th>Datas registradas</th>
+                                    <th>Ajustes realizados</th>
+                                    <th>Acompanhamento sugerido</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="recurrence-empty" class="empty" hidden></div>
+                    <div id="recurrence-pagination" class="pagination-container" aria-label="Paginação da recorrência"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="competencias" hidden>
+                <section class="card">
+                    <h2>Competências salvas</h2>
+                    <p class="section-hint">Os relatórios e as tratativas ficam salvos no portal e são compartilhados com todos que acessam a auditoria.</p>
+                    <div class="table-wrapper">
+                        <table id="competencies-table">
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Relatórios</th>
+                                    <th>Ocorrências</th>
+                                    <th>Pendentes</th>
+                                    <th>Conferência</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="competencies-empty" class="empty" hidden></div>
+                    {% if permissions.delete %}
+                    <p class="alert-note"><i class="fas fa-triangle-exclamation"></i> A exclusão remove permanentemente os relatórios e as tratativas da competência. Esta ação não pode ser desfeita.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <dialog id="treatment-modal" class="form-modal treatment-modal" aria-labelledby="treatment-modal-title">
+                <div class="modal-header">
+                    <h2 id="treatment-modal-title">Tratar ocorrência</h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="Fechar">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+                <dl id="treatment-details" class="occurrence-details"></dl>
+                {% if permissions.change %}
+                <form id="treatment-form" class="form-grid" autocomplete="off">
+                    <div class="field">
+                        <label for="treatment-select">Resultado da conferência</label>
+                        <select id="treatment-select" name="treatment"></select>
+                    </div>
+                    <div class="field">
+                        <label for="treatment-responsible">Responsável pela tratativa</label>
+                        <input id="treatment-responsible" name="responsible" type="text" maxlength="150" placeholder="Nome de quem conferiu">
+                    </div>
+                    <div class="field field-wide">
+                        <label for="treatment-note">Observação da tratativa</label>
+                        <textarea id="treatment-note" name="note"></textarea>
+                    </div>
+                    <div id="treatment-error" class="form-error modal-form-error" role="alert" hidden></div>
+                    <div class="modal-actions">
+                        <button type="button" class="button" data-close-modal>Cancelar</button>
+                        <button type="submit" class="button primary">Salvar tratativa</button>
+                    </div>
+                </form>
+                {% endif %}
+                <div class="treatment-history">
+                    <h3>Histórico de tratativas</h3>
+                    <div id="treatment-history"></div>
+                </div>
+            </dialog>
+        </div>
+
+        <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
+
+        {{ competencies|json_script:"competencies-data" }}
+        {{ competency|json_script:"competency-data" }}
+        {{ period|json_script:"period-data" }}
+        {{ catalog|json_script:"catalog-data" }}
+        {{ permissions|json_script:"permissions-data" }}
+        {{ responsible|json_script:"responsible-data" }}
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="{% static 'journey_audit/js/journey-audit.js' %}"></script>
+{% endblock body %}

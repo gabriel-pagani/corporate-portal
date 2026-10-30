@@ -86,6 +86,7 @@ services:
     image: intranet-django-tests
     volumes:
       - ../app:/app/app
+      - ../journey_audit:/app/journey_audit
       - ../project:/app/project
       - ../templates:/app/templates
       - ../static:/app/static

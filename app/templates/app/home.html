@@ -39,6 +39,12 @@
                     <span class="text">Controle de Toners</span>
                 </a>
                 {% endif %}
+                {% if perms.journey_audit.view_competency %}
+                <a href="{% url 'journey_audit:audit' %}" title="Acessar auditoria de jornada">
+                    <i class="fas fa-user-clock"></i>
+                    <span class="text">Auditoria de Jornada</span>
+                </a>
+                {% endif %}
                 {% if perms.app.register_customers_suppliers %}
                 <a href="{% url 'app:customers-vendors' %}" title="Cadastrar clientes e fornecedores">
                     <i class="fas fa-address-card"></i>

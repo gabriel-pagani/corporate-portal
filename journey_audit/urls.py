@@ -1,0 +1,22 @@
+from django.urls import path
+from journey_audit.views import (
+    audit_view, competencies_api, competency_api, competency_finish_api, recurrence_api, reports_api, treatments_api,
+)
+
+app_name = 'journey_audit'
+
+urlpatterns = [
+    path('journey-audit/', audit_view, name='audit'),
+
+    # API
+    path('api/journey-audit/competencies/', competencies_api, name='competencies-api'),
+    path('api/journey-audit/competencies/<int:competency_id>/', competency_api, name='competency-api'),
+    path(
+        'api/journey-audit/competencies/<int:competency_id>/finish/',
+        competency_finish_api,
+        name='competency-finish-api',
+    ),
+    path('api/journey-audit/reports/', reports_api, name='reports-api'),
+    path('api/journey-audit/occurrences/<int:occurrence_id>/treatments/', treatments_api, name='treatments-api'),
+    path('api/journey-audit/recurrence/', recurrence_api, name='recurrence-api'),
+]

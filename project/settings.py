@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'django_otp',
     'django_otp.plugins.otp_totp',
     'app',
+    'journey_audit',
 ]
 
 MIDDLEWARE = [
