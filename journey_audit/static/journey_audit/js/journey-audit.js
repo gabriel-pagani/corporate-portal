@@ -18,7 +18,7 @@ const LIMITE_PRIORITARIOS = 8;
 const NIVEIS_DE_CALOR = 6;
 const ABAS = [
     'visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'ranking-intrajornada',
-    'ranking-interjornada', 'graficos', 'recorrencia', 'competencias',
+    'ranking-interjornada', 'graficos', 'recorrencia', 'comparativo-horas', 'comparativo-rankings', 'competencias',
 ];
 const BANCO_DE_HORAS = 'B';
 
@@ -60,7 +60,9 @@ let recorrencia = null;
 let ocorrenciaAberta = null;
 let enviando = false;
 let temporizadorPeriodo = null;
-const paginas = { ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, intra: 1, inter: 1, recorrencia: 1 };
+const paginas = {
+    ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, intra: 1, inter: 1, recorrencia: 1, comparaIntra: 1, comparaInter: 1,
+};
 
 // Os rankings vêm do servidor, que soma as competências; a localização, a busca
 // e a ordem são aplicadas aqui. O pedido descarta a resposta que chega atrasada.
@@ -68,6 +70,8 @@ const RANKINGS = {
     intra: { tipo: INTERVALO_CURTO, linhas: null, pedido: 0 },
     inter: { tipo: INTERJORNADA, linhas: null, pedido: 0 },
 };
+const pedidosDeComparativo = { horas: 0, rankings: 0 };
+let rankingsComparados = null;
 
 function escaparHtml(texto) {
     return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
@@ -306,6 +310,12 @@ function preencherSeletoresDeCompetencia() {
             [['current', 'Competência aberta'], ['all', 'Todas as competências · total'], ...salvas],
             'current',
         );
+    });
+    // Os comparativos partem da competência anterior à mais recente contra a mais recente
+    const padrao = (indice) => (salvas[indice] || salvas[0] || [''])[0];
+    ['compare-hours', 'compare-rankings'].forEach((prefixo) => {
+        preencherOpcoes(document.getElementById(`${prefixo}-first`), salvas, padrao(1));
+        preencherOpcoes(document.getElementById(`${prefixo}-second`), salvas, padrao(0));
     });
 }
 
@@ -858,11 +868,159 @@ async function carregarRanking(chave) {
     renderizarRanking(chave);
 }
 
+// Comparativos
+
+function comSinal(valor, formatar) {
+    return `${valor > 0 ? '+' : ''}${formatar(valor)}`;
+}
+
+function variacao(primeiro, segundo) {
+    if (!primeiro) return segundo === 0 ? '0%' : '—';
+    const porcentagem = (segundo - primeiro) / Math.abs(primeiro) * 100;
+    return `${porcentagem > 0 ? '+' : ''}${porcentagem.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+}
+
+// Os indicadores das duas competências escolhidas, ou null sem competência salva
+async function buscarComparacao(prefixo) {
+    const ids = [`${prefixo}-first`, `${prefixo}-second`].map((id) => document.getElementById(id).value);
+    if (!ids[0] || !ids[1]) return null;
+    return Promise.all(ids.map((id) => requisitar(urlDeIndicadores(id))));
+}
+
+function indicadoresDeHoras(primeira, segunda) {
+    const total = (dados, tipoOcorrencia, campo) => dados.rankings[tipoOcorrencia].reduce((soma, item) => soma + item[campo], 0);
+    const linha = (rotulo, valor, formatar) => [rotulo, valor(primeira), valor(segunda), formatar];
+    return [
+        linha('Horas extras (total)', (dados) => dados.overtime.minutes, formatarHoras),
+        linha('Colaboradores com horas extras', (dados) => dados.overtime.employees, numero),
+        linha('Banco de horas — saldo acumulado', (dados) => dados.bank_hours, formatarHoras),
+        linha('Intrajornada — ocorrências', (dados) => total(dados, INTERVALO_CURTO, 'count'), numero),
+        linha('Intrajornada — tempo insuficiente', (dados) => total(dados, INTERVALO_CURTO, 'minutes'), formatarHoras),
+        linha('Interjornada — ocorrências', (dados) => total(dados, INTERJORNADA, 'count'), numero),
+        linha('Interjornada — tempo de infração', (dados) => total(dados, INTERJORNADA, 'minutes'), formatarHoras),
+    ];
+}
+
+// O banco de horas falta na competência que não tem o relatório dele
+function linhaDoComparativoDeHoras([rotulo, primeiro, segundo, formatar]) {
+    const exibir = (valor) => (valor === null ? 'Sem relatório importado' : formatar(valor));
+    const semValor = primeiro === null || segundo === null;
+    return `
+        <tr>
+            <td><strong>${rotulo}</strong></td>
+            <td>${exibir(primeiro)}</td>
+            <td>${exibir(segundo)}</td>
+            <td>${semValor ? '—' : comSinal(segundo - primeiro, formatar)}</td>
+            <td>${semValor ? '—' : variacao(primeiro, segundo)}</td>
+        </tr>`;
+}
+
+function renderizarComparativoDeHoras(dados, mensagem) {
+    const linhas = dados ? indicadoresDeHoras(...dados) : [];
+    document.querySelector('#compare-hours-table tbody').innerHTML = linhas.map(linhaDoComparativoDeHoras).join('');
+    document.getElementById('compare-hours-table').hidden = !linhas.length;
+    const vazio = document.getElementById('compare-hours-empty');
+    vazio.hidden = Boolean(linhas.length);
+    vazio.textContent = mensagem;
+}
+
+async function carregarComparativoDeHoras() {
+    const pedido = ++pedidosDeComparativo.horas;
+    ['first', 'second'].forEach((posicao) => {
+        const select = document.getElementById(`compare-hours-${posicao}`);
+        document.getElementById(`compare-hours-${posicao}-title`).textContent = select.value ? select.selectedOptions[0].text : '';
+    });
+    renderizarComparativoDeHoras(null, 'Carregando...');
+
+    let dados = null;
+    try {
+        dados = await buscarComparacao('compare-hours');
+    } catch (erro) {
+        mostrarErro(erro.message);
+    }
+    if (pedido !== pedidosDeComparativo.horas) return;
+    renderizarComparativoDeHoras(dados, competencias.length ? 'Não foi possível carregar o comparativo.' : 'Nenhuma competência salva para comparar.');
+}
+
+// Um colaborador por linha, com a quantidade e o tempo de cada competência. A
+// localização filtra o ranking de cada competência antes de juntar os dois.
+function juntarRankings(primeira, segunda, tipoOcorrencia, localizacao) {
+    const colaboradores = new Map();
+    [primeira, segunda].forEach((dados, indice) => {
+        dados.rankings[tipoOcorrencia]
+            .filter((item) => !localizacao || item.location === localizacao)
+            .forEach((item) => {
+                if (!colaboradores.has(item.employee_id)) {
+                    colaboradores.set(item.employee_id, { ...item, contagens: [0, 0], minutos: [0, 0] });
+                }
+                const linha = colaboradores.get(item.employee_id);
+                linha.contagens[indice] = item.count;
+                linha.minutos[indice] = item.minutes;
+            });
+    });
+    return [...colaboradores.values()].sort((a, b) => Math.max(...b.contagens) - Math.max(...a.contagens)
+        || comparar(a.employee_name, b.employee_name));
+}
+
+function linhaDoComparativoDeRankings(item) {
+    return `
+        <tr>
+            <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
+            <td>${escaparHtml(item.employee_id)}</td>
+            <td>${escaparHtml(item.location)}</td>
+            <td>${numero(item.contagens[0])}</td>
+            <td>${numero(item.contagens[1])}</td>
+            <td>${comSinal(item.contagens[1] - item.contagens[0], numero)}</td>
+            <td>${formatarHoras(item.minutos[0])}</td>
+            <td>${formatarHoras(item.minutos[1])}</td>
+        </tr>`;
+}
+
+function renderizarComparativoDeRankings() {
+    const localizacao = document.getElementById('compare-rankings-location').value;
+    let mensagem = 'Nenhum registro para as competências e a localização selecionadas.';
+    if (rankingsComparados === null) mensagem = 'Carregando...';
+    else if (!competencias.length) mensagem = 'Nenhuma competência salva para comparar.';
+
+    [['compare-intra', 'comparaIntra', INTERVALO_CURTO], ['compare-inter', 'comparaInter', INTERJORNADA]].forEach(([id, chave, tipoOcorrencia]) => {
+        renderizarTabela({
+            id,
+            chave,
+            linhas: rankingsComparados && rankingsComparados.length ? juntarRankings(...rankingsComparados, tipoOcorrencia, localizacao) : [],
+            montarLinha: linhaDoComparativoDeRankings,
+            mensagemVazia: mensagem,
+            renderizar: renderizarComparativoDeRankings,
+        });
+    });
+}
+
+async function carregarComparativoDeRankings() {
+    const pedido = ++pedidosDeComparativo.rankings;
+    rankingsComparados = null;
+    paginas.comparaIntra = 1;
+    paginas.comparaInter = 1;
+    renderizarComparativoDeRankings();
+
+    let dados = null;
+    try {
+        dados = await buscarComparacao('compare-rankings');
+    } catch (erro) {
+        mostrarErro(erro.message);
+    }
+    if (pedido !== pedidosDeComparativo.rankings) return;
+    rankingsComparados = dados || [];
+    const todos = rankingsComparados.flatMap((item) => [...item.rankings[INTERVALO_CURTO], ...item.rankings[INTERJORNADA]]);
+    preencherSelect('compare-rankings-location', 'Todas as localizações', opcoesDeLocalizacao(todos));
+    renderizarComparativoDeRankings();
+}
+
 // Os indicadores vêm do servidor: carregam quando a aba abre e de novo quando
 // os dados mudam com ela aberta
 const INDICADORES_DAS_ABAS = {
     'ranking-intrajornada': () => carregarRanking('intra'),
     'ranking-interjornada': () => carregarRanking('inter'),
+    'comparativo-horas': carregarComparativoDeHoras,
+    'comparativo-rankings': carregarComparativoDeRankings,
 };
 
 function abaAtual() {
@@ -1547,6 +1705,18 @@ document.addEventListener('DOMContentLoaded', () => {
         [`${chave}-location`, `${chave}-sort`].forEach((id) => {
             document.getElementById(id).addEventListener('change', aoFiltrarRanking);
         });
+    });
+
+    ['compare-hours-first', 'compare-hours-second'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', carregarComparativoDeHoras);
+    });
+    ['compare-rankings-first', 'compare-rankings-second'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', carregarComparativoDeRankings);
+    });
+    document.getElementById('compare-rankings-location').addEventListener('change', () => {
+        paginas.comparaIntra = 1;
+        paginas.comparaInter = 1;
+        renderizarComparativoDeRankings();
     });
 
     const botaoFinalizar = document.getElementById('finish-review');

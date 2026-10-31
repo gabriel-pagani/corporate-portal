@@ -165,7 +165,7 @@ def recurrence_api(request):
     return JsonResponse({'employees': odd_punches_recurrence()})
 
 
-# Sem competência, os rankings somam todas
+# Sem competência, os indicadores somam todas
 @require_http_methods(['GET'])
 @json_permission_required('journey_audit.view_competency')
 def indicators_api(request, competency_id=None):

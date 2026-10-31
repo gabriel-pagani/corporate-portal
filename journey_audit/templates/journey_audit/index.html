@@ -64,6 +64,8 @@
                 <button type="button" class="tab" data-tab="ranking-interjornada"><i class="fas fa-ranking-star"></i> Ranking de Interjornada</button>
                 <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos e indicadores</button>
                 <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-rotate"></i> Recorrência de batidas</button>
+                <button type="button" class="tab" data-tab="comparativo-horas"><i class="fas fa-code-compare"></i> Comparativo de Horas</button>
+                <button type="button" class="tab" data-tab="comparativo-rankings"><i class="fas fa-code-compare"></i> Comparativo dos Rankings</button>
                 <button type="button" class="tab" data-tab="competencias"><i class="fas fa-box-archive"></i> Competências</button>
             </nav>
 
@@ -588,6 +590,99 @@
                     </div>
                     <div id="recurrence-empty" class="empty" hidden></div>
                     <div id="recurrence-pagination" class="pagination-container" aria-label="Paginação da recorrência"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="comparativo-horas" hidden>
+                <section class="card">
+                    <h2>Comparativo de Horas</h2>
+                    <p class="section-hint">Compare duas competências lado a lado. Horas extras e ocorrências vêm do que está nos relatórios de cada competência. O banco de horas é o saldo acumulado até a data de extração de cada relatório, e a diferença pode refletir mudanças ocorridas entre as extrações.</p>
+                    <div class="controls">
+                        <div class="field">
+                            <label for="compare-hours-first">Primeira competência</label>
+                            <select id="compare-hours-first"></select>
+                        </div>
+                        <div class="field">
+                            <label for="compare-hours-second">Segunda competência</label>
+                            <select id="compare-hours-second"></select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="compare-hours-table">
+                            <thead>
+                                <tr>
+                                    <th>Indicador</th>
+                                    <th id="compare-hours-first-title">Primeira competência</th>
+                                    <th id="compare-hours-second-title">Segunda competência</th>
+                                    <th>Diferença</th>
+                                    <th>Variação</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="compare-hours-empty" class="empty" hidden></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="comparativo-rankings" hidden>
+                <section class="card">
+                    <h2>Comparativo dos Rankings</h2>
+                    <p class="section-hint">Compare, por colaborador, a quantidade de ocorrências e o tempo insuficiente entre duas competências. O filtro de localização vale para os dois rankings.</p>
+                    <div class="controls">
+                        <div class="field">
+                            <label for="compare-rankings-first">Primeira competência</label>
+                            <select id="compare-rankings-first"></select>
+                        </div>
+                        <div class="field">
+                            <label for="compare-rankings-second">Segunda competência</label>
+                            <select id="compare-rankings-second"></select>
+                        </div>
+                        <div class="field">
+                            <label for="compare-rankings-location">Localização</label>
+                            <select id="compare-rankings-location"></select>
+                        </div>
+                    </div>
+                    <h3 class="compare-title">Intrajornada inferior a 1h</h3>
+                    <div class="table-wrapper">
+                        <table id="compare-intra-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Localização</th>
+                                    <th>Ocorrências · 1ª</th>
+                                    <th>Ocorrências · 2ª</th>
+                                    <th>Diferença</th>
+                                    <th>Tempo insuficiente · 1ª</th>
+                                    <th>Tempo insuficiente · 2ª</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="compare-intra-empty" class="empty" hidden></div>
+                    <div id="compare-intra-pagination" class="pagination-container" aria-label="Paginação do comparativo de intrajornada"></div>
+                    <h3 class="compare-title">Interjornada inferior a 11h</h3>
+                    <div class="table-wrapper">
+                        <table id="compare-inter-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Localização</th>
+                                    <th>Ocorrências · 1ª</th>
+                                    <th>Ocorrências · 2ª</th>
+                                    <th>Diferença</th>
+                                    <th>Tempo de infração · 1ª</th>
+                                    <th>Tempo de infração · 2ª</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="compare-inter-empty" class="empty" hidden></div>
+                    <div id="compare-inter-pagination" class="pagination-container" aria-label="Paginação do comparativo de interjornada"></div>
                 </section>
             </div>
 

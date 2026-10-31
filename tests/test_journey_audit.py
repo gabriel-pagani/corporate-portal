@@ -634,6 +634,22 @@ def test_rankings_add_up_the_breaks_of_each_employee(client, editor):
 
 
 @pytest.mark.django_db
+def test_indicators_total_the_overtime_and_the_bank_hours(client, editor, imported):
+    assert upload(client, SourceReport.BANK_HOURS, csv_file(BANK_HOURS)).status_code == 201
+    other = Competency.objects.create(start_date=date(2020, 1, 21), end_date=date(2020, 2, 20))
+    make_occurrence(other, date(2020, 1, 25), type=Occurrence.OVERTIME, employee='99', minutes=30)
+
+    # A Ana fez 02:30 e 00:45 de extras; o banco tem -01:30 e 12:15
+    payload = client.get(reverse('journey_audit:competency-indicators-api', args=[imported.id])).json()
+    assert (payload['overtime'], payload['bank_hours']) == ({'minutes': 195, 'employees': 1}, 645)
+    assert client.get(reverse('journey_audit:competency-indicators-api', args=[other.id])).json()['bank_hours'] is None
+
+    # Somando as competências não há banco de horas: cada relatório já é o saldo acumulado
+    payload = client.get(reverse('journey_audit:indicators-api')).json()
+    assert (payload['overtime'], payload['bank_hours']) == ({'minutes': 225, 'employees': 2}, None)
+
+
+@pytest.mark.django_db
 def test_competency_list_counts_what_is_still_in_the_reports(client, editor, imported):
     Occurrence.objects.filter(type=Occurrence.LONG_OVERTIME).update(in_reports=False)
     Occurrence.objects.filter(type=Occurrence.MISSING_BREAK).update(treatment=Occurrence.BREAK_RECORDED)

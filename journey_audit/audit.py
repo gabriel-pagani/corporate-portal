@@ -6,7 +6,8 @@ from datetime import timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, Func, IntegerField, Prefetch, Q
+from django.db.models import Count, Func, IntegerField, Prefetch, Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from journey_audit.models import Competency, Occurrence, OccurrenceTreatment, SourceReport
@@ -178,13 +179,19 @@ def odd_punches_recurrence():
 
 
 def indicators(competency=None):
-    """Os rankings de intervalo por colaborador, de uma competência ou somando todas."""
-    occurrences = Occurrence.objects.filter(in_reports=True, type__in=[Occurrence.SHORT_BREAK, Occurrence.SHORT_REST])
+    """
+    Os rankings de intervalo por colaborador, as horas extras e o banco de horas
+    de uma competência; sem ela, somando todas, e aí sem o banco de horas, que já
+    é o saldo acumulado até a extração do relatório.
+    """
+    occurrences = Occurrence.objects.filter(in_reports=True)
     if competency:
         occurrences = occurrences.filter(competency=competency)
 
     rankings = {Occurrence.SHORT_BREAK: {}, Occurrence.SHORT_REST: {}}
-    rows = occurrences.order_by('day').values_list('type', 'employee_id', 'employee_name', 'location', 'minutes')
+    rows = occurrences.filter(type__in=list(rankings)).order_by('day').values_list(
+        'type', 'employee_id', 'employee_name', 'location', 'minutes',
+    )
     for type, employee, name, location, minutes in rows:
         entry = rankings[type].setdefault(employee, {'employee_id': employee, 'count': 0, 'minutes': 0})
         # Ficam o nome e a localização do dia mais recente
@@ -192,7 +199,16 @@ def indicators(competency=None):
         entry['count'] += 1
         entry['minutes'] += minutes or 0
 
-    return {'rankings': {type: list(employees.values()) for type, employees in rankings.items()}}
+    overtime = occurrences.filter(type__in=[Occurrence.OVERTIME, Occurrence.LONG_OVERTIME]).aggregate(
+        minutes=Coalesce(Sum('minutes'), 0),
+        employees=Count('employee_id', distinct=True),
+    )
+    bank = competency and competency.reports.filter(type=SourceReport.BANK_HOURS).first()
+    return {
+        'rankings': {type: list(employees.values()) for type, employees in rankings.items()},
+        'overtime': overtime,
+        'bank_hours': sum(balance_minutes(row['Saldo']) for row in bank.rows) if bank else None,
+    }
 
 
 def catalog():

@@ -95,6 +95,10 @@ input[type="date"] {
   flex: 1 1 200px;
 }
 
+.compare-title {
+  margin: 20px 0 10px;
+}
+
 /* Relatórios do Ahgora */
 .upload-grid {
   display: grid;
