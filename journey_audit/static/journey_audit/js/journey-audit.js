@@ -18,7 +18,7 @@ const LIMITE_PRIORITARIOS = 8;
 const NIVEIS_DE_CALOR = 6;
 const ABAS = [
     'visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'ranking-intrajornada',
-    'ranking-interjornada', 'graficos', 'recorrencia', 'comparativo-horas', 'comparativo-rankings', 'competencias',
+    'ranking-interjornada', 'recorrencia', 'graficos', 'comparativo-horas', 'comparativo-rankings', 'competencias',
 ];
 const BANCO_DE_HORAS = 'B';
 

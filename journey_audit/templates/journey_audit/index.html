@@ -57,16 +57,16 @@
             <nav class="tabs" aria-label="Seções da auditoria">
                 <button type="button" class="tab" data-tab="visao-geral"><i class="fas fa-table-cells-large"></i> Visão geral</button>
                 <button type="button" class="tab" data-tab="ocorrencias"><i class="fas fa-list-check"></i> Ocorrências</button>
-                <button type="button" class="tab" data-tab="intervalos"><i class="fas fa-mug-hot"></i> Intervalos</button>
+                <button type="button" class="tab" data-tab="intervalos"><i class="fas fa-mug-hot"></i> Intervalos Matriz</button>
                 <button type="button" class="tab" data-tab="banco-de-horas"><i class="fas fa-piggy-bank"></i> Banco de Horas Obras</button>
-                <button type="button" class="tab" data-tab="horas-extras"><i class="fas fa-business-time"></i> Horas extras</button>
+                <button type="button" class="tab" data-tab="horas-extras"><i class="fas fa-business-time"></i> Horas Extras Matriz</button>
                 <button type="button" class="tab" data-tab="ranking-intrajornada"><i class="fas fa-ranking-star"></i> Ranking de Intrajornada Matriz</button>
                 <button type="button" class="tab" data-tab="ranking-interjornada"><i class="fas fa-ranking-star"></i> Ranking de Interjornada</button>
-                <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos e indicadores</button>
-                <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-rotate"></i> Recorrência de batidas</button>
+                <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-ranking-star"></i> Ranking de Batidas Ímpares</button>
+                <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos</button>
                 <button type="button" class="tab" data-tab="comparativo-horas"><i class="fas fa-code-compare"></i> Comparativo de Horas</button>
                 <button type="button" class="tab" data-tab="comparativo-rankings"><i class="fas fa-code-compare"></i> Comparativo dos Rankings</button>
-                <button type="button" class="tab" data-tab="competencias"><i class="fas fa-box-archive"></i> Competências</button>
+                <button type="button" class="tab" data-tab="competencias"><i class="fas fa-box-archive"></i> Histórico de competências</button>
             </nav>
 
             <div class="tab-panel" data-panel="visao-geral">
@@ -261,7 +261,7 @@
             <div class="tab-panel" data-panel="intervalos" hidden>
                 <section class="card">
                     <div class="card-header">
-                        <h2>Auditoria de intervalos</h2>
+                        <h2>Intervalos Matriz</h2>
                         <div class="toolbar">
                             <input type="search" id="interval-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar intervalos">
                             <select id="interval-kind" aria-label="Tipo de alerta de intervalo"></select>
@@ -363,7 +363,7 @@
             <div class="tab-panel" data-panel="horas-extras" hidden>
                 <section class="card">
                     <div class="card-header">
-                        <h2>Horas extras</h2>
+                        <h2>Horas Extras Matriz</h2>
                         <div class="toolbar">
                             <input type="search" id="overtime-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar horas extras">
                             <select id="overtime-kind" aria-label="Tipo de alerta de horas extras"></select>
@@ -508,6 +508,30 @@
                 </section>
             </div>
 
+            <div class="tab-panel" data-panel="recorrencia" hidden>
+                <section class="card">
+                    <h2>Ranking de Batidas Ímpares</h2>
+                    <p class="section-hint">Soma todas as competências salvas. Diferencie a quantidade de ocorrências dos ajustes efetivamente realizados; o limite para acompanhamento é indicativo e pode ser ajustado pela gestão.</p>
+                    <div class="table-wrapper">
+                        <table id="recurrence-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Ocorrências históricas</th>
+                                    <th>Datas registradas</th>
+                                    <th>Ajustes realizados</th>
+                                    <th>Acompanhamento sugerido</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="recurrence-empty" class="empty" hidden></div>
+                    <div id="recurrence-pagination" class="pagination-container" aria-label="Paginação do ranking de batidas ímpares"></div>
+                </section>
+            </div>
+
             <div class="tab-panel" data-panel="graficos" hidden>
                 <section class="kpi-grid" aria-label="Indicadores gerenciais">
                     <div class="kpi">
@@ -567,30 +591,6 @@
                 </div>
 
                 <p class="chart-note">Os gráficos refletem os dados e as tratativas da competência selecionada. Os números são contagens de ocorrências, não necessariamente de colaboradores únicos.</p>
-            </div>
-
-            <div class="tab-panel" data-panel="recorrencia" hidden>
-                <section class="card">
-                    <h2>Recorrência de batidas ímpares</h2>
-                    <p class="section-hint">Soma todas as competências salvas. Diferencie a quantidade de ocorrências dos ajustes efetivamente realizados; o limite para acompanhamento é indicativo e pode ser ajustado pela gestão.</p>
-                    <div class="table-wrapper">
-                        <table id="recurrence-table">
-                            <thead>
-                                <tr>
-                                    <th>Colaborador</th>
-                                    <th>Matrícula</th>
-                                    <th>Ocorrências históricas</th>
-                                    <th>Datas registradas</th>
-                                    <th>Ajustes realizados</th>
-                                    <th>Acompanhamento sugerido</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                    <div id="recurrence-empty" class="empty" hidden></div>
-                    <div id="recurrence-pagination" class="pagination-container" aria-label="Paginação da recorrência"></div>
-                </section>
             </div>
 
             <div class="tab-panel" data-panel="comparativo-horas" hidden>
@@ -688,7 +688,7 @@
 
             <div class="tab-panel" data-panel="competencias" hidden>
                 <section class="card">
-                    <h2>Competências salvas</h2>
+                    <h2>Histórico de competências</h2>
                     <p class="section-hint">Os relatórios e as tratativas ficam salvos no portal e são compartilhados com todos que acessam a auditoria.</p>
                     <div class="table-wrapper">
                         <table id="competencies-table">
