@@ -2,7 +2,9 @@ import io
 import json
 import zipfile
 from datetime import date
+from importlib import import_module
 import pytest
+from django.apps import apps
 from django.contrib.admin.sites import site
 from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -90,10 +92,10 @@ def imported(client, editor):
     return Competency.objects.get()
 
 
-def make_occurrence(competency, day, type=Occurrence.ODD_PUNCHES, employee='10', **fields):
+def make_occurrence(competency, day, type=Occurrence.ODD_PUNCHES, employee='10', evidence='Batidas do relatório: 08:00.', **fields):
     return Occurrence.objects.create(
         competency=competency, day=day, employee_id=employee, employee_name=f'Colaborador {employee}',
-        location='RH', type=type, evidence='Batidas do relatório: 08:00.', **fields,
+        location='RH', type=type, evidence=evidence, **fields,
     )
 
 
@@ -224,6 +226,12 @@ def test_import_builds_occurrences_from_the_three_reports(client, editor):
     }
     ana = found[('1', '2026-10-21', Occurrence.SHORT_BREAK)]
     assert (ana.employee_name, ana.location, ana.scale) == ('Ana Souza', 'RH', '08:00 às 17:00')
+    # O intervalo guarda o que faltou para 1h; as horas extras, o tempo do dia
+    assert {key: o.minutes for key, o in found.items() if o.minutes is not None} == {
+        ('1', '2026-10-21', Occurrence.SHORT_BREAK): 30,
+        ('1', '2026-10-21', Occurrence.LONG_OVERTIME): 150,
+        ('1', '2026-10-22', Occurrence.OVERTIME): 45,
+    }
 
     payload = response.json()
     assert len(payload['occurrences']) == 8
@@ -560,6 +568,25 @@ def test_detail_returns_the_selected_competency(client, editor, imported):
     assert payload['competency']['start_date'] == '2020-01-21'
     assert [item['employee_id'] for item in payload['occurrences']] == ['88']
     assert payload['reports'] == {}
+
+
+@pytest.mark.django_db
+def test_migration_fills_the_minutes_from_the_evidence():
+    competency = Competency.objects.create(start_date=date(2026, 10, 21), end_date=date(2026, 11, 20))
+    short_break = make_occurrence(
+        competency, date(2026, 10, 21), type=Occurrence.SHORT_BREAK,
+        evidence='Batida 2: 12:00 · Batida 3: 12:20 · Intervalo calculado: 0h 20min.',
+    )
+    overtime = make_occurrence(
+        competency, date(2026, 10, 21), type=Occurrence.LONG_OVERTIME,
+        evidence='Extra informada no sumarizado: 02:30 (2h 30min).',
+    )
+    odd_punches = make_occurrence(competency, date(2026, 10, 22))
+
+    import_module('journey_audit.migrations.0003_occurrence_minutes').fill_minutes(apps, None)
+    for occurrence in (short_break, overtime, odd_punches):
+        occurrence.refresh_from_db()
+    assert (short_break.minutes, overtime.minutes, odd_punches.minutes) == (40, 150, None)
 
 
 @pytest.mark.django_db

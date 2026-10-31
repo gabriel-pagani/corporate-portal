@@ -89,6 +89,16 @@ function rotuloPeriodo(inicio, fim) {
     return `${dataBr(inicio)} a ${dataBr(fim)}`;
 }
 
+// Minutos em HH:MM, como os relatórios do Ahgora escrevem as horas
+function formatarHoras(minutos) {
+    const total = Math.abs(minutos || 0);
+    return `${minutos < 0 ? '-' : ''}${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function comparar(a, b) {
+    return a.localeCompare(b, 'pt-BR');
+}
+
 async function requisitar(url, metodo = 'GET', corpo = null) {
     const opcoes = {
         method: metodo,
@@ -186,6 +196,24 @@ function celulaColaborador(ocorrencia) {
 
 function contar(lista, condicao) {
     return lista.reduce((total, item) => total + (condicao(item) ? 1 : 0), 0);
+}
+
+function opcoesDeLocalizacao(lista) {
+    return [...new Set(lista.map((item) => item.location))].sort(comparar).map((nome) => [nome, nome]);
+}
+
+// As listas chegam do servidor por data, colaborador e tipo; a ordenação é
+// estável, e esse continua sendo o desempate
+const ORDENACOES = {
+    date: (a, b) => a.day.localeCompare(b.day),
+    name: (a, b) => comparar(a.employee_name, b.employee_name),
+    location: (a, b) => comparar(a.location, b.location),
+    largest: (a, b) => (b.minutes || 0) - (a.minutes || 0),
+    smallest: (a, b) => (a.minutes || 0) - (b.minutes || 0),
+};
+
+function ordenar(lista, ordem) {
+    return [...lista].sort(ORDENACOES[ordem]);
 }
 
 // Competência
@@ -471,8 +499,8 @@ function atualizarFiltros() {
             .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
             .map(([id, nome]) => [id, `${nome} · ${id}`]),
     );
-    const localizacoes = [...new Set(ocorrencias.map((o) => o.location))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    preencherSelect('filter-location', 'Todas as localizações', localizacoes.map((nome) => [nome, nome]));
+    preencherSelect('filter-location', 'Todas as localizações', opcoesDeLocalizacao(ocorrencias));
+    preencherSelect('overtime-location', 'Todas as localizações', opcoesDeLocalizacao(horasExtras()));
 }
 
 // Os filtros que não dependem dos dados da competência
@@ -568,11 +596,26 @@ function filtrarPorBusca(lista, idBusca, idTipo) {
         && (!busca || normalizar(`${ocorrencia.employee_name} ${ocorrencia.employee_id}`).includes(busca)));
 }
 
+// "Menor intervalo" vem pelos minutos que faltaram, e o dia sem marcações
+// suficientes, que não tem intervalo calculado, fica no fim
+function ordenarIntervalos(lista, ordem) {
+    if (ordem === 'shortest') return [...lista].sort((a, b) => (b.minutes ?? -1) - (a.minutes ?? -1));
+    if (ordem !== 'count') return ordenar(lista, ordem);
+
+    const porColaborador = {};
+    lista.forEach((ocorrencia) => { porColaborador[ocorrencia.employee_id] = (porColaborador[ocorrencia.employee_id] || 0) + 1; });
+    return [...lista].sort((a, b) => porColaborador[b.employee_id] - porColaborador[a.employee_id]
+        || comparar(a.employee_name, b.employee_name) || a.employee_id.localeCompare(b.employee_id));
+}
+
 function renderizarIntervalos() {
-    const lista = filtrarPorBusca(
-        ocorrencias.filter((o) => [INTERVALO_CURTO, SEM_MARCACOES].includes(o.type)),
-        'interval-search',
-        'interval-kind',
+    const lista = ordenarIntervalos(
+        filtrarPorBusca(
+            ocorrencias.filter((o) => [INTERVALO_CURTO, SEM_MARCACOES].includes(o.type)),
+            'interval-search',
+            'interval-kind',
+        ),
+        document.getElementById('interval-sort').value,
     );
     renderizarTabela({
         id: 'intervals',
@@ -592,18 +635,29 @@ function renderizarIntervalos() {
     });
 }
 
-// O valor de horas extras é o que o Sumarizado informou, guardado na evidência
-function valorExtra(ocorrencia) {
-    const encontrado = ocorrencia.evidence.match(/^Extra informada no sumarizado: (.+) \(/);
-    return encontrado ? encontrado[1] : ocorrencia.evidence;
+function horasExtras() {
+    return ocorrencias.filter((o) => [HORAS_EXTRAS, HORAS_EXTRAS_ACIMA_DE_2H].includes(o.type));
+}
+
+function horasExtrasDaLocalizacao() {
+    const localizacao = document.getElementById('overtime-location').value;
+    return horasExtras().filter((o) => !localizacao || o.location === localizacao);
+}
+
+function horasExtrasFiltradas() {
+    const lista = filtrarPorBusca(horasExtrasDaLocalizacao(), 'overtime-search', 'overtime-kind');
+    return ordenar(lista, document.getElementById('overtime-sort').value);
 }
 
 function renderizarHorasExtras() {
-    const lista = filtrarPorBusca(
-        ocorrencias.filter((o) => [HORAS_EXTRAS, HORAS_EXTRAS_ACIMA_DE_2H].includes(o.type)),
-        'overtime-search',
-        'overtime-kind',
-    );
+    // Os indicadores seguem só a localização; a busca e o tipo filtram a tabela
+    const extras = horasExtrasDaLocalizacao();
+    const colaboradores = (lista) => numero(new Set(lista.map((o) => o.employee_id)).size);
+    document.getElementById('overtime-total').textContent = formatarHoras(extras.reduce((total, o) => total + o.minutes, 0));
+    document.getElementById('overtime-people').textContent = colaboradores(extras);
+    document.getElementById('overtime-long-people').textContent = colaboradores(extras.filter((o) => o.type === HORAS_EXTRAS_ACIMA_DE_2H));
+
+    const lista = horasExtrasFiltradas();
     renderizarTabela({
         id: 'overtime',
         chave: 'extras',
@@ -614,12 +668,13 @@ function renderizarHorasExtras() {
                 <td>${escaparHtml(ocorrencia.employee_name)}</td>
                 <td>${escaparHtml(ocorrencia.employee_id)}</td>
                 <td>${escaparHtml(ocorrencia.location)}</td>
-                <td><span class="badge ${ocorrencia.type === HORAS_EXTRAS_ACIMA_DE_2H ? 'high' : 'neutral'}">${escaparHtml(valorExtra(ocorrencia))}</span></td>
+                <td><span class="badge ${ocorrencia.type === HORAS_EXTRAS_ACIMA_DE_2H ? 'high' : 'neutral'}">${formatarHoras(ocorrencia.minutes)}</span></td>
                 <td>${escaparHtml(ocorrencia.scale || 'Não informada')}</td>
             </tr>`,
         mensagemVazia: mensagemSemDados('Nenhum registro de horas extras para os filtros selecionados.'),
         renderizar: renderizarHorasExtras,
     });
+    document.getElementById('overtime-export').disabled = lista.length === 0;
 }
 
 // Gráficos
@@ -1066,7 +1121,15 @@ async function salvarTratativa(evento) {
 
 // Exportação
 
-function exportarExcel() {
+function exportarPlanilha(nome, aba, cabecalho, linhas, larguras) {
+    const planilha = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
+    planilha['!cols'] = larguras.map((wch) => ({ wch }));
+    const pasta = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(pasta, planilha, aba);
+    XLSX.writeFile(pasta, `${nome}-${periodo.start_date}-a-${periodo.end_date}.xlsx`);
+}
+
+function exportarOcorrencias() {
     const cabecalho = [
         'Competência início', 'Competência fim', 'Data', 'Matrícula', 'Colaborador', 'Localização', 'Ocorrência',
         'Evidência', 'Prioridade', 'Tratativa', 'Observação', 'Responsável', 'Atualizado em', 'Escala',
@@ -1081,11 +1144,22 @@ function exportarExcel() {
         ];
     });
 
-    const planilha = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
-    planilha['!cols'] = [12, 12, 11, 11, 30, 22, 30, 60, 10, 26, 40, 22, 16, 30].map((wch) => ({ wch }));
-    const pasta = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(pasta, planilha, 'Ocorrências');
-    XLSX.writeFile(pasta, `auditoria-jornada-${periodo.start_date}-a-${periodo.end_date}.xlsx`);
+    exportarPlanilha('auditoria-jornada', 'Ocorrências', cabecalho, linhas, [12, 12, 11, 11, 30, 22, 30, 60, 10, 26, 40, 22, 16, 30]);
+}
+
+function exportarHorasExtras() {
+    const competenciaExportada = rotuloPeriodo(periodo.start_date, periodo.end_date);
+    const linhas = horasExtrasFiltradas().map((ocorrencia) => [
+        competenciaExportada, dataBr(ocorrencia.day), ocorrencia.employee_name, ocorrencia.employee_id,
+        ocorrencia.location, tipo(ocorrencia.type).label, formatarHoras(ocorrencia.minutes), ocorrencia.scale || 'Não informada',
+    ]);
+    exportarPlanilha(
+        'horas-extras',
+        'Horas extras',
+        ['Competência', 'Data', 'Colaborador', 'Matrícula', 'Localização', 'Tipo de alerta', 'Horas extras', 'Escala'],
+        linhas,
+        [24, 11, 30, 11, 22, 24, 12, 30],
+    );
 }
 
 // Navegação
@@ -1123,6 +1197,7 @@ const ATALHOS = {
     },
     'long-overtime': () => {
         document.getElementById('overtime-search').value = '';
+        document.getElementById('overtime-location').value = '';
         document.getElementById('overtime-kind').value = HORAS_EXTRAS_ACIMA_DE_2H;
         paginas.extras = 1;
         renderizarHorasExtras();
@@ -1214,21 +1289,26 @@ document.addEventListener('DOMContentLoaded', () => {
         limparFiltros();
         renderizarOcorrencias();
     });
-    document.getElementById('export-excel').addEventListener('click', exportarExcel);
+    document.getElementById('export-excel').addEventListener('click', exportarOcorrencias);
 
     const aoFiltrarIntervalos = () => {
         paginas.intervalos = 1;
         renderizarIntervalos();
     };
     document.getElementById('interval-search').addEventListener('input', aoFiltrarIntervalos);
-    document.getElementById('interval-kind').addEventListener('change', aoFiltrarIntervalos);
+    ['interval-kind', 'interval-sort'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', aoFiltrarIntervalos);
+    });
 
     const aoFiltrarHorasExtras = () => {
         paginas.extras = 1;
         renderizarHorasExtras();
     };
     document.getElementById('overtime-search').addEventListener('input', aoFiltrarHorasExtras);
-    document.getElementById('overtime-kind').addEventListener('change', aoFiltrarHorasExtras);
+    ['overtime-kind', 'overtime-location', 'overtime-sort'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', aoFiltrarHorasExtras);
+    });
+    document.getElementById('overtime-export').addEventListener('click', exportarHorasExtras);
 
     const botaoFinalizar = document.getElementById('finish-review');
     if (botaoFinalizar) botaoFinalizar.addEventListener('click', () => executar(finalizarConferencia));

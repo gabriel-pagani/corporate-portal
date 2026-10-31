@@ -144,6 +144,12 @@ class Occurrence(models.Model):
     scale = models.CharField(max_length=255, blank=True, verbose_name='Escala')
     type = models.CharField(max_length=1, choices=TYPES, verbose_name='Ocorrência')
     evidence = models.TextField(verbose_name='Evidência')
+    minutes = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='Minutos',
+        help_text='O tempo que a ocorrência mede: as horas extras do dia ou o que faltou para 1h de intervalo.',
+    )
     in_reports = models.BooleanField(
         default=True,
         verbose_name='Presente nos relatórios',

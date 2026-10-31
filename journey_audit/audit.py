@@ -29,7 +29,7 @@ PRIORITIES = {
 }
 
 # O que a análise reescreve a cada importação; a tratativa nunca entra aqui
-ANALYSIS_FIELDS = ['employee_name', 'location', 'scale', 'evidence', 'in_reports']
+ANALYSIS_FIELDS = ['employee_name', 'location', 'scale', 'evidence', 'minutes', 'in_reports']
 
 MONTHLY_ADJUSTMENT_ERROR = (
     'Já existe ajuste realizado para esta matrícula no mês. '
@@ -243,6 +243,7 @@ def serialize_occurrence(occurrence):
         'scale': occurrence.scale,
         'type': occurrence.type,
         'evidence': occurrence.evidence,
+        'minutes': occurrence.minutes,
         'treatment': occurrence.treatment,
         'note': occurrence.note,
         'responsible': occurrence.responsible,

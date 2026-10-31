@@ -243,6 +243,13 @@
                         <div class="toolbar">
                             <input type="search" id="interval-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar intervalos">
                             <select id="interval-kind" aria-label="Tipo de alerta de intervalo"></select>
+                            <select id="interval-sort" aria-label="Ordenar intervalos">
+                                <option value="date">Ordenar por data</option>
+                                <option value="count">Mais ocorrências por colaborador</option>
+                                <option value="location">Ordenar por localização</option>
+                                <option value="name">Ordenar por colaborador</option>
+                                <option value="shortest">Menor intervalo primeiro</option>
+                            </select>
                         </div>
                     </div>
                     <p class="section-hint">Alertas calculados pelas marcações disponíveis. A ausência de batidas suficientes não significa, por si só, que o intervalo foi zero.</p>
@@ -273,9 +280,35 @@
                         <div class="toolbar">
                             <input type="search" id="overtime-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar horas extras">
                             <select id="overtime-kind" aria-label="Tipo de alerta de horas extras"></select>
+                            <select id="overtime-location" aria-label="Localização"></select>
+                            <select id="overtime-sort" aria-label="Ordenar horas extras">
+                                <option value="largest">Maior quantidade</option>
+                                <option value="smallest">Menor quantidade</option>
+                                <option value="location">Ordenar por localização</option>
+                                <option value="name">Ordenar por colaborador</option>
+                                <option value="date">Ordenar por data</option>
+                            </select>
+                            <button type="button" class="button" id="overtime-export"><i class="fas fa-file-excel"></i> Excel</button>
                         </div>
                     </div>
-                    <p class="section-hint">Horas extras conforme o relatório Sumarizado. Acima de 2h no dia gera alerta informativo, sem tratativa obrigatória.</p>
+                    <p class="section-hint">Horas extras conforme o relatório Sumarizado. Acima de 2h no dia gera alerta informativo, sem tratativa obrigatória. Os indicadores seguem o filtro de localização.</p>
+                    <div class="kpi-grid" aria-label="Indicadores de horas extras">
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-clock kpi-icon icon-neutral" aria-hidden="true"></i> Total de horas extras da competência</span>
+                            <strong class="kpi-value" id="overtime-total">00:00</strong>
+                            <span class="kpi-hint">Soma dos registros da competência</span>
+                        </div>
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-users kpi-icon icon-neutral" aria-hidden="true"></i> Colaboradores com horas extras</span>
+                            <strong class="kpi-value" id="overtime-people">0</strong>
+                            <span class="kpi-hint">Colaboradores distintos</span>
+                        </div>
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-business-time kpi-icon icon-alert" aria-hidden="true"></i> Colaboradores com mais de 2h no dia</span>
+                            <strong class="kpi-value" id="overtime-long-people">0</strong>
+                            <span class="kpi-hint">Alerta diário, sem tratativa obrigatória</span>
+                        </div>
+                    </div>
                     <div class="table-wrapper">
                         <table id="overtime-table">
                             <thead>

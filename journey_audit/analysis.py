@@ -142,22 +142,22 @@ def find_occurrences(summary, odd_punches, absences, start, end):
             'scale': row.get('Escala', ''),
         }
         occurrences = day_occurrences(row, odd_by_day.get((employee, day)), absences_by_day.get((employee, day), []))
-        for type, evidence in occurrences:
+        for type, evidence, minutes in occurrences:
             # Linha repetida no relatório não duplica a ocorrência: vale a primeira
-            found.setdefault((day, employee, type), {**base, 'type': type, 'evidence': evidence})
+            found.setdefault((day, employee, type), {**base, 'type': type, 'evidence': evidence, 'minutes': minutes})
 
     return list(found.values()), analysed
 
 
 def day_occurrences(row, odd, absences):
-    """Os tipos de ocorrência e as evidências de um dia do Sumarizado."""
+    """Os tipos de ocorrência de um dia do Sumarizado, com a evidência e os minutos de cada um."""
     if odd is not None:
         raw = odd.get('Batidas', '')
         details = ' · '.join(f'{column}: {odd[column]}' for column in ODD_PUNCH_COLUMNS if odd.get(column))
         evidence = f'Batidas do relatório: {raw or details or "ver relatório de batidas ímpares"}.'
         if details:
             evidence += f' Detalhamento: {details}'
-        yield Occurrence.ODD_PUNCHES, evidence
+        yield Occurrence.ODD_PUNCHES, evidence, None
 
     # O intervalo é o que vai da segunda à terceira batida. Faltando uma delas,
     # não dá para dizer que o intervalo foi curto, só que precisa ser conferido;
@@ -169,21 +169,24 @@ def day_occurrences(row, odd, absences):
         gap = third_minutes - second_minutes
         if gap < 0:
             gap += 1440
+        # Os minutos são o que faltou para completar 1h de intervalo
         if gap < 60:
             yield Occurrence.SHORT_BREAK, (
                 f'Batida 2: {second} · Batida 3: {third} · Intervalo calculado: {format_minutes(gap)}.'
-            )
+            ), 60 - gap
     elif any(raw for _, raw in punches):
         listed = ' · '.join(f'Batida {slot}: {raw}' for slot, raw in punches if raw)
         yield Occurrence.MISSING_BREAK, (
             f'{listed}. Não foi possível confirmar o intervalo pelas posições Batida 2 e Batida 3.'
-        )
+        ), None
 
     extra = row.get('Extra', '')
     extra_minutes = duration_minutes(extra)
     if extra and extra_minutes > 0:
         type = Occurrence.LONG_OVERTIME if extra_minutes > 120 else Occurrence.OVERTIME
-        yield type, f'Extra informada no sumarizado: {extra} ({format_minutes(extra_minutes)}).'
+        yield type, (
+            f'Extra informada no sumarizado: {extra} ({format_minutes(extra_minutes)}).'
+        ), round_half_up(extra_minutes)
 
     for absence in absences:
         integral = is_yes(absence.get('Ausência integral'))
@@ -192,15 +195,15 @@ def day_occurrences(row, odd, absences):
             reasons = '; '.join(
                 reason for reason, present in (('Ausência integral: Sim', integral), ('Falta: Sim', missed)) if present
             )
-            yield Occurrence.ABSENCE, f'Relatório de ausências: {reasons}. Confirmar se a falta procede.'
+            yield Occurrence.ABSENCE, f'Relatório de ausências: {reasons}. Confirmar se a falta procede.', None
 
         partial = absence.get('Ausência parcial', '')
         if partial and duration_minutes(partial) < 0:
             yield Occurrence.NEGATIVE_BALANCE, (
                 f'Ausência parcial informada: {partial} ({format_minutes(duration_minutes(partial))}). '
                 'Pode decorrer de atraso, saída antecipada ou intervalo; informação para conferência.'
-            )
+            ), None
 
         leave = absence.get('Afastamentos', '')
         if leave:
-            yield Occurrence.LEAVE, f'Afastamento: {leave}'
+            yield Occurrence.LEAVE, f'Afastamento: {leave}', None
