@@ -11,9 +11,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from app.models import User
 from journey_audit.admin import CompetencyAdmin, OccurrenceAdmin
-from journey_audit.models import Competency, Occurrence, OccurrenceTreatment, SourceReport
+from journey_audit.models import BankHoursNote, Competency, Occurrence, OccurrenceTreatment, SourceReport
 from journey_audit.analysis import (
-    clock_minutes, duration_minutes, employee_id, format_minutes, parse_day,
+    balance_minutes, clock_minutes, duration_minutes, employee_id, format_minutes, parse_day,
 )
 from journey_audit.audit import current_period
 
@@ -57,6 +57,15 @@ REST = [
     ['3', 'Carla Dias', '22/10/2026', 'Intrajornada', '00:20', 'Matriz', '', '', ''],
     ['3', 'Carla Dias', '23/10/2026', 'Interjornada', '', 'Matriz', '', '', ''],
     ['3', 'Carla Dias', '20/10/2026', 'Interjornada', '01:00', 'Matriz', '', '', ''],
+]
+
+BANK_HOURS = [
+    ['Matrícula', 'Nome do colaborador', 'Localização', 'Saldo anterior', 'SALDO'],
+    ['001', 'Ana Souza', 'Curitiba', '10:00', '-01:30'],
+    ['2', 'Bruno Lima', 'Londrina', '00:00', '12:15'],
+    # Sem saldo válido ou sem matrícula, a linha fica de fora
+    ['3', 'Carla Dias', 'Curitiba', '01:00', 'pendente'],
+    ['', 'Sem matrícula', 'Curitiba', '01:00', '02:00'],
 ]
 
 
@@ -129,6 +138,17 @@ def test_clock_minutes_needs_a_time():
     assert clock_minutes('0') is None
 
 
+def test_balance_reads_signed_hours():
+    assert balance_minutes('-01:30') == -90
+    assert balance_minutes('+12:00') == 720
+    assert balance_minutes(' - 02:00:59 ') == -120
+    assert balance_minutes('1,5') == 90
+    assert balance_minutes('-0.25') == -15
+    assert balance_minutes('00:00') == 0
+    assert balance_minutes('') is None
+    assert balance_minutes('pendente') is None
+
+
 def test_format_minutes_rounds_half_up():
     assert format_minutes(150) == '2h 30min'
     assert format_minutes(-90) == '-1h 30min'
@@ -185,6 +205,7 @@ def test_editor_sees_import_and_treatment(client, editor):
     content = client.get(reverse('journey_audit:audit')).content
     assert b'data-report-input="S"' in content
     assert b'data-report-input="N"' in content
+    assert b'data-report-input="B"' in content
     assert b'id="treatment-form"' in content
     assert DELETION_NOTE not in content
 
@@ -268,6 +289,53 @@ def test_rest_report_brings_the_interjornada_on_its_own(client, editor):
     assert upload(client, SourceReport.SUMMARY, csv_file([SUMMARY_HEADER, *SUMMARY])).status_code == 201
     bruno = occurrences(type=Occurrence.SHORT_REST)[('2', '2026-10-25', Occurrence.SHORT_REST)]
     assert (bruno.location, bruno.minutes, bruno.evidence) == ('Frota', 30, 'Tipo de intervalo: Interjornada · Tempo de Infração: 00:30')
+
+
+@pytest.mark.django_db
+def test_bank_hours_report_reads_only_the_saldo_column(client, editor, imported):
+    assert client.post(reverse('journey_audit:competency-finish-api', args=[imported.id])).status_code == 200
+
+    response = upload(client, SourceReport.BANK_HOURS, csv_file(BANK_HOURS))
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload['reports']['B']['row_count'] == 2
+    assert payload['bank_hours'] == [
+        {'employee_id': '1', 'employee_name': 'Ana Souza', 'location': 'Curitiba', 'balance': -90, 'note': '', 'note_by': '', 'note_at': None},
+        {'employee_id': '2', 'employee_name': 'Bruno Lima', 'location': 'Londrina', 'balance': 735, 'note': '', 'note_by': '', 'note_at': None},
+    ]
+    # O banco de horas não mexe nas ocorrências nem reabre a conferência
+    assert len(payload['occurrences']) == 4
+    imported.refresh_from_db()
+    assert imported.finished_at is not None
+
+    response = upload(client, SourceReport.BANK_HOURS, csv_file([['MATRICULA', 'Nome', 'Saldo de banco de horas'], ['5', 'Davi', '+02:00']]))
+    assert [(row['employee_name'], row['location'], row['balance']) for row in response.json()['bank_hours']] == [
+        ('Davi', 'Não informado', 120),
+    ]
+
+    response = upload(client, SourceReport.BANK_HOURS, csv_file([['Matrícula', 'Saldo anterior'], ['1', '01:00']]))
+    assert response.status_code == 400
+    assert response.json()['detail'].startswith('Não encontrei linhas com matrícula e coluna SALDO válida.')
+
+
+@pytest.mark.django_db
+def test_bank_hours_notes_are_shared_and_need_change_permission(client, editor):
+    assert upload(client, SourceReport.BANK_HOURS, csv_file(BANK_HOURS)).status_code == 201
+    competency = Competency.objects.get()
+    url = reverse('journey_audit:bank-hours-note-api', args=[competency.id])
+
+    response = post_json(client, url, {'employee_id': '1', 'note': 'Supervisor vai justificar.'})
+    assert response.status_code == 200
+    assert (response.json()['note'], response.json()['note_by']) == ('Supervisor vai justificar.', 'Operador RH')
+    assert post_json(client, url, {'employee_id': '1', 'note': 'Justificado. '}).status_code == 200
+    assert post_json(client, url, {'note': 'Sem matrícula.'}).status_code == 400
+    assert (BankHoursNote.objects.get().note, BankHoursNote.objects.get().updated_by) == ('Justificado.', editor)
+
+    rows = client.get(reverse('journey_audit:competency-api', args=[competency.id])).json()['bank_hours']
+    assert [(row['employee_id'], row['note']) for row in rows] == [('1', 'Justificado.'), ('2', '')]
+
+    client.force_login(make_user('view_competency', username='consulta'))
+    assert post_json(client, url, {'employee_id': '2', 'note': 'Visto.'}).status_code == 403
 
 
 @pytest.mark.django_db

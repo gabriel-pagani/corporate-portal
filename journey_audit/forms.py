@@ -1,6 +1,6 @@
 from django import forms
 
-from journey_audit.models import OccurrenceTreatment, SourceReport
+from journey_audit.models import BankHoursNote, OccurrenceTreatment, SourceReport
 
 
 class JourneyReportForm(forms.Form):
@@ -34,3 +34,9 @@ class OccurrenceTreatmentForm(forms.ModelForm):
             'note': {'required': 'Registre uma observação antes de salvar a tratativa.'},
             'responsible': {'required': 'Informe quem realizou a conferência.'},
         }
+
+
+class BankHoursNoteForm(forms.ModelForm):
+    class Meta:
+        model = BankHoursNote
+        fields = ['employee_id', 'note']

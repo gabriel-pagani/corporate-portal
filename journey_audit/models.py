@@ -50,18 +50,21 @@ class SourceReport(models.Model):
     ABSENCES = 'A'
     SUMMARY = 'S'
     REST = 'N'
+    BANK_HOURS = 'B'
     TYPES = [
         (ODD_PUNCHES, 'Batidas ímpares'),
         (ABSENCES, 'Ausências'),
         (SUMMARY, 'Sumarizado'),
         (REST, 'Interjornada'),
+        (BANK_HOURS, 'Banco de horas'),
     ]
 
     competency = models.ForeignKey(Competency, on_delete=models.CASCADE, related_name='reports', verbose_name='Competência')
     type = models.CharField(max_length=1, choices=TYPES, verbose_name='Relatório')
     file_name = models.CharField(max_length=255, verbose_name='Arquivo')
     # Só as colunas que a análise usa: o relatório é guardado para a competência
-    # poder ser analisada de novo quando chegar um dos outros
+    # poder ser analisada de novo quando chegar um dos outros. O banco de horas
+    # não entra na análise; as linhas dele são os saldos de cada colaborador.
     rows = models.JSONField(default=list, verbose_name='Linhas')
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -206,3 +209,28 @@ class OccurrenceTreatment(models.Model):
         ordering = ['-created_at', '-id']
         verbose_name = 'Tratativa de Ocorrência'
         verbose_name_plural = 'Tratativas de Ocorrência'
+
+
+class BankHoursNote(models.Model):
+    competency = models.ForeignKey(Competency, on_delete=models.CASCADE, related_name='bank_hours_notes', verbose_name='Competência')
+    employee_id = models.CharField(max_length=30, verbose_name='Matrícula')
+    note = models.TextField(blank=True, verbose_name='Observação')
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='Atualizada por'
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizada em')
+
+    def __str__(self):
+        return f'{self.employee_id} - {self.competency}'
+
+    class Meta:
+        ordering = ['competency', 'employee_id']
+        verbose_name = 'Observação do Banco de Horas'
+        verbose_name_plural = 'Observações do Banco de Horas'
+        constraints = [
+            models.UniqueConstraint(fields=['competency', 'employee_id'], name='unique_bank_hours_note_per_employee'),
+        ]

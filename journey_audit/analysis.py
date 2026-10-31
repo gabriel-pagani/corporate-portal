@@ -109,6 +109,16 @@ def duration_minutes(value):
     return round_half_up(number * 60)
 
 
+def balance_minutes(value):
+    """O saldo do banco de horas em minutos: -01:30, +12:00 ou 1,5 (horas); None se não for um saldo."""
+    text = re.sub(r'\s', '', str(value or ''))
+    if match := re.fullmatch(r'([+-]?)(\d{1,4}):(\d{2})(?::\d{2})?', text):
+        return (-1 if match[1] == '-' else 1) * (int(match[2]) * 60 + int(match[3]))
+
+    number = to_number(text.replace(',', '.', 1)) if text else None
+    return None if number is None else round_half_up(number * 60)
+
+
 def format_minutes(value):
     sign = '-' if value < 0 else ''
     value = abs(round_half_up(value))

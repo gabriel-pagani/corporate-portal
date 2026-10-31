@@ -8,11 +8,11 @@ from django.views.decorators.http import require_http_methods, require_POST
 from app.views import form_errors_response, json_permission_required, parse_json_body
 from journey_audit.audit import (
     catalog, competencies_queryset, competency_payload, current_period, import_report, odd_punches_recurrence,
-    register_treatment, serialize_competency, serialize_competency_summary, serialize_occurrence,
-    serialize_treatment,
+    register_treatment, serialize_bank_hours_note, serialize_competency, serialize_competency_summary,
+    serialize_occurrence, serialize_treatment,
 )
-from journey_audit.forms import JourneyReportForm, OccurrenceTreatmentForm
-from journey_audit.models import Competency, Occurrence
+from journey_audit.forms import BankHoursNoteForm, JourneyReportForm, OccurrenceTreatmentForm
+from journey_audit.models import BankHoursNote, Competency, Occurrence
 
 
 @login_required
@@ -93,6 +93,26 @@ def reports_api(request):
         return JsonResponse({'detail': error.messages[0]}, status=400)
 
     return JsonResponse(competency_payload(competency), status=201)
+
+
+@require_POST
+@json_permission_required('journey_audit.change_competency')
+def bank_hours_note_api(request, competency_id):
+    competency = get_object_or_404(Competency, id=competency_id)
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = BankHoursNoteForm(payload)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    note, _ = BankHoursNote.objects.update_or_create(
+        competency=competency,
+        employee_id=form.cleaned_data['employee_id'],
+        defaults={'note': form.cleaned_data['note'], 'updated_by': request.user},
+    )
+    return JsonResponse(serialize_bank_hours_note(note))
 
 
 @require_http_methods(['GET', 'POST'])

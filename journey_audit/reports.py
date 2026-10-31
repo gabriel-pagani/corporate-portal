@@ -8,6 +8,7 @@ escreve, e a coluna é encontrada sem ligar para acento e maiúscula.
 import csv
 import io
 import posixpath
+import re
 import zipfile
 import zlib
 from contextlib import closing
@@ -16,7 +17,7 @@ from xml.etree import ElementTree
 from django.core.exceptions import ValidationError
 
 from journey_audit.models import SourceReport
-from journey_audit.analysis import REPORT_COLUMNS, normalize
+from journey_audit.analysis import REPORT_COLUMNS, balance_minutes, employee_id, normalize
 
 
 # Sem matrícula e dia nenhuma linha entra na análise, e no relatório de
@@ -28,6 +29,10 @@ REQUIRED_COLUMNS = {
     SourceReport.SUMMARY: ['Matrícula', 'Dia'],
     SourceReport.REST: ['Matrícula', 'Data do registro', 'Tipo de intervalo', 'Tempo de Infração'],
 }
+
+# Do banco de horas o saldo vem só da coluna SALDO, e não das outras de saldo
+# (anterior, do mês...); estes são os nomes que ela pode ter, já sem espaços
+BANK_HOURS_BALANCE = ['saldo', 'saldobanco', 'saldodebancodehoras']
 
 MAX_ROWS = 200_000
 
@@ -50,6 +55,8 @@ def read_report(uploaded_file, report_type):
         raise ValidationError('Formato não reconhecido. Selecione um arquivo .xlsx ou .csv.')
 
     with closing(rows):
+        if report_type == SourceReport.BANK_HOURS:
+            return project_bank_hours(rows)
         return project_rows(rows, report_type)
 
 
@@ -77,6 +84,41 @@ def project_rows(rows, report_type):
             f'Confira se é mesmo o relatório "{dict(SourceReport.TYPES)[report_type]}".'
         )
 
+    return select_columns(rows, columns)
+
+
+def project_bank_hours(rows):
+    """Do banco de horas, o saldo de cada matrícula, só das linhas em que ele é válido."""
+    header = next(rows, None)
+    if header is None:
+        raise ValidationError('A planilha está vazia.')
+    titles = {position: normalize(title) for position, title in sorted(header.items()) if title.strip()}
+
+    # Nome, matrícula e localização aceitam um cabeçalho mais longo, como "Nome
+    # do colaborador", quando nenhum tem o nome exato
+    def find(name):
+        exact = [position for position, title in titles.items() if title == name]
+        return (exact or [position for position, title in titles.items() if name in title] or [None])[0]
+
+    compact = {position: re.sub(r'[^a-z0-9]', '', title) for position, title in titles.items()}
+    balance = next((position for name in BANK_HOURS_BALANCE for position, title in compact.items() if title == name), None)
+    columns = {'Matrícula': find('matricula'), 'Nome': find('nome'), 'Localização': find('localizacao'), 'Saldo': balance}
+
+    records = select_columns(
+        rows,
+        {column: position for column, position in columns.items() if position is not None},
+        lambda record: employee_id(record.get('Matrícula')) and balance_minutes(record.get('Saldo')) is not None,
+    )
+    if not records:
+        raise ValidationError(
+            'Não encontrei linhas com matrícula e coluna SALDO válida. '
+            'Confira se o cabeçalho está escrito SALDO e se os valores estão no formato HH:MM.'
+        )
+    return records
+
+
+def select_columns(rows, columns, keep=bool):
+    """As colunas escolhidas de cada linha, sem as vazias, das linhas que passam no filtro."""
     records = []
     for row in rows:
         record = {
@@ -84,7 +126,7 @@ def project_rows(rows, report_type):
             for column, position in columns.items()
             if (value := str(row.get(position, '')).strip())
         }
-        if not record:
+        if not keep(record):
             continue
         records.append(record)
         if len(records) > MAX_ROWS:

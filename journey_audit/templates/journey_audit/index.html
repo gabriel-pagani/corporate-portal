@@ -15,6 +15,7 @@
             data-competencies-url="{% url 'journey_audit:competencies-api' %}"
             data-competency-url="{% url 'journey_audit:competency-api' 0 %}"
             data-finish-url="{% url 'journey_audit:competency-finish-api' 0 %}"
+            data-bank-hours-notes-url="{% url 'journey_audit:bank-hours-note-api' 0 %}"
             data-reports-url="{% url 'journey_audit:reports-api' %}"
             data-treatments-url="{% url 'journey_audit:treatments-api' 0 %}"
             data-recurrence-url="{% url 'journey_audit:recurrence-api' %}"
@@ -55,6 +56,7 @@
                 <button type="button" class="tab" data-tab="visao-geral"><i class="fas fa-table-cells-large"></i> Visão geral</button>
                 <button type="button" class="tab" data-tab="ocorrencias"><i class="fas fa-list-check"></i> Ocorrências</button>
                 <button type="button" class="tab" data-tab="intervalos"><i class="fas fa-mug-hot"></i> Intervalos</button>
+                <button type="button" class="tab" data-tab="banco-de-horas"><i class="fas fa-piggy-bank"></i> Banco de Horas Obras</button>
                 <button type="button" class="tab" data-tab="horas-extras"><i class="fas fa-business-time"></i> Horas extras</button>
                 <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos e indicadores</button>
                 <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-rotate"></i> Recorrência de batidas</button>
@@ -284,6 +286,71 @@
                     </div>
                     <div id="intervals-empty" class="empty" hidden></div>
                     <div id="intervals-pagination" class="pagination-container" aria-label="Paginação dos intervalos"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="banco-de-horas" hidden>
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Banco de Horas Obras</h2>
+                        <div class="toolbar">
+                            <input type="search" id="bank-search" placeholder="Pesquise colaborador ou matrícula..." aria-label="Pesquisar no banco de horas">
+                            <select id="bank-location" aria-label="Localização"></select>
+                            <select id="bank-sort" aria-label="Ordenar banco de horas">
+                                <option value="negative">Mais negativo</option>
+                                <option value="positive">Mais positivo</option>
+                                <option value="location">Ordenar por localização</option>
+                                <option value="name">Ordenar por colaborador</option>
+                            </select>
+                            <button type="button" class="button" id="bank-export"><i class="fas fa-file-excel"></i> Excel</button>
+                        </div>
+                    </div>
+                    <p class="section-hint">O saldo vem só da coluna SALDO do relatório e é o acumulado até a data de extração dele; nome, matrícula e localização servem para identificar e organizar os colaboradores. As observações ficam salvas no portal.</p>
+                    <div class="upload-slot bank-upload">
+                        <h3>Relatório do banco de horas</h3>
+                        {% if permissions.change %}
+                        <input type="file" accept=".xlsx,.csv" data-report-input="B" aria-label="Importar o relatório do banco de horas">
+                        {% endif %}
+                        <p class="report-state" data-report-state="B"></p>
+                    </div>
+                    <div class="kpi-grid" aria-label="Indicadores do banco de horas">
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-scale-balanced kpi-icon icon-neutral" aria-hidden="true"></i> Saldo líquido acumulado</span>
+                            <strong class="kpi-value" id="bank-net">00:00</strong>
+                            <span class="kpi-hint">Soma dos saldos positivos e negativos</span>
+                        </div>
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-arrow-trend-up kpi-icon icon-done" aria-hidden="true"></i> Total positivo</span>
+                            <strong class="kpi-value" id="bank-positive">00:00</strong>
+                            <span class="kpi-hint">Saldos acima de zero</span>
+                        </div>
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-arrow-trend-down kpi-icon icon-alert" aria-hidden="true"></i> Total negativo</span>
+                            <strong class="kpi-value" id="bank-negative">00:00</strong>
+                            <span class="kpi-hint">Saldos abaixo de zero</span>
+                        </div>
+                        <div class="kpi">
+                            <span class="kpi-label"><i class="fas fa-users kpi-icon icon-neutral" aria-hidden="true"></i> Colaboradores</span>
+                            <strong class="kpi-value" id="bank-people">0</strong>
+                            <span class="kpi-hint">Com saldo importado</span>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="bank-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Localização</th>
+                                    <th>Saldo</th>
+                                    <th>Observações / justificativas</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="bank-empty" class="empty" hidden></div>
+                    <div id="bank-pagination" class="pagination-container" aria-label="Paginação do banco de horas"></div>
                 </section>
             </div>
 

@@ -10,7 +10,7 @@ from django.db.models import Count, Func, IntegerField, Prefetch, Q
 from django.utils import timezone
 
 from journey_audit.models import Competency, Occurrence, OccurrenceTreatment, SourceReport
-from journey_audit.analysis import find_occurrences, normalize
+from journey_audit.analysis import balance_minutes, employee_id, find_occurrences, normalize
 from journey_audit.reports import read_report
 
 
@@ -67,6 +67,10 @@ def import_report(start, end, report_type, uploaded_file, user):
             type=report_type,
             defaults={'rows': rows, 'file_name': uploaded_file.name[:255], 'uploaded_by': user},
         )
+        # O banco de horas não traz ocorrência: não pede análise nem reabre a conferência
+        if report_type == SourceReport.BANK_HOURS:
+            return competency
+
         analyse(competency)
 
         # Relatório novo reabre a conferência: pode ter trazido ocorrência a tratar
@@ -264,6 +268,34 @@ def serialize_treatment(entry):
     }
 
 
+def serialize_bank_hours_note(note):
+    return {
+        'note': note.note if note else '',
+        'note_by': user_name(note.updated_by) if note else '',
+        'note_at': note.updated_at.isoformat() if note else None,
+    }
+
+
+def bank_hours(competency):
+    """Os saldos do banco de horas da competência, com a observação de cada colaborador."""
+    report = competency.reports.filter(type=SourceReport.BANK_HOURS).first()
+    if report is None:
+        return []
+
+    notes = {note.employee_id: note for note in competency.bank_hours_notes.select_related('updated_by')}
+    rows = []
+    for row in report.rows:
+        employee = employee_id(row['Matrícula'])
+        rows.append({
+            'employee_id': employee,
+            'employee_name': row.get('Nome') or 'Sem nome',
+            'location': row.get('Localização') or 'Não informado',
+            'balance': balance_minutes(row['Saldo']),
+            **serialize_bank_hours_note(notes.get(employee)),
+        })
+    return rows
+
+
 def competency_payload(competency):
     # As linhas dos relatórios ficam no banco: aqui só a contagem delas
     reports = competency.reports.select_related('uploaded_by').defer('rows').annotate(
@@ -274,4 +306,5 @@ def competency_payload(competency):
         'analysed_rows': competency.analysed_rows,
         'reports': {report.type: serialize_report(report) for report in reports},
         'occurrences': [serialize_occurrence(occurrence) for occurrence in competency.occurrences.filter(in_reports=True)],
+        'bank_hours': bank_hours(competency),
     }

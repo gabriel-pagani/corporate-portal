@@ -5,6 +5,7 @@ const {
     competenciesUrl: COMPETENCIAS_API_URL,
     competencyUrl: COMPETENCIA_API_URL,
     finishUrl: FINALIZAR_API_URL,
+    bankHoursNotesUrl: OBSERVACOES_DO_BANCO_API_URL,
     reportsUrl: RELATORIOS_API_URL,
     treatmentsUrl: TRATATIVAS_API_URL,
     recurrenceUrl: RECORRENCIA_API_URL,
@@ -13,7 +14,8 @@ const {
 const ITENS_POR_PAGINA = 50;
 const LIMITE_PRIORITARIOS = 8;
 const NIVEIS_DE_CALOR = 6;
-const ABAS = ['visao-geral', 'ocorrencias', 'intervalos', 'horas-extras', 'graficos', 'recorrencia', 'competencias'];
+const ABAS = ['visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'graficos', 'recorrencia', 'competencias'];
+const BANCO_DE_HORAS = 'B';
 
 // Os códigos que a tela trata de forma especial; os rótulos vêm do catálogo
 const BATIDAS_IMPARES = 'I';
@@ -53,7 +55,7 @@ let recorrencia = null;
 let ocorrenciaAberta = null;
 let enviando = false;
 let temporizadorPeriodo = null;
-const paginas = { ocorrencias: 1, intervalos: 1, extras: 1, recorrencia: 1 };
+const paginas = { ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, recorrencia: 1 };
 
 function escaparHtml(texto) {
     return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
@@ -284,11 +286,12 @@ function renderizarSeletorDeCompetencia() {
 function renderizarRelatorios() {
     const relatorios = competencia ? competencia.reports : {};
     document.querySelectorAll('[data-report-state]').forEach((estado) => {
-        const relatorio = relatorios[estado.dataset.reportState];
+        const codigo = estado.dataset.reportState;
+        const relatorio = relatorios[codigo];
         estado.classList.remove('error');
         estado.classList.toggle('loaded', Boolean(relatorio));
         estado.textContent = relatorio
-            ? `✓ ${relatorio.file_name} · ${numero(relatorio.row_count)} linhas · `
+            ? `✓ ${relatorio.file_name} · ${numero(relatorio.row_count)} ${codigo === BANCO_DE_HORAS ? 'colaboradores' : 'linhas'} · `
               + `enviado por ${relatorio.uploaded_by || 'usuário removido'} em ${dataHoraBr(relatorio.uploaded_at)}`
             : 'Nenhum relatório importado';
     });
@@ -324,10 +327,11 @@ async function importarRelatorio(campo) {
         const dados = await requisitar(RELATORIOS_API_URL, 'POST', corpo);
         recorrencia = null;
         definirCompetencia(dados);
-        mostrarSucesso(
-            `Relatório "${catalogo.reports[tipoRelatorio]}" importado: ${numero(dados.reports[tipoRelatorio].row_count)} linhas. `
-            + `${numero(dados.occurrences.length)} ocorrências na competência.`,
-        );
+        const linhas = numero(dados.reports[tipoRelatorio].row_count);
+        mostrarSucesso(tipoRelatorio === BANCO_DE_HORAS
+            ? `Banco de horas importado: ${linhas} colaboradores com saldo.`
+            : `Relatório "${catalogo.reports[tipoRelatorio]}" importado: ${linhas} linhas. `
+              + `${numero(dados.occurrences.length)} ocorrências na competência.`);
         atualizarCompetencias().catch((erro) => mostrarErro(erro.message));
     } catch (erro) {
         renderizarRelatorios();
@@ -505,6 +509,7 @@ function atualizarFiltros() {
     );
     preencherSelect('filter-location', 'Todas as localizações', opcoesDeLocalizacao(ocorrencias));
     preencherSelect('overtime-location', 'Todas as localizações', opcoesDeLocalizacao(horasExtras()));
+    preencherSelect('bank-location', 'Todas as localizações', opcoesDeLocalizacao(saldosDoBanco()));
 }
 
 // Os filtros que não dependem dos dados da competência
@@ -634,6 +639,95 @@ function renderizarIntervalos() {
         renderizar: renderizarIntervalos,
     });
 }
+
+// Banco de horas
+
+function saldosDoBanco() {
+    return competencia ? competencia.bank_hours : [];
+}
+
+const ORDENACOES_DO_BANCO = {
+    negative: (a, b) => a.balance - b.balance,
+    positive: (a, b) => b.balance - a.balance,
+    location: ORDENACOES.location,
+    name: ORDENACOES.name,
+};
+
+function saldosDaLocalizacao() {
+    const localizacao = document.getElementById('bank-location').value;
+    return saldosDoBanco().filter((saldo) => !localizacao || saldo.location === localizacao);
+}
+
+function saldosFiltrados() {
+    const busca = normalizar(document.getElementById('bank-search').value);
+    return saldosDaLocalizacao()
+        .filter((saldo) => !busca || normalizar(`${saldo.employee_name} ${saldo.employee_id}`).includes(busca))
+        .sort(ORDENACOES_DO_BANCO[document.getElementById('bank-sort').value]);
+}
+
+function autoriaDaObservacao(saldo) {
+    return saldo.note_at ? `Salva por ${saldo.note_by || 'usuário removido'} em ${dataHoraBr(saldo.note_at)}` : '';
+}
+
+function linhaDoBanco(saldo) {
+    const observacao = permissoes.change
+        ? `<textarea class="bank-note" data-bank-note="${escaparHtml(saldo.employee_id)}" rows="2"
+               aria-label="${escaparHtml(`Observações para ${saldo.employee_name}`)}"
+               placeholder="Justificativa solicitada, retorno do supervisor...">${escaparHtml(saldo.note)}</textarea>`
+        : `<span class="note-text">${escaparHtml(saldo.note || '—')}</span>`;
+    return `
+        <tr>
+            <td class="person"><strong>${escaparHtml(saldo.employee_name)}</strong></td>
+            <td>${escaparHtml(saldo.employee_id)}</td>
+            <td>${escaparHtml(saldo.location)}</td>
+            <td><span class="badge ${saldo.balance < 0 ? 'high' : 'neutral'}">${formatarHoras(saldo.balance)}</span></td>
+            <td class="bank-note-cell">${observacao}<div class="note-author">${escaparHtml(autoriaDaObservacao(saldo))}</div></td>
+        </tr>`;
+}
+
+function renderizarBancoDeHoras() {
+    // Os totais seguem só a localização; a busca filtra a tabela
+    const saldos = saldosDaLocalizacao();
+    const somar = (lista) => lista.reduce((total, saldo) => total + saldo.balance, 0);
+    document.getElementById('bank-net').textContent = formatarHoras(somar(saldos));
+    document.getElementById('bank-positive').textContent = formatarHoras(somar(saldos.filter((saldo) => saldo.balance > 0)));
+    document.getElementById('bank-negative').textContent = formatarHoras(somar(saldos.filter((saldo) => saldo.balance < 0)));
+    document.getElementById('bank-people').textContent = numero(saldos.length);
+
+    const lista = saldosFiltrados();
+    renderizarTabela({
+        id: 'bank',
+        chave: 'banco',
+        linhas: lista,
+        montarLinha: linhaDoBanco,
+        mensagemVazia: saldosDoBanco().length ? 'Nenhum saldo para os filtros selecionados.' : 'Importe o relatório do banco de horas.',
+        renderizar: renderizarBancoDeHoras,
+    });
+    document.getElementById('bank-export').disabled = lista.length === 0;
+}
+
+// Salva ao sair do campo. A tabela não é redesenhada: quem já está digitando
+// na próxima observação não perde o que escreveu
+async function salvarObservacaoDoBanco(campo) {
+    const aberta = competencia;
+    const matricula = campo.dataset.bankNote;
+    const autoria = campo.parentElement.querySelector('.note-author');
+    autoria.classList.remove('error');
+    autoria.textContent = 'Salvando...';
+    try {
+        const dados = await requisitar(
+            urlCom(OBSERVACOES_DO_BANCO_API_URL, aberta.competency.id), 'POST', { employee_id: matricula, note: campo.value },
+        );
+        // A mesma matrícula pode estar em mais de uma linha do relatório
+        aberta.bank_hours.filter((saldo) => saldo.employee_id === matricula).forEach((saldo) => Object.assign(saldo, dados));
+        autoria.textContent = autoriaDaObservacao(dados);
+    } catch (erro) {
+        autoria.classList.add('error');
+        autoria.textContent = `Não foi possível salvar: ${erro.message}`;
+    }
+}
+
+// Horas extras
 
 function horasExtras() {
     return ocorrencias.filter((o) => [HORAS_EXTRAS, HORAS_EXTRAS_ACIMA_DE_2H].includes(o.type));
@@ -1147,6 +1241,20 @@ function exportarOcorrencias() {
     exportarPlanilha('auditoria-jornada', 'Ocorrências', cabecalho, linhas, [12, 12, 11, 11, 30, 22, 30, 60, 10, 26, 40, 22, 16, 30]);
 }
 
+function exportarBancoDeHoras() {
+    const competenciaExportada = rotuloPeriodo(periodo.start_date, periodo.end_date);
+    const linhas = saldosFiltrados().map((saldo) => [
+        competenciaExportada, saldo.employee_name, saldo.employee_id, saldo.location, formatarHoras(saldo.balance), saldo.note,
+    ]);
+    exportarPlanilha(
+        'banco-de-horas',
+        'Banco de horas',
+        ['Competência', 'Colaborador', 'Matrícula', 'Localização', 'Saldo', 'Observações / justificativas'],
+        linhas,
+        [24, 30, 11, 22, 10, 50],
+    );
+}
+
 function exportarHorasExtras() {
     const competenciaExportada = rotuloPeriodo(periodo.start_date, periodo.end_date);
     const linhas = horasExtrasFiltradas().map((ocorrencia) => [
@@ -1242,6 +1350,7 @@ function renderizarTudo() {
     atualizarFiltros();
     renderizarOcorrencias();
     renderizarIntervalos();
+    renderizarBancoDeHoras();
     renderizarHorasExtras();
     renderizarGraficos();
     renderizarCompetencias();
@@ -1301,6 +1410,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('interval-search').addEventListener('input', aoFiltrarIntervalos);
     ['interval-kind', 'interval-sort'].forEach((id) => {
         document.getElementById(id).addEventListener('change', aoFiltrarIntervalos);
+    });
+
+    const aoFiltrarBanco = () => {
+        paginas.banco = 1;
+        renderizarBancoDeHoras();
+    };
+    document.getElementById('bank-search').addEventListener('input', aoFiltrarBanco);
+    ['bank-location', 'bank-sort'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', aoFiltrarBanco);
+    });
+    document.getElementById('bank-export').addEventListener('click', exportarBancoDeHoras);
+    document.getElementById('bank-table').addEventListener('change', (evento) => {
+        if (evento.target.matches('[data-bank-note]')) salvarObservacaoDoBanco(evento.target);
     });
 
     const aoFiltrarHorasExtras = () => {

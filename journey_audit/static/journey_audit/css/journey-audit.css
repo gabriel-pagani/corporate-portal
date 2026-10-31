@@ -139,6 +139,44 @@ input[type="date"] {
   color: #a32d2d;
 }
 
+/* Banco de horas */
+.bank-upload {
+  margin-bottom: 20px;
+}
+
+.journey-audit td.bank-note-cell {
+  min-width: 260px;
+}
+
+.bank-note {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.bank-note:focus {
+  border-color: #333;
+}
+
+.note-author {
+  font-size: 12px;
+  color: #999;
+}
+
+.note-author.error {
+  color: #a32d2d;
+}
+
+.note-text {
+  font-size: 14px;
+  white-space: pre-line;
+}
+
 /* Indicadores */
 .kpi-grid {
   display: grid;
