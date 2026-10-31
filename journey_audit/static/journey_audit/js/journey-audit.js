@@ -20,13 +20,16 @@ const BATIDAS_IMPARES = 'I';
 const FALTA = 'F';
 const SEM_MARCACOES = 'M';
 const INTERVALO_CURTO = 'J';
+const INTERJORNADA = 'N';
 const HORAS_EXTRAS = 'E';
 const HORAS_EXTRAS_ACIMA_DE_2H = 'H';
+const TIPOS_DE_INTERVALO = [INTERVALO_CURTO, INTERJORNADA, SEM_MARCACOES];
 const TRATATIVAS_DESFAVORAVEIS = ['F', 'S'];
 const NAO_PROCEDE = 'N';
 
 const CONFERENCIA = {
     [INTERVALO_CURTO]: 'Calculado pelas batidas',
+    [INTERJORNADA]: 'Informação do relatório de interjornada',
     [HORAS_EXTRAS]: 'Informação do sumarizado',
     [HORAS_EXTRAS_ACIMA_DE_2H]: 'Informação do sumarizado',
     [SEM_MARCACOES]: 'Dados insuficientes',
@@ -355,6 +358,7 @@ function renderizarIndicadores() {
         'kpi-total': ocorrencias.length,
         'kpi-odd-punches': contar(ocorrencias, (o) => o.type === BATIDAS_IMPARES),
         'kpi-short-break': contar(ocorrencias, (o) => o.type === INTERVALO_CURTO),
+        'kpi-short-rest': contar(ocorrencias, (o) => o.type === INTERJORNADA),
         'kpi-long-overtime': contar(ocorrencias, (o) => o.type === HORAS_EXTRAS_ACIMA_DE_2H),
     };
     Object.entries(valores).forEach(([id, valor]) => {
@@ -511,7 +515,7 @@ function montarFiltrosFixos() {
         ['concluidas', 'Concluídas'],
         ...Object.entries(catalogo.treatments),
     ]);
-    preencherSelect('interval-kind', 'Todos os alertas de intervalo', [INTERVALO_CURTO, SEM_MARCACOES].map((codigo) => [codigo, tipo(codigo).label]));
+    preencherSelect('interval-kind', 'Todos os alertas de intervalo', TIPOS_DE_INTERVALO.map((codigo) => [codigo, tipo(codigo).label]));
     preencherSelect('overtime-kind', 'Todas as horas extras', [HORAS_EXTRAS_ACIMA_DE_2H, HORAS_EXTRAS].map((codigo) => [codigo, tipo(codigo).label]));
 }
 
@@ -610,11 +614,7 @@ function ordenarIntervalos(lista, ordem) {
 
 function renderizarIntervalos() {
     const lista = ordenarIntervalos(
-        filtrarPorBusca(
-            ocorrencias.filter((o) => [INTERVALO_CURTO, SEM_MARCACOES].includes(o.type)),
-            'interval-search',
-            'interval-kind',
-        ),
+        filtrarPorBusca(ocorrencias.filter((o) => TIPOS_DE_INTERVALO.includes(o.type)), 'interval-search', 'interval-kind'),
         document.getElementById('interval-sort').value,
     );
     renderizarTabela({
@@ -628,7 +628,7 @@ function renderizarIntervalos() {
                 <td>${escaparHtml(ocorrencia.employee_id)}</td>
                 <td>${escaparHtml(tipo(ocorrencia.type).label)}</td>
                 <td class="evidence">${escaparHtml(ocorrencia.evidence)}</td>
-                <td>${ocorrencia.type === INTERVALO_CURTO ? 'Calculado pelas batidas' : 'Conferência necessária'}</td>
+                <td>${ocorrencia.type === SEM_MARCACOES ? 'Conferência necessária' : CONFERENCIA[ocorrencia.type]}</td>
             </tr>`,
         mensagemVazia: mensagemSemDados('Nenhum alerta de intervalo para os filtros selecionados.'),
         renderizar: renderizarIntervalos,
@@ -1182,19 +1182,22 @@ function trocarAba(aba, atualizarEndereco = true) {
     if (destino === 'competencias') atualizarCompetencias().catch((erro) => mostrarErro(erro.message));
 }
 
+function irParaIntervalos(tipoOcorrencia) {
+    document.getElementById('interval-search').value = '';
+    document.getElementById('interval-kind').value = tipoOcorrencia;
+    paginas.intervalos = 1;
+    renderizarIntervalos();
+    trocarAba('intervalos');
+}
+
 const ATALHOS = {
     pending: () => irParaOcorrencias({ tratativa: 'pendentes' }),
     absences: () => irParaOcorrencias({ tipoOcorrencia: FALTA, tratativa: 'pendentes' }),
     'missing-break': () => irParaOcorrencias({ tipoOcorrencia: SEM_MARCACOES }),
     done: () => irParaOcorrencias({ tratativa: 'concluidas' }),
     'odd-punches': () => irParaOcorrencias({ tipoOcorrencia: BATIDAS_IMPARES }),
-    'short-break': () => {
-        document.getElementById('interval-search').value = '';
-        document.getElementById('interval-kind').value = INTERVALO_CURTO;
-        paginas.intervalos = 1;
-        renderizarIntervalos();
-        trocarAba('intervalos');
-    },
+    'short-break': () => irParaIntervalos(INTERVALO_CURTO),
+    'short-rest': () => irParaIntervalos(INTERJORNADA),
     'long-overtime': () => {
         document.getElementById('overtime-search').value = '';
         document.getElementById('overtime-location').value = '';

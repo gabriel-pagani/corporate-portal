@@ -3,7 +3,8 @@ As ocorrências da auditoria de jornada, tiradas das linhas dos relatórios do A
 
 O Sumarizado conduz: só gera ocorrência o dia de colaborador que aparece nele
 dentro da competência, e os relatórios de batidas ímpares e de ausências entram
-como complemento desse dia.
+como complemento desse dia. A interjornada é a exceção: vem pronta do relatório
+de intervalos, que já traz o tempo de infração de cada dia.
 """
 import math
 import re
@@ -18,10 +19,16 @@ PUNCH_COLUMNS = [f'Batida {slot}' for slot in range(1, 7)]
 
 ODD_PUNCH_COLUMNS = [f'Entrada {slot}' for slot in range(1, 5)] + [f'Saída {slot}' for slot in range(1, 5)]
 
+REST_PUNCH_COLUMNS = ['1ª batida', '2ª batida']
+
 REPORT_COLUMNS = {
     SourceReport.SUMMARY: ['Matrícula', 'Nome', 'Dia', 'Localização', 'Departamento', 'Escala', *PUNCH_COLUMNS, 'Extra'],
     SourceReport.ODD_PUNCHES: ['Matrícula', 'Dia', 'Batidas', *ODD_PUNCH_COLUMNS],
     SourceReport.ABSENCES: ['Matrícula', 'Dia', 'Ausência integral', 'Ausência parcial', 'Falta', 'Afastamentos'],
+    SourceReport.REST: [
+        'Matrícula', 'Nome', 'Data do registro', 'Tipo de intervalo', 'Tempo de Infração',
+        'Localização', 'Departamento', 'Filial', 'Cargo', *REST_PUNCH_COLUMNS,
+    ],
 }
 
 YES = {'sim', 'yes', 'true', '1', 'falta', 'integral'}
@@ -30,9 +37,11 @@ YES = {'sim', 'yes', 'true', '1', 'falta', 'integral'}
 EXCEL_EPOCH = date(1899, 12, 30)
 
 
+# Os espaços repetidos também somem: o relatório de intervalos pode vir com
+# "Tipo de   intervalo" no cabeçalho
 def normalize(text):
     text = unicodedata.normalize('NFD', str(text or ''))
-    return ''.join(letter for letter in text if not unicodedata.combining(letter)).strip().lower()
+    return ' '.join(''.join(letter for letter in text if not unicodedata.combining(letter)).split()).lower()
 
 
 # O round do Python arredonda o meio para o par; os minutos seguem o do
@@ -110,7 +119,7 @@ def is_yes(value):
     return normalize(value) in YES
 
 
-def find_occurrences(summary, odd_punches, absences, start, end):
+def find_occurrences(summary, odd_punches, absences, rests, start, end):
     """As ocorrências do período e quantas linhas do Sumarizado entraram na análise."""
     odd_by_day = {}
     for row in odd_punches:
@@ -126,6 +135,7 @@ def find_occurrences(summary, odd_punches, absences, start, end):
 
     found = {}
     analysed = 0
+    locations = {}
     for row in summary:
         employee = employee_id(row.get('Matrícula'))
         day = parse_day(row.get('Dia'))
@@ -141,10 +151,37 @@ def find_occurrences(summary, odd_punches, absences, start, end):
             'location': row.get('Localização') or row.get('Departamento') or 'Não informado',
             'scale': row.get('Escala', ''),
         }
+        locations.setdefault((employee, day), base['location'])
         occurrences = day_occurrences(row, odd_by_day.get((employee, day)), absences_by_day.get((employee, day), []))
         for type, evidence, minutes in occurrences:
             # Linha repetida no relatório não duplica a ocorrência: vale a primeira
             found.setdefault((day, employee, type), {**base, 'type': type, 'evidence': evidence, 'minutes': minutes})
+
+    # Do relatório de intervalos vale a linha de interjornada com tempo de
+    # infração, esteja o dia no Sumarizado ou não; dele só vem a localização,
+    # quando o relatório de intervalos não traz nenhuma
+    for row in rests:
+        employee = employee_id(row.get('Matrícula'))
+        day = parse_day(row.get('Data do registro'))
+        kind, infraction = row.get('Tipo de intervalo', ''), row.get('Tempo de Infração', '')
+        if normalize(kind) != 'interjornada' or not infraction or not employee or not day or not start <= day <= end:
+            continue
+
+        punches = ''.join(f' · {column}: {row[column]}' for column in REST_PUNCH_COLUMNS if row.get(column))
+        found.setdefault((day, employee, Occurrence.SHORT_REST), {
+            'day': day,
+            'employee_id': employee,
+            'employee_name': row.get('Nome') or 'Sem nome',
+            'location': (
+                row.get('Localização') or row.get('Departamento') or row.get('Filial')
+                or locations.get((employee, day), 'Não informado')
+            ),
+            # O relatório de intervalos não traz a escala; no lugar dela fica o cargo
+            'scale': row.get('Cargo', ''),
+            'type': Occurrence.SHORT_REST,
+            'evidence': f'Tipo de intervalo: {kind} · Tempo de Infração: {infraction}{punches}',
+            'minutes': round_half_up(abs(duration_minutes(infraction))),
+        })
 
     return list(found.values()), analysed
 

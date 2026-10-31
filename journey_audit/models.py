@@ -49,17 +49,19 @@ class SourceReport(models.Model):
     ODD_PUNCHES = 'I'
     ABSENCES = 'A'
     SUMMARY = 'S'
+    REST = 'N'
     TYPES = [
         (ODD_PUNCHES, 'Batidas ímpares'),
         (ABSENCES, 'Ausências'),
         (SUMMARY, 'Sumarizado'),
+        (REST, 'Interjornada'),
     ]
 
     competency = models.ForeignKey(Competency, on_delete=models.CASCADE, related_name='reports', verbose_name='Competência')
     type = models.CharField(max_length=1, choices=TYPES, verbose_name='Relatório')
     file_name = models.CharField(max_length=255, verbose_name='Arquivo')
     # Só as colunas que a análise usa: o relatório é guardado para a competência
-    # poder ser analisada de novo quando chegar um dos outros dois
+    # poder ser analisada de novo quando chegar um dos outros
     rows = models.JSONField(default=list, verbose_name='Linhas')
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -87,6 +89,7 @@ class Occurrence(models.Model):
     ABSENCE = 'F'
     MISSING_BREAK = 'M'
     SHORT_BREAK = 'J'
+    SHORT_REST = 'N'
     OVERTIME = 'E'
     LONG_OVERTIME = 'H'
     NEGATIVE_BALANCE = 'S'
@@ -96,6 +99,7 @@ class Occurrence(models.Model):
         (ABSENCE, 'Falta a confirmar'),
         (MISSING_BREAK, 'Intervalo sem marcações suficientes'),
         (SHORT_BREAK, 'Intrajornada inferior a 1h'),
+        (SHORT_REST, 'Interjornada inferior a 11h'),
         (OVERTIME, 'Horas extras'),
         (LONG_OVERTIME, 'Horas extras acima de 2h'),
         (NEGATIVE_BALANCE, 'Saldo negativo de jornada'),
@@ -148,7 +152,8 @@ class Occurrence(models.Model):
         blank=True,
         null=True,
         verbose_name='Minutos',
-        help_text='O tempo que a ocorrência mede: as horas extras do dia ou o que faltou para 1h de intervalo.',
+        help_text='O tempo que a ocorrência mede: as horas extras do dia, o que faltou para 1h de intervalo '
+                  'ou o tempo de infração da interjornada.',
     )
     in_reports = models.BooleanField(
         default=True,

@@ -64,7 +64,7 @@
             <div class="tab-panel" data-panel="visao-geral">
                 <section class="card">
                     <h2>Relatórios do Ahgora</h2>
-                    <p class="section-hint" id="reports-hint">Importe os relatórios originais do Ahgora em .xlsx ou .csv. As ocorrências são montadas a partir do Sumarizado; as batidas ímpares e as ausências complementam cada dia.</p>
+                    <p class="section-hint" id="reports-hint">Importe os relatórios originais do Ahgora em .xlsx ou .csv. As ocorrências são montadas a partir do Sumarizado; as batidas ímpares e as ausências complementam cada dia, e a interjornada vem do relatório de intervalos.</p>
                     <div class="upload-grid">
                         <div class="upload-slot">
                             <h3>1. Batidas ímpares</h3>
@@ -89,6 +89,14 @@
                             <input type="file" accept=".xlsx,.csv" data-report-input="S" aria-label="Importar o relatório sumarizado">
                             {% endif %}
                             <p class="report-state" data-report-state="S"></p>
+                        </div>
+                        <div class="upload-slot">
+                            <h3>4. Interjornada</h3>
+                            <p class="muted">Relatório de intervalos. A análise considera somente “Tipo de intervalo = Interjornada” e o “Tempo de Infração”.</p>
+                            {% if permissions.change %}
+                            <input type="file" accept=".xlsx,.csv" data-report-input="N" aria-label="Importar o relatório de interjornada">
+                            {% endif %}
+                            <p class="report-state" data-report-state="N"></p>
                         </div>
                     </div>
                 </section>
@@ -133,6 +141,11 @@
                         <span class="kpi-label"><i class="fas fa-mug-hot kpi-icon icon-neutral" aria-hidden="true"></i> Intervalo abaixo de 1h</span>
                         <strong class="kpi-value" id="kpi-short-break">0</strong>
                         <span class="kpi-hint">Calculado entre a 2ª e a 3ª batida</span>
+                    </button>
+                    <button type="button" class="kpi" data-shortcut="short-rest">
+                        <span class="kpi-label"><i class="fas fa-bed kpi-icon icon-alert" aria-hidden="true"></i> Interjornada abaixo de 11h</span>
+                        <strong class="kpi-value" id="kpi-short-rest">0</strong>
+                        <span class="kpi-hint">Descanso entre jornadas, do relatório de intervalos</span>
                     </button>
                     <button type="button" class="kpi" data-shortcut="long-overtime">
                         <span class="kpi-label"><i class="fas fa-business-time kpi-icon icon-alert" aria-hidden="true"></i> Horas extras acima de 2h</span>
@@ -229,7 +242,8 @@
                     <div class="help-text">
                         <p><strong>Tratativa obrigatória somente em três situações:</strong> batidas ímpares (registrar a observação do ajuste mensal), falta ou ausência integral (confirmar se a falta procede) e intervalo sem marcações suficientes (verificar e lançar quando necessário).</p>
                         <p><strong>Intervalo:</strong> é calculado pelas colunas Batida 2 e Batida 3. Se uma delas estiver ausente, o alerta exibe todas as batidas disponíveis, identificadas por posição. Se não houver nenhuma batida, não é criado alerta de intervalo; a falta depende do relatório de ausências.</p>
-                        <p><strong>Horas extras e intrajornada inferior a 1h:</strong> aparecem como alertas informativos, sem exigir tratativa.</p>
+                        <p><strong>Interjornada:</strong> vem do relatório de intervalos. Entram só as linhas com "Tipo de intervalo" igual a Interjornada e o "Tempo de Infração" preenchido, mesmo que o dia não esteja no Sumarizado.</p>
+                        <p><strong>Horas extras, intrajornada inferior a 1h e interjornada inferior a 11h:</strong> aparecem como alertas informativos, sem exigir tratativa.</p>
                         <p><strong>Ajuste mensal:</strong> cada matrícula aceita um único "Ajuste realizado" de batida ímpar por mês do calendário, mesmo que o outro dia do mês esteja em outra competência.</p>
                         <p><strong>Histórico:</strong> as tratativas ficam salvas no portal e são compartilhadas com todos que acessam a auditoria. Cada registro guarda quem salvou e quando.</p>
                     </div>
@@ -252,7 +266,7 @@
                             </select>
                         </div>
                     </div>
-                    <p class="section-hint">Alertas calculados pelas marcações disponíveis. A ausência de batidas suficientes não significa, por si só, que o intervalo foi zero.</p>
+                    <p class="section-hint">A intrajornada é calculada pelas batidas disponíveis, e a ausência de batidas suficientes não significa, por si só, que o intervalo foi zero. A interjornada vem do relatório de intervalos, considerando só o "Tipo de intervalo" e o "Tempo de Infração".</p>
                     <div class="table-wrapper">
                         <table id="intervals-table">
                             <thead>

@@ -85,7 +85,7 @@ input[type="date"] {
 /* Relatórios do Ahgora */
 .upload-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -330,7 +330,10 @@ details.help summary {
 }
 
 /* Gráficos: as séries seguem a paleta categórica validada para daltonismo,
-   numa ordem fixa por tipo de ocorrência, para a cor não mudar com o filtro */
+   numa ordem fixa por tipo de ocorrência, para a cor não mudar com o filtro.
+   A paleta tem oito cores, e o nono tipo, o último do catálogo, não ganha uma
+   cor nova: fica no cinza de desênfase, que se distingue do vermelho ao lado
+   (ΔE 8,7 em deuteranopia, 18,7 na visão normal) */
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -367,6 +370,7 @@ details.help summary {
 .serie-6 { background-color: #008300; }
 .serie-7 { background-color: #6250d6; }
 .serie-8 { background-color: #e34948; }
+.serie-9 { background-color: #898781; }
 
 .stack-chart,
 .rank-chart {
@@ -680,6 +684,12 @@ details.help summary {
   min-width: 200px;
   white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .upload-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {

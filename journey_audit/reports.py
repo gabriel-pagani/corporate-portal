@@ -19,9 +19,15 @@ from journey_audit.models import SourceReport
 from journey_audit.analysis import REPORT_COLUMNS, normalize
 
 
-# Sem matrícula e dia nenhuma linha entra na análise: faltando essas colunas, o
-# arquivo provavelmente é outro relatório, escolhido no campo errado.
-REQUIRED_COLUMNS = ['Matrícula', 'Dia']
+# Sem matrícula e dia nenhuma linha entra na análise, e no relatório de
+# interjornada também sem o tipo do intervalo e o tempo de infração: faltando
+# essas colunas, o arquivo provavelmente é outro relatório, escolhido no campo errado.
+REQUIRED_COLUMNS = {
+    SourceReport.ODD_PUNCHES: ['Matrícula', 'Dia'],
+    SourceReport.ABSENCES: ['Matrícula', 'Dia'],
+    SourceReport.SUMMARY: ['Matrícula', 'Dia'],
+    SourceReport.REST: ['Matrícula', 'Data do registro', 'Tipo de intervalo', 'Tempo de Infração'],
+}
 
 MAX_ROWS = 200_000
 
@@ -63,10 +69,11 @@ def project_rows(rows, report_type):
         column: positions[normalize(column)]
         for column in REPORT_COLUMNS[report_type] if normalize(column) in positions
     }
-    missing = [column for column in REQUIRED_COLUMNS if column not in columns]
+    missing = [column for column in REQUIRED_COLUMNS[report_type] if column not in columns]
     if missing:
+        listed = ' e '.join(filter(None, [', '.join(missing[:-1]), missing[-1]]))
         raise ValidationError(
-            f'O arquivo não tem {"a coluna" if len(missing) == 1 else "as colunas"} {" e ".join(missing)}. '
+            f'O arquivo não tem {"a coluna" if len(missing) == 1 else "as colunas"} {listed}. '
             f'Confira se é mesmo o relatório "{dict(SourceReport.TYPES)[report_type]}".'
         )
 

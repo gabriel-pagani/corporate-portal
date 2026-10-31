@@ -48,6 +48,17 @@ ABSENCES = [
     ['2', '23/10/2026', 'Sim', '-01:30', '', 'Atestado médico'],
 ]
 
+REST = [
+    # O cabeçalho do relatório de intervalos pode vir com espaços repetidos
+    ['Matrícula', 'Nome', 'Data do registro', 'Tipo de   intervalo', 'Tempo de Infração', 'Localização', 'Cargo', '1ª batida', '2ª batida'],
+    ['001', 'Ana Souza', '22/10/2026', 'Interjornada', '-02:15', 'Matriz', 'Analista', '22:00', '07:15'],
+    ['2', 'Bruno Lima', '25/10/2026', 'Interjornada', '00:30', '', 'Motorista', '', ''],
+    # Outro tipo de intervalo, sem tempo de infração ou fora da competência não entram
+    ['3', 'Carla Dias', '22/10/2026', 'Intrajornada', '00:20', 'Matriz', '', '', ''],
+    ['3', 'Carla Dias', '23/10/2026', 'Interjornada', '', 'Matriz', '', '', ''],
+    ['3', 'Carla Dias', '20/10/2026', 'Interjornada', '01:00', 'Matriz', '', '', ''],
+]
+
 
 def make_user(*codenames, username='operador'):
     user = User.objects.create_user(username=username, password='senha', first_name='Operador', last_name='RH')
@@ -173,6 +184,7 @@ def test_viewer_cannot_import_or_treat(client):
 def test_editor_sees_import_and_treatment(client, editor):
     content = client.get(reverse('journey_audit:audit')).content
     assert b'data-report-input="S"' in content
+    assert b'data-report-input="N"' in content
     assert b'id="treatment-form"' in content
     assert DELETION_NOTE not in content
 
@@ -239,6 +251,23 @@ def test_import_builds_occurrences_from_the_three_reports(client, editor):
     assert {code: report['row_count'] for code, report in payload['reports'].items()} == {'I': 1, 'A': 1, 'S': 6}
     assert payload['reports']['S']['file_name'] == 'sumarizado.csv'
     assert payload['reports']['S']['uploaded_by'] == 'Operador RH'
+
+
+@pytest.mark.django_db
+def test_rest_report_brings_the_interjornada_on_its_own(client, editor):
+    assert upload(client, SourceReport.REST, csv_file(REST)).status_code == 201
+
+    found = occurrences()
+    assert set(found) == {('1', '2026-10-22', Occurrence.SHORT_REST), ('2', '2026-10-25', Occurrence.SHORT_REST)}
+    ana = found[('1', '2026-10-22', Occurrence.SHORT_REST)]
+    assert (ana.employee_name, ana.location, ana.scale, ana.minutes) == ('Ana Souza', 'Matriz', 'Analista', 135)
+    assert ana.evidence == 'Tipo de intervalo: Interjornada · Tempo de Infração: -02:15 · 1ª batida: 22:00 · 2ª batida: 07:15'
+    assert found[('2', '2026-10-25', Occurrence.SHORT_REST)].location == 'Não informado'
+
+    # Sem localização no relatório de intervalos, fica a do Sumarizado no mesmo dia
+    assert upload(client, SourceReport.SUMMARY, csv_file([SUMMARY_HEADER, *SUMMARY])).status_code == 201
+    bruno = occurrences(type=Occurrence.SHORT_REST)[('2', '2026-10-25', Occurrence.SHORT_REST)]
+    assert (bruno.location, bruno.minutes, bruno.evidence) == ('Frota', 30, 'Tipo de intervalo: Interjornada · Tempo de Infração: 00:30')
 
 
 @pytest.mark.django_db
@@ -366,6 +395,12 @@ def test_rejects_report_without_the_key_columns(client, editor):
 
     response = upload(client, SourceReport.SUMMARY, csv_file([['Nome'], ['Ana']]))
     assert response.json()['detail'].startswith('O arquivo não tem as colunas Matrícula e Dia.')
+
+    response = upload(client, SourceReport.REST, csv_file([['Matrícula', 'Dia'], ['1', '21/10/2026']]))
+    assert response.json()['detail'] == (
+        'O arquivo não tem as colunas Data do registro, Tipo de intervalo e Tempo de Infração. '
+        'Confira se é mesmo o relatório "Interjornada".'
+    )
 
 
 @pytest.mark.django_db

@@ -22,6 +22,7 @@ PRIORITIES = {
     Occurrence.ABSENCE: 'Alta',
     Occurrence.MISSING_BREAK: 'Alta',
     Occurrence.SHORT_BREAK: 'Alta',
+    Occurrence.SHORT_REST: 'Alta',
     Occurrence.LONG_OVERTIME: 'Alta',
     Occurrence.NEGATIVE_BALANCE: 'Média',
     Occurrence.OVERTIME: 'Baixa',
@@ -59,7 +60,7 @@ def import_report(start, end, report_type, uploaded_file, user):
             start_date=start, end_date=end, defaults={'created_by': user},
         )
         # Enfileira as importações da mesma competência: cada análise parte dos
-        # três relatórios como a anterior os deixou
+        # relatórios como a anterior os deixou
         competency = Competency.objects.select_for_update().get(pk=competency.pk)
         SourceReport.objects.update_or_create(
             competency=competency,
@@ -88,6 +89,7 @@ def analyse(competency):
         rows.get(SourceReport.SUMMARY, []),
         rows.get(SourceReport.ODD_PUNCHES, []),
         rows.get(SourceReport.ABSENCES, []),
+        rows.get(SourceReport.REST, []),
         competency.start_date,
         competency.end_date,
     )
