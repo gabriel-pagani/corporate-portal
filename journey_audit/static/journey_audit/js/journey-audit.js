@@ -110,8 +110,9 @@ function dataHoraBr(iso) {
     return iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
 }
 
+// Com o mês de referência da folha, que é o do fim do período: 21/10 a 20/11 é a folha de 11
 function rotuloPeriodo(inicio, fim) {
-    return `${dataBr(inicio)} a ${dataBr(fim)}`;
+    return `${dataBr(inicio)} a ${dataBr(fim)} — ${dataBr(fim).slice(3)}`;
 }
 
 // Minutos em HH:MM, como os relatórios do Ahgora escrevem as horas
