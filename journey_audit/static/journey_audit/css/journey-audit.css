@@ -359,6 +359,12 @@ button.kpi:hover {
   gap: 4px;
 }
 
+/* O .row-actions do toners.css é feito para botões só de ícone; o de abrir tem texto */
+.row-actions [data-open-competency] {
+  width: auto;
+  padding: 0 10px;
+}
+
 .alert-note {
   margin-top: 14px;
   padding: 12px 14px;
