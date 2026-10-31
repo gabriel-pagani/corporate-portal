@@ -15,6 +15,8 @@
             data-competencies-url="{% url 'journey_audit:competencies-api' %}"
             data-competency-url="{% url 'journey_audit:competency-api' 0 %}"
             data-finish-url="{% url 'journey_audit:competency-finish-api' 0 %}"
+            data-indicators-url="{% url 'journey_audit:indicators-api' %}"
+            data-competency-indicators-url="{% url 'journey_audit:competency-indicators-api' 0 %}"
             data-bank-hours-notes-url="{% url 'journey_audit:bank-hours-note-api' 0 %}"
             data-reports-url="{% url 'journey_audit:reports-api' %}"
             data-treatments-url="{% url 'journey_audit:treatments-api' 0 %}"
@@ -58,6 +60,8 @@
                 <button type="button" class="tab" data-tab="intervalos"><i class="fas fa-mug-hot"></i> Intervalos</button>
                 <button type="button" class="tab" data-tab="banco-de-horas"><i class="fas fa-piggy-bank"></i> Banco de Horas Obras</button>
                 <button type="button" class="tab" data-tab="horas-extras"><i class="fas fa-business-time"></i> Horas extras</button>
+                <button type="button" class="tab" data-tab="ranking-intrajornada"><i class="fas fa-ranking-star"></i> Ranking de Intrajornada Matriz</button>
+                <button type="button" class="tab" data-tab="ranking-interjornada"><i class="fas fa-ranking-star"></i> Ranking de Interjornada</button>
                 <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos e indicadores</button>
                 <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-rotate"></i> Recorrência de batidas</button>
                 <button type="button" class="tab" data-tab="competencias"><i class="fas fa-box-archive"></i> Competências</button>
@@ -407,6 +411,98 @@
                     </div>
                     <div id="overtime-empty" class="empty" hidden></div>
                     <div id="overtime-pagination" class="pagination-container" aria-label="Paginação das horas extras"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="ranking-intrajornada" hidden>
+                <section class="card">
+                    <h2>Ranking de Intrajornada Matriz</h2>
+                    <p class="section-hint">Colaboradores pela quantidade de intrajornadas inferiores a 1h e pelo tempo que faltou para completar 1h de intervalo, calculado pelas batidas. Considera o que ainda está nos relatórios de cada competência.</p>
+                    <div class="controls">
+                        <div class="field">
+                            <label for="intra-scope">Competência</label>
+                            <select id="intra-scope"></select>
+                        </div>
+                        <div class="field">
+                            <label for="intra-location">Localização</label>
+                            <select id="intra-location"></select>
+                        </div>
+                        <div class="field">
+                            <label for="intra-sort">Ordenar por</label>
+                            <select id="intra-sort">
+                                <option value="count">Mais ocorrências</option>
+                                <option value="minutes">Maior tempo insuficiente</option>
+                                <option value="location">Localização</option>
+                                <option value="name">Colaborador</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="intra-search">Buscar</label>
+                            <input type="search" id="intra-search" placeholder="Nome, matrícula ou localização">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="intra-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Localização</th>
+                                    <th>Ocorrências</th>
+                                    <th>Tempo insuficiente</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="intra-empty" class="empty" hidden></div>
+                    <div id="intra-pagination" class="pagination-container" aria-label="Paginação do ranking de intrajornada matriz"></div>
+                </section>
+            </div>
+
+            <div class="tab-panel" data-panel="ranking-interjornada" hidden>
+                <section class="card">
+                    <h2>Ranking de Interjornada</h2>
+                    <p class="section-hint">Colaboradores pela quantidade de interjornadas inferiores a 11h e pelo tempo de infração informado no relatório de intervalos. Considera o que ainda está nos relatórios de cada competência.</p>
+                    <div class="controls">
+                        <div class="field">
+                            <label for="inter-scope">Competência</label>
+                            <select id="inter-scope"></select>
+                        </div>
+                        <div class="field">
+                            <label for="inter-location">Localização</label>
+                            <select id="inter-location"></select>
+                        </div>
+                        <div class="field">
+                            <label for="inter-sort">Ordenar por</label>
+                            <select id="inter-sort">
+                                <option value="count">Mais ocorrências</option>
+                                <option value="minutes">Maior tempo de infração</option>
+                                <option value="location">Localização</option>
+                                <option value="name">Colaborador</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="inter-search">Buscar</label>
+                            <input type="search" id="inter-search" placeholder="Nome, matrícula ou localização">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="inter-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Matrícula</th>
+                                    <th>Localização</th>
+                                    <th>Ocorrências</th>
+                                    <th>Descanso insuficiente total</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="inter-empty" class="empty" hidden></div>
+                    <div id="inter-pagination" class="pagination-container" aria-label="Paginação do ranking de interjornada"></div>
                 </section>
             </div>
 

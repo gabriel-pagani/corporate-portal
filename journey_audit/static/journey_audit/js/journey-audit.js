@@ -6,6 +6,8 @@ const {
     competencyUrl: COMPETENCIA_API_URL,
     finishUrl: FINALIZAR_API_URL,
     bankHoursNotesUrl: OBSERVACOES_DO_BANCO_API_URL,
+    indicatorsUrl: INDICADORES_API_URL,
+    competencyIndicatorsUrl: INDICADORES_DA_COMPETENCIA_API_URL,
     reportsUrl: RELATORIOS_API_URL,
     treatmentsUrl: TRATATIVAS_API_URL,
     recurrenceUrl: RECORRENCIA_API_URL,
@@ -14,7 +16,10 @@ const {
 const ITENS_POR_PAGINA = 50;
 const LIMITE_PRIORITARIOS = 8;
 const NIVEIS_DE_CALOR = 6;
-const ABAS = ['visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'graficos', 'recorrencia', 'competencias'];
+const ABAS = [
+    'visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'ranking-intrajornada',
+    'ranking-interjornada', 'graficos', 'recorrencia', 'competencias',
+];
 const BANCO_DE_HORAS = 'B';
 
 // Os códigos que a tela trata de forma especial; os rótulos vêm do catálogo
@@ -55,7 +60,14 @@ let recorrencia = null;
 let ocorrenciaAberta = null;
 let enviando = false;
 let temporizadorPeriodo = null;
-const paginas = { ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, recorrencia: 1 };
+const paginas = { ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, intra: 1, inter: 1, recorrencia: 1 };
+
+// Os rankings vêm do servidor, que soma as competências; a localização, a busca
+// e a ordem são aplicadas aqui. O pedido descarta a resposta que chega atrasada.
+const RANKINGS = {
+    intra: { tipo: INTERVALO_CURTO, linhas: null, pedido: 0 },
+    inter: { tipo: INTERJORNADA, linhas: null, pedido: 0 },
+};
 
 function escaparHtml(texto) {
     return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
@@ -74,6 +86,10 @@ function lerJson(id) {
 
 function urlCom(modelo, id) {
     return modelo.replace('/0/', `/${id}/`);
+}
+
+function urlDeIndicadores(escopo) {
+    return escopo === 'all' ? INDICADORES_API_URL : urlCom(INDICADORES_DA_COMPETENCIA_API_URL, escopo);
 }
 
 function numero(valor) {
@@ -279,6 +295,18 @@ function renderizarSeletorDeCompetencia() {
         ? ''
         : `Nenhum relatório salvo para ${rotuloPeriodo(periodo.start_date, periodo.end_date)}. Importe os relatórios para começar.`;
     situacao.hidden = Boolean(competencia);
+    preencherSeletoresDeCompetencia();
+}
+
+function preencherSeletoresDeCompetencia() {
+    const salvas = competencias.map((item) => [String(item.id), rotuloPeriodo(item.start_date, item.end_date)]);
+    Object.keys(RANKINGS).forEach((chave) => {
+        preencherOpcoes(
+            document.getElementById(`${chave}-scope`),
+            [['current', 'Competência aberta'], ['all', 'Todas as competências · total'], ...salvas],
+            'current',
+        );
+    });
 }
 
 // Relatórios
@@ -488,14 +516,14 @@ function mensagemSemDados(mensagem) {
 
 // Ocorrências
 
-function preencherSelect(id, rotuloTodos, opcoes) {
-    const select = document.getElementById(id);
+function preencherOpcoes(select, opcoes, padrao) {
     const atual = select.value;
-    select.innerHTML = [
-        `<option value="">${escaparHtml(rotuloTodos)}</option>`,
-        ...opcoes.map(([valor, rotulo]) => `<option value="${escaparHtml(valor)}">${escaparHtml(rotulo)}</option>`),
-    ].join('');
-    select.value = opcoes.some(([valor]) => valor === atual) ? atual : '';
+    select.innerHTML = opcoes.map(([valor, rotulo]) => `<option value="${escaparHtml(valor)}">${escaparHtml(rotulo)}</option>`).join('');
+    select.value = opcoes.some(([valor]) => valor === atual) ? atual : padrao;
+}
+
+function preencherSelect(id, rotuloTodos, opcoes) {
+    preencherOpcoes(document.getElementById(id), [['', rotuloTodos], ...opcoes], '');
 }
 
 function atualizarFiltros() {
@@ -769,6 +797,77 @@ function renderizarHorasExtras() {
         renderizar: renderizarHorasExtras,
     });
     document.getElementById('overtime-export').disabled = lista.length === 0;
+}
+
+// Rankings
+
+const ORDENACOES_DO_RANKING = {
+    count: (a, b) => b.count - a.count || b.minutes - a.minutes,
+    minutes: (a, b) => b.minutes - a.minutes || b.count - a.count,
+    location: ORDENACOES.location,
+    name: ORDENACOES.name,
+};
+
+function renderizarRanking(chave) {
+    const ranking = RANKINGS[chave];
+    const localizacao = document.getElementById(`${chave}-location`).value;
+    const busca = normalizar(document.getElementById(`${chave}-search`).value);
+    const lista = (ranking.linhas || [])
+        .filter((item) => (!localizacao || item.location === localizacao)
+            && (!busca || normalizar(`${item.employee_name} ${item.employee_id} ${item.location}`).includes(busca)))
+        .sort(ORDENACOES_DO_RANKING[document.getElementById(`${chave}-sort`).value]);
+    renderizarTabela({
+        id: chave,
+        chave,
+        linhas: lista,
+        montarLinha: (item) => `
+            <tr>
+                <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
+                <td>${escaparHtml(item.employee_id)}</td>
+                <td>${escaparHtml(item.location)}</td>
+                <td>${numero(item.count)}</td>
+                <td>${formatarHoras(item.minutes)}</td>
+            </tr>`,
+        mensagemVazia: ranking.linhas === null
+            ? 'Carregando...'
+            : `Nenhuma ocorrência de ${tipo(ranking.tipo).label.toLowerCase()} para os filtros selecionados.`,
+        renderizar: () => renderizarRanking(chave),
+    });
+}
+
+async function carregarRanking(chave) {
+    const ranking = RANKINGS[chave];
+    const escopo = document.getElementById(`${chave}-scope`).value;
+    const id = escopo === 'current' ? competencia && competencia.competency.id : escopo;
+    const pedido = ++ranking.pedido;
+    ranking.linhas = null;
+    paginas[chave] = 1;
+    renderizarRanking(chave);
+
+    let linhas = [];
+    if (id) {
+        try {
+            linhas = (await requisitar(urlDeIndicadores(id))).rankings[ranking.tipo];
+        } catch (erro) {
+            mostrarErro(erro.message);
+        }
+    }
+    if (pedido !== ranking.pedido) return;
+    ranking.linhas = linhas;
+    preencherSelect(`${chave}-location`, 'Todas as localizações', opcoesDeLocalizacao(linhas));
+    renderizarRanking(chave);
+}
+
+// Os indicadores vêm do servidor: carregam quando a aba abre e de novo quando
+// os dados mudam com ela aberta
+const INDICADORES_DAS_ABAS = {
+    'ranking-intrajornada': () => carregarRanking('intra'),
+    'ranking-interjornada': () => carregarRanking('inter'),
+};
+
+function abaAtual() {
+    const ativa = document.querySelector('[data-tab].active');
+    return ativa ? ativa.dataset.tab : null;
 }
 
 // Gráficos
@@ -1288,6 +1387,7 @@ function trocarAba(aba, atualizarEndereco = true) {
 
     if (destino === 'recorrencia') carregarRecorrencia();
     if (destino === 'competencias') atualizarCompetencias().catch((erro) => mostrarErro(erro.message));
+    if (INDICADORES_DAS_ABAS[destino]) INDICADORES_DAS_ABAS[destino]();
 }
 
 function irParaIntervalos(tipoOcorrencia) {
@@ -1354,6 +1454,8 @@ function renderizarTudo() {
     renderizarHorasExtras();
     renderizarGraficos();
     renderizarCompetencias();
+    const aba = abaAtual();
+    if (INDICADORES_DAS_ABAS[aba]) INDICADORES_DAS_ABAS[aba]();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1434,6 +1536,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id).addEventListener('change', aoFiltrarHorasExtras);
     });
     document.getElementById('overtime-export').addEventListener('click', exportarHorasExtras);
+
+    Object.keys(RANKINGS).forEach((chave) => {
+        const aoFiltrarRanking = () => {
+            paginas[chave] = 1;
+            renderizarRanking(chave);
+        };
+        document.getElementById(`${chave}-scope`).addEventListener('change', () => carregarRanking(chave));
+        document.getElementById(`${chave}-search`).addEventListener('input', aoFiltrarRanking);
+        [`${chave}-location`, `${chave}-sort`].forEach((id) => {
+            document.getElementById(id).addEventListener('change', aoFiltrarRanking);
+        });
+    });
 
     const botaoFinalizar = document.getElementById('finish-review');
     if (botaoFinalizar) botaoFinalizar.addEventListener('click', () => executar(finalizarConferencia));

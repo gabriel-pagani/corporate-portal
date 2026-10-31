@@ -177,6 +177,24 @@ def odd_punches_recurrence():
     return sorted(rows, key=lambda row: (-row['count'], normalize(row['employee_name'])))
 
 
+def indicators(competency=None):
+    """Os rankings de intervalo por colaborador, de uma competência ou somando todas."""
+    occurrences = Occurrence.objects.filter(in_reports=True, type__in=[Occurrence.SHORT_BREAK, Occurrence.SHORT_REST])
+    if competency:
+        occurrences = occurrences.filter(competency=competency)
+
+    rankings = {Occurrence.SHORT_BREAK: {}, Occurrence.SHORT_REST: {}}
+    rows = occurrences.order_by('day').values_list('type', 'employee_id', 'employee_name', 'location', 'minutes')
+    for type, employee, name, location, minutes in rows:
+        entry = rankings[type].setdefault(employee, {'employee_id': employee, 'count': 0, 'minutes': 0})
+        # Ficam o nome e a localização do dia mais recente
+        entry.update(employee_name=name, location=location)
+        entry['count'] += 1
+        entry['minutes'] += minutes or 0
+
+    return {'rankings': {type: list(employees.values()) for type, employees in rankings.items()}}
+
+
 def catalog():
     """O que a tela precisa saber de cada tipo de ocorrência e tratativa."""
     return {

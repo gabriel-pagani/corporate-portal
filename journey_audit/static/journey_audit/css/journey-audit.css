@@ -82,6 +82,19 @@ input[type="date"] {
   font-weight: bold;
 }
 
+/* Filtros com rótulo, dos rankings e dos comparativos */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.controls .field {
+  flex: 1 1 200px;
+}
+
 /* Relatórios do Ahgora */
 .upload-grid {
   display: grid;

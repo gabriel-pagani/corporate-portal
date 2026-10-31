@@ -112,10 +112,13 @@ def imported(client, editor):
     return Competency.objects.get()
 
 
-def make_occurrence(competency, day, type=Occurrence.ODD_PUNCHES, employee='10', evidence='Batidas do relatório: 08:00.', **fields):
+def make_occurrence(
+    competency, day, type=Occurrence.ODD_PUNCHES, employee='10', evidence='Batidas do relatório: 08:00.', location='RH',
+    **fields,
+):
     return Occurrence.objects.create(
         competency=competency, day=day, employee_id=employee, employee_name=f'Colaborador {employee}',
-        location='RH', type=type, evidence=evidence, **fields,
+        location=location, type=type, evidence=evidence, **fields,
     )
 
 
@@ -223,6 +226,7 @@ def test_home_links_to_the_audit_only_with_permission(client):
 def test_api_rejects_anonymous(client):
     assert client.get(reverse('journey_audit:competencies-api')).status_code == 401
     assert client.get(reverse('journey_audit:recurrence-api')).status_code == 401
+    assert client.get(reverse('journey_audit:indicators-api')).status_code == 401
 
 
 @pytest.mark.django_db
@@ -603,6 +607,30 @@ def test_recurrence_adds_up_every_competency(client, editor):
             'days': ['2026-10-25'],
         },
     ]
+
+
+@pytest.mark.django_db
+def test_rankings_add_up_the_breaks_of_each_employee(client, editor):
+    previous = Competency.objects.create(start_date=date(2026, 9, 21), end_date=date(2026, 10, 20))
+    current = Competency.objects.create(start_date=date(2026, 10, 21), end_date=date(2026, 11, 20))
+    make_occurrence(previous, date(2026, 10, 1), type=Occurrence.SHORT_BREAK, minutes=20)
+    make_occurrence(current, date(2026, 10, 22), type=Occurrence.SHORT_BREAK, minutes=15, location='Obras')
+    # O que saiu dos relatórios não entra no ranking
+    make_occurrence(current, date(2026, 10, 23), type=Occurrence.SHORT_BREAK, minutes=50, in_reports=False)
+    make_occurrence(current, date(2026, 10, 22), type=Occurrence.SHORT_REST, employee='11', minutes=135)
+    make_occurrence(current, date(2026, 10, 22), type=Occurrence.OVERTIME, minutes=60)
+
+    # Somando as competências, ficam o nome e a localização do dia mais recente
+    assert client.get(reverse('journey_audit:indicators-api')).json()['rankings'] == {
+        'J': [{'employee_id': '10', 'employee_name': 'Colaborador 10', 'location': 'Obras', 'count': 2, 'minutes': 35}],
+        'N': [{'employee_id': '11', 'employee_name': 'Colaborador 11', 'location': 'RH', 'count': 1, 'minutes': 135}],
+    }
+    response = client.get(reverse('journey_audit:competency-indicators-api', args=[previous.id]))
+    assert response.json()['rankings'] == {
+        'J': [{'employee_id': '10', 'employee_name': 'Colaborador 10', 'location': 'RH', 'count': 1, 'minutes': 20}],
+        'N': [],
+    }
+    assert client.get(reverse('journey_audit:competency-indicators-api', args=[999])).status_code == 404
 
 
 @pytest.mark.django_db

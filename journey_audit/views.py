@@ -7,9 +7,9 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from app.views import form_errors_response, json_permission_required, parse_json_body
 from journey_audit.audit import (
-    catalog, competencies_queryset, competency_payload, current_period, import_report, odd_punches_recurrence,
-    register_treatment, serialize_bank_hours_note, serialize_competency, serialize_competency_summary,
-    serialize_occurrence, serialize_treatment,
+    catalog, competencies_queryset, competency_payload, current_period, import_report, indicators,
+    odd_punches_recurrence, register_treatment, serialize_bank_hours_note, serialize_competency,
+    serialize_competency_summary, serialize_occurrence, serialize_treatment,
 )
 from journey_audit.forms import BankHoursNoteForm, JourneyReportForm, OccurrenceTreatmentForm
 from journey_audit.models import BankHoursNote, Competency, Occurrence
@@ -163,3 +163,11 @@ def treatment_create(request, occurrence_id):
 @json_permission_required('journey_audit.view_competency')
 def recurrence_api(request):
     return JsonResponse({'employees': odd_punches_recurrence()})
+
+
+# Sem competência, os rankings somam todas
+@require_http_methods(['GET'])
+@json_permission_required('journey_audit.view_competency')
+def indicators_api(request, competency_id=None):
+    competency = get_object_or_404(Competency, id=competency_id) if competency_id is not None else None
+    return JsonResponse(indicators(competency))
