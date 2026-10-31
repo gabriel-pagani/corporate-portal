@@ -19,7 +19,7 @@ PUNCH_COLUMNS = [f'Batida {slot}' for slot in range(1, 7)]
 ODD_PUNCH_COLUMNS = [f'Entrada {slot}' for slot in range(1, 5)] + [f'Saída {slot}' for slot in range(1, 5)]
 
 REPORT_COLUMNS = {
-    SourceReport.SUMMARY: ['Matrícula', 'Nome', 'Dia', 'Departamento', 'Escala', *PUNCH_COLUMNS, 'Extra'],
+    SourceReport.SUMMARY: ['Matrícula', 'Nome', 'Dia', 'Localização', 'Departamento', 'Escala', *PUNCH_COLUMNS, 'Extra'],
     SourceReport.ODD_PUNCHES: ['Matrícula', 'Dia', 'Batidas', *ODD_PUNCH_COLUMNS],
     SourceReport.ABSENCES: ['Matrícula', 'Dia', 'Ausência integral', 'Ausência parcial', 'Falta', 'Afastamentos'],
 }
@@ -137,7 +137,8 @@ def find_occurrences(summary, odd_punches, absences, start, end):
             'day': day,
             'employee_id': employee,
             'employee_name': row.get('Nome') or 'Sem nome',
-            'department': row.get('Departamento') or 'Não informado',
+            # Departamento vale para o relatório que ainda vem com o nome antigo da coluna
+            'location': row.get('Localização') or row.get('Departamento') or 'Não informado',
             'scale': row.get('Escala', ''),
         }
         occurrences = day_occurrences(row, odd_by_day.get((employee, day)), absences_by_day.get((employee, day), []))

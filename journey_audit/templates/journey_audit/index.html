@@ -192,7 +192,7 @@
                         <input type="search" id="occurrence-search" placeholder="Pesquise colaborador, matrícula, tipo ou batidas..." aria-label="Pesquisar ocorrências">
                         <select id="filter-employee" aria-label="Colaborador"></select>
                         <select id="filter-type" aria-label="Tipo de ocorrência"></select>
-                        <select id="filter-department" aria-label="Departamento"></select>
+                        <select id="filter-location" aria-label="Localização"></select>
                         <select id="filter-priority" aria-label="Prioridade">
                             <option value="">Todas as prioridades</option>
                             <option>Alta</option>
@@ -283,7 +283,7 @@
                                     <th>Data</th>
                                     <th>Colaborador</th>
                                     <th>Matrícula</th>
-                                    <th>Departamento</th>
+                                    <th>Localização</th>
                                     <th>Horas extras</th>
                                     <th>Escala</th>
                                 </tr>
@@ -309,8 +309,8 @@
                         <span class="kpi-hint">Exigem ação do RH</span>
                     </div>
                     <div class="kpi">
-                        <span class="kpi-label"><i class="fas fa-sitemap kpi-icon icon-neutral" aria-hidden="true"></i> Departamentos envolvidos</span>
-                        <strong class="kpi-value" id="chart-kpi-departments">0</strong>
+                        <span class="kpi-label"><i class="fas fa-location-dot kpi-icon icon-neutral" aria-hidden="true"></i> Localizações envolvidas</span>
+                        <strong class="kpi-value" id="chart-kpi-locations">0</strong>
                         <span class="kpi-hint">Com pelo menos uma ocorrência</span>
                     </div>
                     <div class="kpi">
@@ -322,10 +322,10 @@
 
                 <div class="chart-grid">
                     <section class="card chart-card chart-wide">
-                        <h2>Ocorrências por departamento e tipo</h2>
-                        <p class="section-hint">Compare o volume e a composição das ocorrências de cada setor. Clique num setor para ver as ocorrências dele.</p>
-                        <div id="chart-departments" class="stack-chart"></div>
-                        <div id="chart-departments-legend" class="chart-legend"></div>
+                        <h2>Ocorrências por localização e tipo</h2>
+                        <p class="section-hint">Compare o volume e a composição das ocorrências de cada localização. Clique numa localização para ver as ocorrências dela.</p>
+                        <div id="chart-locations" class="stack-chart"></div>
+                        <div id="chart-locations-legend" class="chart-legend"></div>
                     </section>
 
                     <section class="card chart-card chart-tall">
@@ -347,7 +347,7 @@
                     </section>
 
                     <section class="card chart-card chart-wide">
-                        <h2>Departamento × ocorrência</h2>
+                        <h2>Localização × ocorrência</h2>
                         <p class="section-hint">As células mais escuras concentram mais registros. Clique numa célula para ver as ocorrências.</p>
                         <div id="chart-heatmap" class="table-wrapper"></div>
                         <div id="chart-heatmap-scale" class="heat-scale"></div>

@@ -93,7 +93,7 @@ def imported(client, editor):
 def make_occurrence(competency, day, type=Occurrence.ODD_PUNCHES, employee='10', **fields):
     return Occurrence.objects.create(
         competency=competency, day=day, employee_id=employee, employee_name=f'Colaborador {employee}',
-        department='RH', type=type, evidence='Batidas do relatório: 08:00.', **fields,
+        location='RH', type=type, evidence='Batidas do relatório: 08:00.', **fields,
     )
 
 
@@ -223,7 +223,7 @@ def test_import_builds_occurrences_from_the_three_reports(client, editor):
         ),
     }
     ana = found[('1', '2026-10-21', Occurrence.SHORT_BREAK)]
-    assert (ana.employee_name, ana.department, ana.scale) == ('Ana Souza', 'RH', '08:00 às 17:00')
+    assert (ana.employee_name, ana.location, ana.scale) == ('Ana Souza', 'RH', '08:00 às 17:00')
 
     payload = response.json()
     assert len(payload['occurrences']) == 8
@@ -241,7 +241,7 @@ def test_reimport_keeps_treatments_and_hides_what_left_the_reports(client, edito
         'treatment': Occurrence.BREAK_RECORDED, 'note': 'Intervalo lançado no Ahgora.', 'responsible': 'Carla',
     }).status_code == 201
 
-    # O dia 22 foi corrigido no Ahgora, e a Ana mudou de departamento
+    # O dia 22 foi corrigido no Ahgora, e a Ana mudou de localização
     corrected = [SUMMARY_HEADER, [*SUMMARY[0][:3], 'Financeiro', *SUMMARY[0][4:]], *SUMMARY[2:]]
     response = upload(client, SourceReport.SUMMARY, csv_file(corrected))
     assert response.status_code == 201
@@ -251,7 +251,7 @@ def test_reimport_keeps_treatments_and_hides_what_left_the_reports(client, edito
     assert (missing_break.in_reports, missing_break.treatment, missing_break.note) == (
         False, Occurrence.BREAK_RECORDED, 'Intervalo lançado no Ahgora.',
     )
-    assert occurrences(type=Occurrence.SHORT_BREAK)[('1', '2026-10-21', Occurrence.SHORT_BREAK)].department == 'Financeiro'
+    assert occurrences(type=Occurrence.SHORT_BREAK)[('1', '2026-10-21', Occurrence.SHORT_BREAK)].location == 'Financeiro'
 
     # Voltando ao relatório, volta à conferência com a tratativa que já tinha
     assert upload(client, SourceReport.SUMMARY, csv_file([SUMMARY_HEADER, *SUMMARY])).status_code == 201
@@ -262,13 +262,25 @@ def test_reimport_keeps_treatments_and_hides_what_left_the_reports(client, edito
 
 
 @pytest.mark.django_db
+def test_summary_location_comes_before_the_department(client, editor):
+    rows = [
+        ['Matrícula', 'Nome', 'Dia', 'Departamento', 'Localização', 'Batida 1'],
+        ['7', 'Célia', '21/10/2026', 'Obras', 'Curitiba', '08:00'],
+        # Sem localização na linha, fica o departamento
+        ['8', 'Davi', '21/10/2026', 'Obras', '', '08:00'],
+    ]
+    assert upload(client, SourceReport.SUMMARY, csv_file(rows)).status_code == 201
+    assert {o.employee_id: o.location for o in Occurrence.objects.all()} == {'7': 'Curitiba', '8': 'Obras'}
+
+
+@pytest.mark.django_db
 def test_csv_in_windows_encoding_with_commas(client, editor):
     rows = [['Matrícula', 'Nome', 'Dia', 'Batida 1'], ['7', 'Célia', '21/10/2026', '08:00']]
     response = upload(client, SourceReport.SUMMARY, csv_file(rows, delimiter=',', encoding='cp1252'))
     assert response.status_code == 201
 
     occurrence = Occurrence.objects.get()
-    assert (occurrence.employee_name, occurrence.department, occurrence.type) == (
+    assert (occurrence.employee_name, occurrence.location, occurrence.type) == (
         'Célia', 'Não informado', Occurrence.MISSING_BREAK,
     )
 
@@ -320,7 +332,7 @@ def test_xlsx_report_is_read_from_the_first_sheet(client, editor):
     found = occurrences()
     assert set(found) == {('42', '2026-10-25', Occurrence.SHORT_BREAK), ('42', '2026-10-25', Occurrence.LONG_OVERTIME)}
     short_break = found[('42', '2026-10-25', Occurrence.SHORT_BREAK)]
-    assert (short_break.employee_name, short_break.department) == ('Davi Rocha', 'Portaria')
+    assert (short_break.employee_name, short_break.location) == ('Davi Rocha', 'Portaria')
     assert short_break.evidence.endswith('Intervalo calculado: 0h 30min.')
 
 

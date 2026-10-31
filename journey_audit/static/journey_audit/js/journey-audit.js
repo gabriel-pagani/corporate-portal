@@ -181,7 +181,7 @@ function botaoAbrir(ocorrencia, rotulo) {
 }
 
 function celulaColaborador(ocorrencia) {
-    return `<strong>${escaparHtml(ocorrencia.employee_name)}</strong><div class="muted">${escaparHtml(ocorrencia.department)}</div>`;
+    return `<strong>${escaparHtml(ocorrencia.employee_name)}</strong><div class="muted">${escaparHtml(ocorrencia.location)}</div>`;
 }
 
 function contar(lista, condicao) {
@@ -471,8 +471,8 @@ function atualizarFiltros() {
             .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
             .map(([id, nome]) => [id, `${nome} · ${id}`]),
     );
-    const departamentos = [...new Set(ocorrencias.map((o) => o.department))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    preencherSelect('filter-department', 'Todos os departamentos', departamentos.map((nome) => [nome, nome]));
+    const localizacoes = [...new Set(ocorrencias.map((o) => o.location))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    preencherSelect('filter-location', 'Todas as localizações', localizacoes.map((nome) => [nome, nome]));
 }
 
 // Os filtros que não dependem dos dados da competência
@@ -491,14 +491,14 @@ function ocorrenciasFiltradas() {
     const busca = normalizar(document.getElementById('occurrence-search').value);
     const colaborador = document.getElementById('filter-employee').value;
     const tipoFiltro = document.getElementById('filter-type').value;
-    const departamento = document.getElementById('filter-department').value;
+    const localizacao = document.getElementById('filter-location').value;
     const prioridade = document.getElementById('filter-priority').value;
     const tratativa = document.getElementById('filter-treatment').value;
 
     return ocorrencias.filter((ocorrencia) => {
         if (colaborador && ocorrencia.employee_id !== colaborador) return false;
         if (tipoFiltro && ocorrencia.type !== tipoFiltro) return false;
-        if (departamento && ocorrencia.department !== departamento) return false;
+        if (localizacao && ocorrencia.location !== localizacao) return false;
         if (prioridade && tipo(ocorrencia.type).priority !== prioridade) return false;
         if (tratativa === 'pendentes' && !pendente(ocorrencia)) return false;
         if (tratativa === 'concluidas' && !concluida(ocorrencia)) return false;
@@ -545,16 +545,16 @@ function renderizarOcorrencias() {
 }
 
 function limparFiltros() {
-    ['occurrence-search', 'filter-employee', 'filter-type', 'filter-department', 'filter-priority', 'filter-treatment']
+    ['occurrence-search', 'filter-employee', 'filter-type', 'filter-location', 'filter-priority', 'filter-treatment']
         .forEach((id) => { document.getElementById(id).value = ''; });
     paginas.ocorrencias = 1;
 }
 
-function irParaOcorrencias({ tipoOcorrencia = '', tratativa = '', departamento = '' } = {}) {
+function irParaOcorrencias({ tipoOcorrencia = '', tratativa = '', localizacao = '' } = {}) {
     limparFiltros();
     document.getElementById('filter-type').value = tipoOcorrencia;
     document.getElementById('filter-treatment').value = tratativa;
-    document.getElementById('filter-department').value = departamento;
+    document.getElementById('filter-location').value = localizacao;
     renderizarOcorrencias();
     trocarAba('ocorrencias');
 }
@@ -613,7 +613,7 @@ function renderizarHorasExtras() {
                 <td>${dataBr(ocorrencia.day)}</td>
                 <td>${escaparHtml(ocorrencia.employee_name)}</td>
                 <td>${escaparHtml(ocorrencia.employee_id)}</td>
-                <td>${escaparHtml(ocorrencia.department)}</td>
+                <td>${escaparHtml(ocorrencia.location)}</td>
                 <td><span class="badge ${ocorrencia.type === HORAS_EXTRAS_ACIMA_DE_2H ? 'high' : 'neutral'}">${escaparHtml(valorExtra(ocorrencia))}</span></td>
                 <td>${escaparHtml(ocorrencia.scale || 'Não informada')}</td>
             </tr>`,
@@ -624,17 +624,17 @@ function renderizarHorasExtras() {
 
 // Gráficos
 
-function contagemPorDepartamento() {
-    const departamentos = new Map();
+function contagemPorLocalizacao() {
+    const localizacoes = new Map();
     ocorrencias.forEach((ocorrencia) => {
-        if (!departamentos.has(ocorrencia.department)) {
-            departamentos.set(ocorrencia.department, { nome: ocorrencia.department, total: 0, tipos: {} });
+        if (!localizacoes.has(ocorrencia.location)) {
+            localizacoes.set(ocorrencia.location, { nome: ocorrencia.location, total: 0, tipos: {} });
         }
-        const item = departamentos.get(ocorrencia.department);
+        const item = localizacoes.get(ocorrencia.location);
         item.total += 1;
         item.tipos[ocorrencia.type] = (item.tipos[ocorrencia.type] || 0) + 1;
     });
-    return [...departamentos.values()].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'));
+    return [...localizacoes.values()].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 function vazioDoGrafico() {
@@ -643,38 +643,38 @@ function vazioDoGrafico() {
 
 // A cor segue o tipo de ocorrência, sempre na ordem do catálogo: filtrar ou
 // faltar um tipo não repinta os outros
-function renderizarGraficoDepartamentos(departamentos) {
-    const container = document.getElementById('chart-departments');
-    const legenda = document.getElementById('chart-departments-legend');
-    if (!departamentos.length) {
+function renderizarGraficoLocalizacoes(localizacoes) {
+    const container = document.getElementById('chart-locations');
+    const legenda = document.getElementById('chart-locations-legend');
+    if (!localizacoes.length) {
         container.innerHTML = vazioDoGrafico();
         legenda.innerHTML = '';
         return;
     }
 
-    const maximo = Math.max(...departamentos.map((item) => item.total));
-    container.innerHTML = departamentos.map((departamento) => {
-        const presentes = catalogo.types.filter((item) => departamento.tipos[item.code]);
-        const resumo = presentes.map((item) => `${item.label}: ${departamento.tipos[item.code]}`).join('; ');
+    const maximo = Math.max(...localizacoes.map((item) => item.total));
+    container.innerHTML = localizacoes.map((localizacao) => {
+        const presentes = catalogo.types.filter((item) => localizacao.tipos[item.code]);
+        const resumo = presentes.map((item) => `${item.label}: ${localizacao.tipos[item.code]}`).join('; ');
         const segmentos = presentes.map((item) => `
-            <span class="stack-segment serie-${tipos[item.code].serie}" style="flex-grow: ${departamento.tipos[item.code]}"
-                data-tooltip-value="${numero(departamento.tipos[item.code])}"
-                data-tooltip-label="${escaparHtml(`${item.label} · ${departamento.nome}`)}"></span>`).join('');
+            <span class="stack-segment serie-${tipos[item.code].serie}" style="flex-grow: ${localizacao.tipos[item.code]}"
+                data-tooltip-value="${numero(localizacao.tipos[item.code])}"
+                data-tooltip-label="${escaparHtml(`${item.label} · ${localizacao.nome}`)}"></span>`).join('');
         return `
-            <button type="button" class="stack-row" data-filter-department="${escaparHtml(departamento.nome)}"
-                data-tooltip-value="${numero(departamento.total)} ocorrências"
-                data-tooltip-label="${escaparHtml(`${departamento.nome} · ${resumo}`)}"
-                aria-label="${escaparHtml(`${departamento.nome}: ${departamento.total} ocorrências. ${resumo}`)}">
-                <span class="stack-name">${escaparHtml(departamento.nome)}</span>
+            <button type="button" class="stack-row" data-filter-location="${escaparHtml(localizacao.nome)}"
+                data-tooltip-value="${numero(localizacao.total)} ocorrências"
+                data-tooltip-label="${escaparHtml(`${localizacao.nome} · ${resumo}`)}"
+                aria-label="${escaparHtml(`${localizacao.nome}: ${localizacao.total} ocorrências. ${resumo}`)}">
+                <span class="stack-name">${escaparHtml(localizacao.nome)}</span>
                 <span class="stack-plot">
-                    <span class="stack-bar" style="width: ${(departamento.total / maximo * 100).toFixed(2)}%">${segmentos}</span>
+                    <span class="stack-bar" style="width: ${(localizacao.total / maximo * 100).toFixed(2)}%">${segmentos}</span>
                 </span>
-                <span class="stack-total">${numero(departamento.total)}</span>
+                <span class="stack-total">${numero(localizacao.total)}</span>
             </button>`;
     }).join('');
 
     legenda.innerHTML = catalogo.types
-        .filter((item) => departamentos.some((departamento) => departamento.tipos[item.code]))
+        .filter((item) => localizacoes.some((localizacao) => localizacao.tipos[item.code]))
         .map((item) => `
             <span class="legend-item">
                 <i class="legend-swatch serie-${tipos[item.code].serie}" aria-hidden="true"></i>${escaparHtml(item.label)}
@@ -732,35 +732,35 @@ function nivelDeCalor(valor, maximo) {
     return Math.max(1, Math.ceil(valor / maximo * NIVEIS_DE_CALOR));
 }
 
-// A matriz também é a tabela do gráfico de setores: todo número aparece nela
-function renderizarMapaDeCalor(departamentos) {
+// A matriz também é a tabela do gráfico de localizações: todo número aparece nela
+function renderizarMapaDeCalor(localizacoes) {
     const container = document.getElementById('chart-heatmap');
     const escala = document.getElementById('chart-heatmap-scale');
-    const presentes = catalogo.types.filter((item) => departamentos.some((departamento) => departamento.tipos[item.code]));
-    if (!departamentos.length) {
+    const presentes = catalogo.types.filter((item) => localizacoes.some((localizacao) => localizacao.tipos[item.code]));
+    if (!localizacoes.length) {
         container.innerHTML = vazioDoGrafico();
         escala.innerHTML = '';
         return;
     }
 
-    const maximo = Math.max(...departamentos.flatMap((departamento) => presentes.map((item) => departamento.tipos[item.code] || 0)));
-    const linhas = departamentos.map((departamento) => {
+    const maximo = Math.max(...localizacoes.flatMap((localizacao) => presentes.map((item) => localizacao.tipos[item.code] || 0)));
+    const linhas = localizacoes.map((localizacao) => {
         const celulas = presentes.map((item) => {
-            const valor = departamento.tipos[item.code] || 0;
+            const valor = localizacao.tipos[item.code] || 0;
             if (!valor) return '<td><span class="heat-empty" aria-label="Nenhuma">—</span></td>';
             return `
                 <td>
                     <button type="button" class="heat-cell heat-${nivelDeCalor(valor, maximo)}"
-                        data-filter-department="${escaparHtml(departamento.nome)}" data-filter-type="${item.code}"
-                        data-tooltip-value="${numero(valor)}" data-tooltip-label="${escaparHtml(`${item.label} · ${departamento.nome}`)}"
-                        aria-label="${escaparHtml(`${departamento.nome}, ${item.label}: ${valor}`)}">${numero(valor)}</button>
+                        data-filter-location="${escaparHtml(localizacao.nome)}" data-filter-type="${item.code}"
+                        data-tooltip-value="${numero(valor)}" data-tooltip-label="${escaparHtml(`${item.label} · ${localizacao.nome}`)}"
+                        aria-label="${escaparHtml(`${localizacao.nome}, ${item.label}: ${valor}`)}">${numero(valor)}</button>
                 </td>`;
         }).join('');
         return `
             <tr>
-                <th scope="row">${escaparHtml(departamento.nome)}</th>
+                <th scope="row">${escaparHtml(localizacao.nome)}</th>
                 ${celulas}
-                <td class="heat-total">${numero(departamento.total)}</td>
+                <td class="heat-total">${numero(localizacao.total)}</td>
             </tr>`;
     }).join('');
 
@@ -768,7 +768,7 @@ function renderizarMapaDeCalor(departamentos) {
         <table class="heatmap">
             <thead>
                 <tr>
-                    <th scope="col">Departamento</th>
+                    <th scope="col">Localização</th>
                     ${presentes.map((item) => `<th scope="col">${escaparHtml(item.label)}</th>`).join('')}
                     <th scope="col">Total</th>
                 </tr>
@@ -794,17 +794,17 @@ function renderizarResumo() {
 }
 
 function renderizarGraficos() {
-    const departamentos = contagemPorDepartamento();
+    const localizacoes = contagemPorLocalizacao();
     const pendentes = contar(ocorrencias, pendente);
     document.getElementById('chart-kpi-total').textContent = numero(ocorrencias.length);
     document.getElementById('chart-kpi-pending').textContent = numero(pendentes);
-    document.getElementById('chart-kpi-departments').textContent = numero(departamentos.length);
+    document.getElementById('chart-kpi-locations').textContent = numero(localizacoes.length);
     document.getElementById('chart-kpi-done').textContent = numero(contar(ocorrencias, concluida));
 
-    renderizarGraficoDepartamentos(departamentos);
+    renderizarGraficoLocalizacoes(localizacoes);
     renderizarGraficoTipos();
     renderizarGraficoTratativas();
-    renderizarMapaDeCalor(departamentos);
+    renderizarMapaDeCalor(localizacoes);
     renderizarResumo();
 }
 
@@ -992,7 +992,7 @@ function abrirOcorrencia(id) {
     document.getElementById('treatment-details').innerHTML = [
         ['Colaborador', `${ocorrencia.employee_name} (${ocorrencia.employee_id})`],
         ['Data', dataBr(ocorrencia.day)],
-        ['Departamento', ocorrencia.department],
+        ['Localização', ocorrencia.location],
         ['Escala', ocorrencia.scale || 'Não informada'],
         ['Evidência', ocorrencia.evidence],
         ['Tratativa atual', textoTratativa(ocorrencia)],
@@ -1068,14 +1068,14 @@ async function salvarTratativa(evento) {
 
 function exportarExcel() {
     const cabecalho = [
-        'Competência início', 'Competência fim', 'Data', 'Matrícula', 'Colaborador', 'Departamento', 'Ocorrência',
+        'Competência início', 'Competência fim', 'Data', 'Matrícula', 'Colaborador', 'Localização', 'Ocorrência',
         'Evidência', 'Prioridade', 'Tratativa', 'Observação', 'Responsável', 'Atualizado em', 'Escala',
     ];
     const linhas = ocorrenciasFiltradas().map((ocorrencia) => {
         const tipoOcorrencia = tipo(ocorrencia.type);
         return [
             dataBr(periodo.start_date), dataBr(periodo.end_date), dataBr(ocorrencia.day), ocorrencia.employee_id,
-            ocorrencia.employee_name, ocorrencia.department, tipoOcorrencia.label, ocorrencia.evidence,
+            ocorrencia.employee_name, ocorrencia.location, tipoOcorrencia.label, ocorrencia.evidence,
             tipoOcorrencia.priority, tipoOcorrencia.actionable ? textoTratativa(ocorrencia) : 'Informativo',
             ocorrencia.note, ocorrencia.responsible, dataHoraBr(ocorrencia.treated_at), ocorrencia.scale,
         ];
@@ -1132,7 +1132,7 @@ const ATALHOS = {
 
 function aoClicar(evento) {
     const alvo = evento.target.closest(
-        '[data-occurrence], [data-filter-type], [data-filter-department], [data-shortcut], [data-go-tab], '
+        '[data-occurrence], [data-filter-type], [data-filter-location], [data-shortcut], [data-go-tab], '
         + '[data-open-competency], [data-delete-competency]',
     );
     if (!alvo) return;
@@ -1140,8 +1140,8 @@ function aoClicar(evento) {
 
     if (dataset.occurrence) {
         abrirOcorrencia(Number(dataset.occurrence));
-    } else if (dataset.filterType || dataset.filterDepartment) {
-        irParaOcorrencias({ tipoOcorrencia: dataset.filterType || '', departamento: dataset.filterDepartment || '' });
+    } else if (dataset.filterType || dataset.filterLocation) {
+        irParaOcorrencias({ tipoOcorrencia: dataset.filterType || '', localizacao: dataset.filterLocation || '' });
     } else if (dataset.shortcut) {
         ATALHOS[dataset.shortcut]();
     } else if (dataset.goTab) {
@@ -1207,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderizarOcorrencias();
     };
     document.getElementById('occurrence-search').addEventListener('input', aoFiltrarOcorrencias);
-    ['filter-employee', 'filter-type', 'filter-department', 'filter-priority', 'filter-treatment'].forEach((id) => {
+    ['filter-employee', 'filter-type', 'filter-location', 'filter-priority', 'filter-treatment'].forEach((id) => {
         document.getElementById(id).addEventListener('change', aoFiltrarOcorrencias);
     });
     document.getElementById('clear-filters').addEventListener('click', () => {

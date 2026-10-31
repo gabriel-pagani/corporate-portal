@@ -140,7 +140,7 @@ class Occurrence(models.Model):
     day = models.DateField(verbose_name='Data')
     employee_id = models.CharField(max_length=30, verbose_name='Matrícula')
     employee_name = models.CharField(max_length=150, verbose_name='Colaborador')
-    department = models.CharField(max_length=150, verbose_name='Departamento')
+    location = models.CharField(max_length=150, verbose_name='Localização')
     scale = models.CharField(max_length=255, blank=True, verbose_name='Escala')
     type = models.CharField(max_length=1, choices=TYPES, verbose_name='Ocorrência')
     evidence = models.TextField(verbose_name='Evidência')

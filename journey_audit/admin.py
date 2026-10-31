@@ -48,9 +48,9 @@ class OccurrenceTreatmentInline(admin.TabularInline):
 
 @admin.register(Occurrence)
 class OccurrenceAdmin(UnaccentSearchAdmin):
-    list_display = ('day', 'employee_name', 'employee_id', 'department', 'type', 'treatment', 'in_reports', 'competency',)
+    list_display = ('day', 'employee_name', 'employee_id', 'location', 'type', 'treatment', 'in_reports', 'competency',)
     list_select_related = ('competency',)
-    search_fields = ('employee_name__unaccent', 'employee_id', 'department__unaccent',)
+    search_fields = ('employee_name__unaccent', 'employee_id', 'location__unaccent',)
     list_filter = ('type', 'treatment', 'in_reports', 'competency',)
     date_hierarchy = 'day'
     inlines = (OccurrenceTreatmentInline,)
