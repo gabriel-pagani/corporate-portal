@@ -663,6 +663,8 @@ def notification_read_api(request, notification_id):
     # Só marca como lida o que realmente foi entregue a este usuário
     notification = get_object_or_404(visible_notifications(request.user), id=notification_id)
     notification.read_by.add(request.user)
+    notification.views += 1
+    notification.save(update_fields=['views'])
     return JsonResponse({'status': 'success'})
 
 

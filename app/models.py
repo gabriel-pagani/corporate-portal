@@ -325,6 +325,7 @@ class Notification(models.Model):
         related_name='read_notifications',
         verbose_name='Lida Por',
     )
+    views = models.PositiveIntegerField(default=0, verbose_name='Visualizações')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
 
     def clean(self):

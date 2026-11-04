@@ -38,4 +38,5 @@ def serialize_notification(notification):
         'level_display': notification.get_level_display(),
         'start_at': timezone.localtime(notification.start_at).strftime('%d/%m/%Y %H:%M'),
         'is_read': notification.is_read,
+        'views': notification.views,
     }
