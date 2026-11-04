@@ -76,7 +76,7 @@ function cartao(notificacao) {
                 </div>
                 <p class="post-message">${escaparHtml(notificacao.message)}</p>
                 <div class="post-footer">
-                    <span><i class="far fa-clock"></i> ${escaparHtml(notificacao.start_at)} &middot; ${escaparHtml(notificacao.level_display)} &middot; ${escaparHtml(notificacao.views)} visualização(ões)</span>
+                    <span><i class="far fa-clock"></i> ${escaparHtml(notificacao.start_at)} &middot; ${escaparHtml(notificacao.level_display)} &middot; ${escaparHtml(notificacao.views)} ${notificacao.views === 1 ? 'visualização' : 'visualizações'}</span>
                     ${lida ? '' : `<button type="button" class="button small" data-action="ler" data-id="${notificacao.id}"><i class="fas fa-check"></i> Marcar como lida</button>`}
                 </div>
             </div>
