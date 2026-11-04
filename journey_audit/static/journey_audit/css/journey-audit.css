@@ -99,11 +99,77 @@ input[type="date"] {
   margin: 20px 0 10px;
 }
 
-/* Relatórios do Ahgora */
+.link-button {
+  padding: 0;
+  color: #333;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.journey-audit td.nowrap {
+  white-space: nowrap;
+}
+
+/* Relatórios do Ahgora: três na primeira linha, e afastamentos e interjornada
+   lado a lado na segunda */
 .upload-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
+}
+
+.upload-grid > .upload-slot {
+  grid-column: span 2;
+}
+
+.upload-grid > .upload-slot:nth-child(n + 4) {
+  grid-column: span 3;
+}
+
+.import-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 16px;
+}
+
+.import-summary {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #c0dd97;
+  border-radius: 8px;
+  background-color: #eaf3de;
+  color: #27500a;
+  font-size: 15px;
+}
+
+.import-summary.partial {
+  border-color: #f0c674;
+  background-color: #fdf3dc;
+  color: #633806;
+}
+
+.import-summary ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding-left: 4px;
+  list-style: none;
+}
+
+.import-summary li {
+  overflow-wrap: anywhere;
+}
+
+.import-summary li i {
+  margin-right: 4px;
+  color: #3b6d11;
+}
+
+.import-summary li.failed i {
+  color: #a32d2d;
 }
 
 .upload-slot {
@@ -156,6 +222,10 @@ input[type="date"] {
   color: #a32d2d;
 }
 
+.report-state.ready {
+  color: #8a5a00;
+}
+
 /* Banco de horas */
 .bank-upload {
   margin-bottom: 20px;
@@ -198,6 +268,14 @@ input[type="date"] {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* Banco de horas e horas extras, sempre lado a lado */
+.kpi-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -677,6 +755,102 @@ details.help summary {
   margin: 0 4px;
 }
 
+/* Evolução por competência: um gráfico por indicador, linha de 2px e
+   marcadores de 8px com um anel da cor do fundo; grade e eixos recessivos */
+.evolution-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.evolution-chart {
+  margin: 0;
+  padding: 12px 14px 6px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.evolution-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 4px;
+  font-size: 15px;
+  color: #333;
+  font-variant-numeric: tabular-nums;
+}
+
+.evolution-header h3 {
+  font-size: 15px;
+}
+
+.evolution-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.evolution-grid-line {
+  stroke: #eee;
+  stroke-width: 1;
+}
+
+.evolution-zero {
+  stroke: #ccc;
+  stroke-width: 1;
+}
+
+.evolution-axis {
+  font-size: 11px;
+  fill: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.evolution-line {
+  fill: none;
+  stroke: #2a78d6;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.evolution-hit {
+  fill: transparent;
+}
+
+.evolution-dot {
+  fill: #2a78d6;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.evolution-point {
+  cursor: default;
+  outline: none;
+}
+
+.evolution-point:hover .evolution-dot,
+.evolution-point:focus-visible .evolution-dot {
+  stroke: #333;
+}
+
+.evolution-table {
+  grid-column: 1 / -1;
+}
+
+.evolution-table summary {
+  font-size: 15px;
+  color: #333;
+  cursor: pointer;
+}
+
+.evolution-table .table-wrapper {
+  margin-top: 10px;
+}
+
 .chart-tooltip {
   position: fixed;
   z-index: 2000;
@@ -726,6 +900,35 @@ details.help summary {
   overflow-wrap: anywhere;
 }
 
+.leave-context {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  font-size: 15px;
+  color: #333;
+}
+
+.leave-context h3 {
+  margin-bottom: 8px;
+}
+
+.leave-context ul {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.leave-context > div > p {
+  margin-bottom: 8px;
+}
+
+.journey-audit .leave-context .muted {
+  font-size: 13px;
+}
+
 .treatment-history {
   margin-top: 18px;
   padding-top: 14px;
@@ -747,9 +950,20 @@ details.help summary {
   overflow-wrap: anywhere;
 }
 
+/* Em duas colunas o Sumarizado ocupa a linha inteira, e afastamentos e
+   interjornada continuam lado a lado */
 @media (max-width: 1100px) {
   .upload-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .upload-grid > .upload-slot,
+  .upload-grid > .upload-slot:nth-child(n + 4) {
+    grid-column: span 1;
+  }
+
+  .upload-grid > .upload-slot:nth-child(3) {
+    grid-column: 1 / -1;
   }
 }
 
@@ -757,6 +971,10 @@ details.help summary {
   .upload-grid,
   .chart-grid {
     grid-template-columns: 1fr;
+  }
+
+  .upload-grid > .upload-slot:nth-child(n) {
+    grid-column: auto;
   }
 
   .filters {

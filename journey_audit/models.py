@@ -51,20 +51,25 @@ class SourceReport(models.Model):
     SUMMARY = 'S'
     REST = 'N'
     BANK_HOURS = 'B'
+    LEAVES = 'L'
     TYPES = [
         (ODD_PUNCHES, 'Batidas ímpares'),
         (ABSENCES, 'Ausências'),
         (SUMMARY, 'Sumarizado'),
         (REST, 'Interjornada'),
+        (LEAVES, 'Afastamentos'),
         (BANK_HOURS, 'Banco de horas'),
     ]
+    # Relatórios que não geram ocorrência: não pedem análise nem reabrem a conferência
+    INFORMATIVE = (BANK_HOURS, LEAVES)
 
     competency = models.ForeignKey(Competency, on_delete=models.CASCADE, related_name='reports', verbose_name='Competência')
     type = models.CharField(max_length=1, choices=TYPES, verbose_name='Relatório')
     file_name = models.CharField(max_length=255, verbose_name='Arquivo')
     # Só as colunas que a análise usa: o relatório é guardado para a competência
-    # poder ser analisada de novo quando chegar um dos outros. O banco de horas
-    # não entra na análise; as linhas dele são os saldos de cada colaborador.
+    # poder ser analisada de novo quando chegar um dos outros. O banco de horas e
+    # os afastamentos não entram na análise: as linhas deles são os saldos de cada
+    # colaborador e os períodos de afastamento, consultados à parte.
     rows = models.JSONField(default=list, verbose_name='Linhas')
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

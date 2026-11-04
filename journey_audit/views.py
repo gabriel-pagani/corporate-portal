@@ -7,8 +7,8 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from app.views import form_errors_response, json_permission_required, parse_json_body
 from journey_audit.audit import (
-    catalog, competencies_queryset, competency_payload, current_period, import_report, indicators,
-    odd_punches_recurrence, register_treatment, serialize_bank_hours_note, serialize_competency,
+    catalog, competencies_queryset, competency_payload, current_period, evolution, import_report, indicators,
+    occurrence_leaves, odd_punches_recurrence, register_treatment, serialize_bank_hours_note, serialize_competency,
     serialize_competency_summary, serialize_occurrence, serialize_treatment,
 )
 from journey_audit.forms import BankHoursNoteForm, JourneyReportForm, OccurrenceTreatmentForm
@@ -124,10 +124,12 @@ def treatments_api(request, occurrence_id):
 
 @json_permission_required('journey_audit.view_competency')
 def treatments_list(request, occurrence_id):
-    occurrence = get_object_or_404(Occurrence, id=occurrence_id)
+    occurrence = get_object_or_404(Occurrence.objects.select_related('competency'), id=occurrence_id)
     return JsonResponse({
         'occurrence': serialize_occurrence(occurrence),
         'treatments': [serialize_treatment(entry) for entry in occurrence.treatments.select_related('user')],
+        # Só informativo: o afastamento não muda o tipo da ocorrência
+        'leaves': occurrence_leaves(occurrence),
     })
 
 
@@ -171,3 +173,9 @@ def recurrence_api(request):
 def indicators_api(request, competency_id=None):
     competency = get_object_or_404(Competency, id=competency_id) if competency_id is not None else None
     return JsonResponse(indicators(competency))
+
+
+@require_http_methods(['GET'])
+@json_permission_required('journey_audit.view_competency')
+def evolution_api(request):
+    return JsonResponse({'competencies': evolution()})

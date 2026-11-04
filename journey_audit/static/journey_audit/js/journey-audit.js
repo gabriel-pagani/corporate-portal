@@ -11,6 +11,7 @@ const {
     reportsUrl: RELATORIOS_API_URL,
     treatmentsUrl: TRATATIVAS_API_URL,
     recurrenceUrl: RECORRENCIA_API_URL,
+    evolutionUrl: EVOLUCAO_API_URL,
 } = document.getElementById('content').dataset;
 
 const ITENS_POR_PAGINA = 50;
@@ -18,9 +19,11 @@ const LIMITE_PRIORITARIOS = 8;
 const NIVEIS_DE_CALOR = 6;
 const ABAS = [
     'visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'ranking-intrajornada',
-    'ranking-interjornada', 'recorrencia', 'graficos', 'comparativo-horas', 'comparativo-rankings', 'competencias',
+    'ranking-interjornada', 'ranking-atestados', 'recorrencia', 'graficos', 'comparativo-horas', 'comparativo-rankings',
+    'competencias', 'importar',
 ];
 const BANCO_DE_HORAS = 'B';
+const SABADO = 6;
 
 // Os códigos que a tela trata de forma especial; os rótulos vêm do catálogo
 const BATIDAS_IMPARES = 'I';
@@ -61,14 +64,40 @@ let ocorrenciaAberta = null;
 let enviando = false;
 let temporizadorPeriodo = null;
 const paginas = {
-    ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, intra: 1, inter: 1, recorrencia: 1, comparaIntra: 1, comparaInter: 1,
+    ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, intra: 1, inter: 1, atestados: 1, recorrencia: 1,
+    comparaIntra: 1, comparaInter: 1,
 };
+
+// Os relatórios escolhidos que esperam a confirmação, e o erro de cada um que
+// a última importação recusou
+const relatoriosProntos = new Map();
+const errosDeImportacao = new Map();
 
 // Os rankings vêm do servidor, que soma as competências; a localização, a busca
 // e a ordem são aplicadas aqui. O pedido descarta a resposta que chega atrasada.
 const RANKINGS = {
-    intra: { tipo: INTERVALO_CURTO, linhas: null, pedido: 0 },
-    inter: { tipo: INTERJORNADA, linhas: null, pedido: 0 },
+    intra: {
+        linhas: null,
+        pedido: 0,
+        extrair: (dados) => dados.rankings[INTERVALO_CURTO],
+        vazio: 'Nenhuma ocorrência de intrajornada inferior a 1h para os filtros selecionados.',
+        montarLinha: linhaDoRankingDeIntervalo,
+    },
+    inter: {
+        linhas: null,
+        pedido: 0,
+        extrair: (dados) => dados.rankings[INTERJORNADA],
+        vazio: 'Nenhuma ocorrência de interjornada inferior a 11h para os filtros selecionados.',
+        montarLinha: linhaDoRankingDeIntervalo,
+    },
+    atestados: {
+        linhas: null,
+        pedido: 0,
+        extrair: (dados) => dados.medical_leaves,
+        vazio: 'Nenhum atestado ou declaração médica ou odontológica para os filtros selecionados. '
+            + 'Confira se o relatório de afastamentos foi importado na competência.',
+        montarLinha: linhaDoRankingDeAtestados,
+    },
 };
 const pedidosDeComparativo = { horas: 0, rankings: 0 };
 let rankingsComparados = null;
@@ -110,9 +139,18 @@ function dataHoraBr(iso) {
     return iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
 }
 
-// Com o mês de referência da folha, que é o do fim do período: 21/10 a 20/11 é a folha de 11
+// O mês de referência da folha, que é o do fim do período: 21/10 a 20/11 é a folha de 11/2026
+function mesDaFolha(fim) {
+    return dataBr(fim).slice(3);
+}
+
 function rotuloPeriodo(inicio, fim) {
-    return `${dataBr(inicio)} a ${dataBr(fim)} — ${dataBr(fim).slice(3)}`;
+    return `${dataBr(inicio)} a ${dataBr(fim)} — ${mesDaFolha(fim)}`;
+}
+
+// Ao meio-dia, para o fuso não puxar a data para o dia anterior
+function diaDaSemana(iso) {
+    return new Date(`${iso.slice(0, 10)}T12:00:00`).getDay();
 }
 
 // Minutos em HH:MM, como os relatórios do Ahgora escrevem as horas
@@ -255,7 +293,9 @@ function definirCompetencia(dados) {
 }
 
 async function abrirCompetencia(id) {
-    definirCompetencia(await requisitar(urlCom(COMPETENCIA_API_URL, id)));
+    const dados = await requisitar(urlCom(COMPETENCIA_API_URL, id));
+    descartarRelatoriosProntos();
+    definirCompetencia(dados);
 }
 
 async function abrirPeriodo() {
@@ -272,6 +312,7 @@ async function abrirPeriodo() {
     }
     // Período sem nada salvo: a competência nasce com o primeiro relatório importado
     periodo = { start_date: inicio, end_date: fim };
+    descartarRelatoriosProntos();
     definirCompetencia(null);
 }
 
@@ -296,9 +337,10 @@ function renderizarSeletorDeCompetencia() {
     document.getElementById('end-date').value = periodo.end_date;
 
     const situacao = document.getElementById('competency-status');
-    situacao.textContent = competencia
+    situacao.innerHTML = competencia
         ? ''
-        : `Nenhum relatório salvo para ${rotuloPeriodo(periodo.start_date, periodo.end_date)}. Importe os relatórios para começar.`;
+        : `Nenhum relatório salvo para ${escaparHtml(rotuloPeriodo(periodo.start_date, periodo.end_date))}. `
+          + '<button type="button" class="link-button" data-go-tab="importar">Importe os relatórios</button> para começar.';
     situacao.hidden = Boolean(competencia);
     preencherSeletoresDeCompetencia();
 }
@@ -322,24 +364,148 @@ function preencherSeletoresDeCompetencia() {
 
 // Relatórios
 
+function unidadeDoRelatorio(codigo) {
+    return codigo === BANCO_DE_HORAS ? 'colaboradores' : 'linhas';
+}
+
 function renderizarRelatorios() {
     const relatorios = competencia ? competencia.reports : {};
     document.querySelectorAll('[data-report-state]').forEach((estado) => {
         const codigo = estado.dataset.reportState;
         const relatorio = relatorios[codigo];
-        estado.classList.remove('error');
-        estado.classList.toggle('loaded', Boolean(relatorio));
-        estado.textContent = relatorio
-            ? `✓ ${relatorio.file_name} · ${numero(relatorio.row_count)} ${codigo === BANCO_DE_HORAS ? 'colaboradores' : 'linhas'} · `
-              + `enviado por ${relatorio.uploaded_by || 'usuário removido'} em ${dataHoraBr(relatorio.uploaded_at)}`
-            : 'Nenhum relatório importado';
+        const pronto = relatoriosProntos.get(codigo);
+        const erro = errosDeImportacao.get(codigo);
+        estado.classList.toggle('error', Boolean(erro));
+        estado.classList.toggle('ready', Boolean(pronto) && !erro);
+        estado.classList.toggle('loaded', Boolean(relatorio) && !pronto && !erro);
+        if (erro) {
+            // O erro fica junto ao campo do relatório, para ficar claro qual arquivo recusou
+            estado.textContent = `Erro: ${erro}`;
+        } else if (pronto) {
+            estado.textContent = `Arquivo pronto · ${pronto.name} · aguardando a confirmação da importação`;
+        } else {
+            estado.textContent = relatorio
+                ? `✓ ${relatorio.file_name} · ${numero(relatorio.row_count)} ${unidadeDoRelatorio(codigo)} · `
+                  + `enviado por ${relatorio.uploaded_by || 'usuário removido'} em ${dataHoraBr(relatorio.uploaded_at)}`
+                : 'Nenhum relatório importado';
+        }
     });
 
     const semSumarizado = competencia && !relatorios.S;
     document.getElementById('reports-hint').classList.toggle('attention', Boolean(semSumarizado));
+
+    const confirmar = document.getElementById('confirm-import');
+    if (!confirmar) return;
+    confirmar.disabled = enviando || !relatoriosProntos.size;
+    document.getElementById('import-state').textContent = relatoriosProntos.size
+        ? `${relatoriosProntos.size} relatório(s) pronto(s) para ${rotuloPeriodo(periodo.start_date, periodo.end_date)}. `
+          + 'Clique em confirmar para processar e salvar.'
+        : 'Selecione os relatórios e confirme para processar e salvar.';
 }
 
-async function importarRelatorio(campo) {
+// Trocar de competência descarta o que foi escolhido para a outra
+function descartarRelatoriosProntos() {
+    relatoriosProntos.clear();
+    errosDeImportacao.clear();
+    document.querySelectorAll('[data-report-input]').forEach((campo) => { campo.value = ''; });
+    const resumo = document.getElementById('import-summary');
+    if (resumo) resumo.hidden = true;
+}
+
+function prepararRelatorio(campo) {
+    const codigo = campo.dataset.reportInput;
+    errosDeImportacao.delete(codigo);
+    if (campo.files[0]) relatoriosProntos.set(codigo, campo.files[0]);
+    else relatoriosProntos.delete(codigo);
+    renderizarRelatorios();
+}
+
+function enviarRelatorio(codigo, arquivo) {
+    const corpo = new FormData();
+    corpo.append('start_date', periodo.start_date);
+    corpo.append('end_date', periodo.end_date);
+    corpo.append('type', codigo);
+    corpo.append('file', arquivo);
+    return requisitar(RELATORIOS_API_URL, 'POST', corpo);
+}
+
+function travarImportacao(travar) {
+    enviando = travar;
+    document.querySelectorAll('[data-report-input]').forEach((item) => { item.disabled = travar; });
+}
+
+// Os relatórios vão um a um: cada um é salvo e analisado com os que já estão
+// na competência. O que o servidor recusa não impede os demais.
+async function processarRelatorios() {
+    if (enviando || !relatoriosProntos.size) return;
+    const fila = [...relatoriosProntos.entries()];
+    const resumo = document.getElementById('import-summary');
+    travarImportacao(true);
+    mostrarErro('');
+    mostrarSucesso('');
+    resumo.hidden = true;
+    document.getElementById('confirm-import').disabled = true;
+    document.getElementById('import-state').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando e analisando os relatórios...';
+
+    const resultados = [];
+    let dados = null;
+    for (const [codigo, arquivo] of fila) {
+        const estado = document.querySelector(`[data-report-state="${codigo}"]`);
+        estado.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando e analisando...';
+        try {
+            dados = await enviarRelatorio(codigo, arquivo);
+            resultados.push({ codigo, arquivo: arquivo.name, linhas: dados.reports[codigo].row_count });
+        } catch (erro) {
+            resultados.push({ codigo, arquivo: arquivo.name, erro: erro.message });
+            errosDeImportacao.set(codigo, erro.message);
+        }
+        relatoriosProntos.delete(codigo);
+        document.querySelector(`[data-report-input="${codigo}"]`).value = '';
+    }
+
+    travarImportacao(false);
+    if (dados) {
+        recorrencia = null;
+        definirCompetencia(dados);
+        atualizarCompetencias().catch((erro) => mostrarErro(erro.message));
+    } else {
+        renderizarRelatorios();
+    }
+    renderizarResumoDaImportacao(resultados, dados);
+}
+
+function renderizarResumoDaImportacao(resultados, dados) {
+    const salvos = resultados.filter((item) => !item.erro);
+    const itens = resultados.map((item) => {
+        const rotulo = `${catalogo.reports[item.codigo]}: ${item.arquivo}`;
+        return item.erro
+            ? `<li class="failed"><i class="fas fa-circle-xmark" aria-hidden="true"></i> ${escaparHtml(rotulo)} — não importado: ${escaparHtml(item.erro)}</li>`
+            : `<li><i class="fas fa-circle-check" aria-hidden="true"></i> ${escaparHtml(rotulo)} — ${numero(item.linhas)} ${unidadeDoRelatorio(item.codigo)} processadas</li>`;
+    }).join('');
+
+    let conclusao = 'Nenhum relatório foi salvo. Corrija os arquivos indicados e selecione-os de novo.';
+    if (salvos.length) {
+        conclusao = `${salvos.length} de ${resultados.length} relatório(s) salvo(s) no portal e compartilhado(s) com quem acessa a auditoria. `
+            + `A competência ${rotuloPeriodo(periodo.start_date, periodo.end_date)} tem ${numero(dados.occurrences.length)} ocorrências.`;
+    }
+
+    const resumo = document.getElementById('import-summary');
+    resumo.classList.toggle('partial', salvos.length !== resultados.length);
+    resumo.innerHTML = `
+        <strong>${salvos.length === resultados.length ? '✓ Processamento concluído' : 'Processamento concluído com erros'}</strong>
+        <ul>${itens}</ul>
+        <p>${escaparHtml(conclusao)}</p>`;
+    resumo.hidden = false;
+
+    if (salvos.length === resultados.length) {
+        mostrarSucesso(`Relatórios processados e salvos no portal: ${salvos.map((item) => item.arquivo).join(', ')}.`);
+    } else {
+        mostrarErro('Nem todos os relatórios foram importados. Confira o resumo na aba Importar Relatórios.');
+    }
+}
+
+// O banco de horas, na aba dele, é importado assim que o arquivo é escolhido
+async function importarBancoDeHoras(campo) {
     const arquivo = campo.files[0];
     if (!arquivo) return;
     if (enviando) {
@@ -347,40 +513,25 @@ async function importarRelatorio(campo) {
         return;
     }
 
-    const tipoRelatorio = campo.dataset.reportInput;
-    const estado = document.querySelector(`[data-report-state="${tipoRelatorio}"]`);
-    const campos = document.querySelectorAll('[data-report-input]');
-    const corpo = new FormData();
-    corpo.append('start_date', periodo.start_date);
-    corpo.append('end_date', periodo.end_date);
-    corpo.append('type', tipoRelatorio);
-    corpo.append('file', arquivo);
-
-    enviando = true;
-    campos.forEach((item) => { item.disabled = true; });
+    const estado = document.querySelector(`[data-report-state="${BANCO_DE_HORAS}"]`);
+    travarImportacao(true);
     mostrarErro('');
     mostrarSucesso('');
+    errosDeImportacao.delete(BANCO_DE_HORAS);
     estado.classList.remove('loaded', 'error');
-    estado.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando e analisando...';
+    estado.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
     try {
-        const dados = await requisitar(RELATORIOS_API_URL, 'POST', corpo);
-        recorrencia = null;
+        const dados = await enviarRelatorio(BANCO_DE_HORAS, arquivo);
+        travarImportacao(false);
         definirCompetencia(dados);
-        const linhas = numero(dados.reports[tipoRelatorio].row_count);
-        mostrarSucesso(tipoRelatorio === BANCO_DE_HORAS
-            ? `Banco de horas importado: ${linhas} colaboradores com saldo.`
-            : `Relatório "${catalogo.reports[tipoRelatorio]}" importado: ${linhas} linhas. `
-              + `${numero(dados.occurrences.length)} ocorrências na competência.`);
+        mostrarSucesso(`Banco de horas importado e salvo no portal: ${arquivo.name} · `
+            + `${numero(dados.reports[BANCO_DE_HORAS].row_count)} colaboradores com saldo.`);
         atualizarCompetencias().catch((erro) => mostrarErro(erro.message));
     } catch (erro) {
+        travarImportacao(false);
+        errosDeImportacao.set(BANCO_DE_HORAS, erro.message);
         renderizarRelatorios();
-        // O erro fica junto ao campo do relatório, para ficar claro qual arquivo recusou
-        estado.classList.remove('loaded');
-        estado.classList.add('error');
-        estado.textContent = `Erro: ${erro.message}`;
     } finally {
-        enviando = false;
-        campos.forEach((item) => { item.disabled = false; });
         campo.value = '';
     }
 }
@@ -407,6 +558,12 @@ function renderizarIndicadores() {
     Object.entries(valores).forEach(([id, valor]) => {
         document.getElementById(id).textContent = numero(valor);
     });
+
+    const saldos = saldosDoBanco();
+    document.getElementById('kpi-bank-hours').textContent = saldos.length
+        ? formatarHoras(saldos.reduce((total, saldo) => total + saldo.balance, 0))
+        : '—';
+    document.getElementById('kpi-overtime').textContent = formatarHoras(horasExtras().reduce((total, o) => total + o.minutes, 0));
 
     const medidor = document.getElementById('review-meter');
     medidor.setAttribute('aria-valuenow', porcentagem);
@@ -795,9 +952,10 @@ function renderizarHorasExtras() {
         id: 'overtime',
         chave: 'extras',
         linhas: lista,
+        // O sábado só ganha a etiqueta ao lado da data, sem destacar a linha
         montarLinha: (ocorrencia) => `
             <tr>
-                <td>${dataBr(ocorrencia.day)}</td>
+                <td class="nowrap">${dataBr(ocorrencia.day)}${diaDaSemana(ocorrencia.day) === SABADO ? ' <span class="badge neutral">Sábado</span>' : ''}</td>
                 <td>${escaparHtml(ocorrencia.employee_name)}</td>
                 <td>${escaparHtml(ocorrencia.employee_id)}</td>
                 <td>${escaparHtml(ocorrencia.location)}</td>
@@ -812,36 +970,52 @@ function renderizarHorasExtras() {
 
 // Rankings
 
+// O ranking de atestados não tem minutos: o desempate é pelos dias de afastamento
 const ORDENACOES_DO_RANKING = {
-    count: (a, b) => b.count - a.count || b.minutes - a.minutes,
+    count: (a, b) => b.count - a.count || (b.minutes ?? b.days) - (a.minutes ?? a.days) || ORDENACOES.name(a, b),
     minutes: (a, b) => b.minutes - a.minutes || b.count - a.count,
+    days: (a, b) => b.days - a.days || b.count - a.count || ORDENACOES.name(a, b),
     location: ORDENACOES.location,
     name: ORDENACOES.name,
 };
 
+function linhaDoRankingDeIntervalo(item) {
+    return `
+        <tr>
+            <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
+            <td>${escaparHtml(item.employee_id)}</td>
+            <td>${escaparHtml(item.location)}</td>
+            <td>${numero(item.count)}</td>
+            <td>${formatarHoras(item.minutes)}</td>
+        </tr>`;
+}
+
+function linhaDoRankingDeAtestados(item) {
+    return `
+        <tr>
+            <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
+            <td>${escaparHtml(item.employee_id)}</td>
+            <td>${numero(item.count)}</td>
+            <td>${numero(item.days)}</td>
+        </tr>`;
+}
+
 function renderizarRanking(chave) {
     const ranking = RANKINGS[chave];
-    const localizacao = document.getElementById(`${chave}-location`).value;
+    // O ranking de atestados não tem localização
+    const campoLocalizacao = document.getElementById(`${chave}-location`);
+    const localizacao = campoLocalizacao ? campoLocalizacao.value : '';
     const busca = normalizar(document.getElementById(`${chave}-search`).value);
     const lista = (ranking.linhas || [])
         .filter((item) => (!localizacao || item.location === localizacao)
-            && (!busca || normalizar(`${item.employee_name} ${item.employee_id} ${item.location}`).includes(busca)))
+            && (!busca || normalizar(`${item.employee_name} ${item.employee_id} ${item.location || ''}`).includes(busca)))
         .sort(ORDENACOES_DO_RANKING[document.getElementById(`${chave}-sort`).value]);
     renderizarTabela({
         id: chave,
         chave,
         linhas: lista,
-        montarLinha: (item) => `
-            <tr>
-                <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
-                <td>${escaparHtml(item.employee_id)}</td>
-                <td>${escaparHtml(item.location)}</td>
-                <td>${numero(item.count)}</td>
-                <td>${formatarHoras(item.minutes)}</td>
-            </tr>`,
-        mensagemVazia: ranking.linhas === null
-            ? 'Carregando...'
-            : `Nenhuma ocorrência de ${tipo(ranking.tipo).label.toLowerCase()} para os filtros selecionados.`,
+        montarLinha: ranking.montarLinha,
+        mensagemVazia: ranking.linhas === null ? 'Carregando...' : ranking.vazio,
         renderizar: () => renderizarRanking(chave),
     });
 }
@@ -858,14 +1032,16 @@ async function carregarRanking(chave) {
     let linhas = [];
     if (id) {
         try {
-            linhas = (await requisitar(urlDeIndicadores(id))).rankings[ranking.tipo];
+            linhas = ranking.extrair(await requisitar(urlDeIndicadores(id)));
         } catch (erro) {
             mostrarErro(erro.message);
         }
     }
     if (pedido !== ranking.pedido) return;
     ranking.linhas = linhas;
-    preencherSelect(`${chave}-location`, 'Todas as localizações', opcoesDeLocalizacao(linhas));
+    if (document.getElementById(`${chave}-location`)) {
+        preencherSelect(`${chave}-location`, 'Todas as localizações', opcoesDeLocalizacao(linhas));
+    }
     renderizarRanking(chave);
 }
 
@@ -888,21 +1064,22 @@ async function buscarComparacao(prefixo) {
     return Promise.all(ids.map((id) => requisitar(urlDeIndicadores(id))));
 }
 
-function indicadoresDeHoras(primeira, segunda) {
-    const total = (dados, tipoOcorrencia, campo) => dados.rankings[tipoOcorrencia].reduce((soma, item) => soma + item[campo], 0);
-    const linha = (rotulo, valor, formatar) => [rotulo, valor(primeira), valor(segunda), formatar];
-    return [
-        linha('Horas extras (total)', (dados) => dados.overtime.minutes, formatarHoras),
-        linha('Colaboradores com horas extras', (dados) => dados.overtime.employees, numero),
-        linha('Banco de horas — saldo acumulado', (dados) => dados.bank_hours, formatarHoras),
-        linha('Intrajornada — ocorrências', (dados) => total(dados, INTERVALO_CURTO, 'count'), numero),
-        linha('Intrajornada — tempo insuficiente', (dados) => total(dados, INTERVALO_CURTO, 'minutes'), formatarHoras),
-        linha('Interjornada — ocorrências', (dados) => total(dados, INTERJORNADA, 'count'), numero),
-        linha('Interjornada — tempo de infração', (dados) => total(dados, INTERJORNADA, 'minutes'), formatarHoras),
-    ];
+// Os totais de cada competência vêm prontos do servidor, da mais antiga à mais
+// recente; o comparativo e o gráfico de evolução saem da mesma lista
+const INDICADORES_DE_HORAS = [
+    { rotulo: 'Horas extras', campo: 'overtime', formatar: formatarHoras },
+    { rotulo: 'Banco de horas', campo: 'bank_hours', formatar: formatarHoras },
+    { rotulo: 'Intrajornada', campo: 'short_breaks', formatar: numero },
+    { rotulo: 'Interjornada', campo: 'short_rests', formatar: numero },
+    { rotulo: 'Dias de atestado', campo: 'medical_leave_days', formatar: numero },
+];
+let evolucao = null;
+
+function totaisDaCompetencia(id) {
+    return (evolucao || []).find((item) => String(item.id) === id);
 }
 
-// O banco de horas falta na competência que não tem o relatório dele
+// O banco de horas e os dias de atestado faltam na competência sem o relatório deles
 function linhaDoComparativoDeHoras([rotulo, primeiro, segundo, formatar]) {
     const exibir = (valor) => (valor === null ? 'Sem relatório importado' : formatar(valor));
     const semValor = primeiro === null || segundo === null;
@@ -916,31 +1093,146 @@ function linhaDoComparativoDeHoras([rotulo, primeiro, segundo, formatar]) {
         </tr>`;
 }
 
-function renderizarComparativoDeHoras(dados, mensagem) {
-    const linhas = dados ? indicadoresDeHoras(...dados) : [];
+function mensagemDoComparativo() {
+    if (evolucao === null) return 'Carregando...';
+    return evolucao.length ? 'Não foi possível carregar o comparativo.' : 'Nenhuma competência salva para comparar.';
+}
+
+// As colunas levam só o mês da folha de cada competência, como 10/2026
+function renderizarComparativoDeHoras() {
+    const [primeira, segunda] = ['first', 'second'].map((posicao) => {
+        const id = document.getElementById(`compare-hours-${posicao}`).value;
+        const totais = totaisDaCompetencia(id);
+        document.getElementById(`compare-hours-${posicao}-title`).textContent = totais ? mesDaFolha(totais.end_date) : '';
+        return totais;
+    });
+
+    const linhas = primeira && segunda
+        ? INDICADORES_DE_HORAS.map(({ rotulo, campo, formatar }) => [rotulo, primeira[campo], segunda[campo], formatar])
+        : [];
     document.querySelector('#compare-hours-table tbody').innerHTML = linhas.map(linhaDoComparativoDeHoras).join('');
     document.getElementById('compare-hours-table').hidden = !linhas.length;
     const vazio = document.getElementById('compare-hours-empty');
     vazio.hidden = Boolean(linhas.length);
-    vazio.textContent = mensagem;
+    vazio.textContent = mensagemDoComparativo();
+}
+
+// Pequenos múltiplos: horas e contagens não dividem um eixo, então cada
+// indicador tem o seu gráfico, com a sua escala, e todos na mesma cor
+const GRAFICO = { largura: 320, altura: 150, esquerda: 52, direita: 14, topo: 12, base: 30 };
+const MAXIMO_DE_ROTULOS = 6;
+
+function graficoDeEvolucao({ rotulo, campo, formatar }) {
+    const { largura, altura, esquerda, direita, topo, base } = GRAFICO;
+    const pontos = evolucao.map((item, indice) => ({ item, indice, valor: item[campo] }));
+    const valores = pontos.filter((ponto) => ponto.valor !== null).map((ponto) => ponto.valor);
+    const ultimo = [...pontos].reverse().find((ponto) => ponto.valor !== null);
+    const cabecalho = `
+        <div class="evolution-header">
+            <h3>${rotulo}</h3>
+            <span>${ultimo ? `${escaparHtml(formatar(ultimo.valor))} <span class="muted">em ${mesDaFolha(ultimo.item.end_date)}</span>` : ''}</span>
+        </div>`;
+    if (!valores.length) {
+        return `<figure class="evolution-chart">${cabecalho}<p class="muted">Sem dados nas competências salvas.</p></figure>`;
+    }
+
+    // A escala sempre passa pelo zero, que fica marcado
+    const minimo = Math.min(0, ...valores);
+    const maximo = Math.max(0, ...valores);
+    const faixa = maximo - minimo || 1;
+    const larguraUtil = largura - esquerda - direita;
+    const alturaUtil = altura - topo - base;
+    const x = (indice) => esquerda + (pontos.length === 1 ? larguraUtil / 2 : indice * larguraUtil / (pontos.length - 1));
+    const y = (valor) => topo + (maximo - valor) / faixa * alturaUtil;
+
+    const marcas = [...new Set([maximo, 0, minimo])];
+    const grade = marcas.map((valor) => `
+        <line x1="${esquerda}" x2="${largura - direita}" y1="${y(valor)}" y2="${y(valor)}" class="${valor === 0 ? 'evolution-zero' : 'evolution-grid-line'}"/>
+        <text x="${esquerda - 6}" y="${y(valor) + 4}" text-anchor="end" class="evolution-axis">${escaparHtml(formatar(valor))}</text>`).join('');
+
+    // Com muitas competências, os rótulos do eixo saltam algumas, sempre mostrando a última
+    const passo = Math.ceil(pontos.length / MAXIMO_DE_ROTULOS);
+    const eixo = pontos
+        .filter((ponto) => (pontos.length - 1 - ponto.indice) % passo === 0)
+        .map((ponto) => `<text x="${x(ponto.indice)}" y="${altura - 10}" text-anchor="middle" class="evolution-axis">${mesDaFolha(ponto.item.end_date)}</text>`)
+        .join('');
+
+    // A competência sem o relatório interrompe a linha
+    const trechos = [];
+    pontos.forEach((ponto) => {
+        if (ponto.valor === null) trechos.push([]);
+        else {
+            if (!trechos.length) trechos.push([]);
+            trechos[trechos.length - 1].push(`${x(ponto.indice)},${y(ponto.valor)}`);
+        }
+    });
+    const linhas = trechos.filter((trecho) => trecho.length > 1)
+        .map((trecho) => `<polyline points="${trecho.join(' ')}" class="evolution-line"/>`).join('');
+
+    const marcadores = pontos.filter((ponto) => ponto.valor !== null).map((ponto) => {
+        const periodoDoPonto = rotuloPeriodo(ponto.item.start_date, ponto.item.end_date);
+        return `
+            <g class="evolution-point" tabindex="0" role="img"
+                data-tooltip-value="${escaparHtml(formatar(ponto.valor))}"
+                data-tooltip-label="${escaparHtml(`${rotulo} · ${periodoDoPonto}`)}"
+                aria-label="${escaparHtml(`${rotulo} em ${periodoDoPonto}: ${formatar(ponto.valor)}`)}">
+                <circle cx="${x(ponto.indice)}" cy="${y(ponto.valor)}" r="12" class="evolution-hit"/>
+                <circle cx="${x(ponto.indice)}" cy="${y(ponto.valor)}" r="4" class="evolution-dot"/>
+            </g>`;
+    }).join('');
+
+    return `
+        <figure class="evolution-chart">
+            ${cabecalho}
+            <svg viewBox="0 0 ${largura} ${altura}" aria-label="${escaparHtml(`Evolução de ${rotulo.toLowerCase()} por competência`)}">
+                ${grade}${eixo}${linhas}${marcadores}
+            </svg>
+        </figure>`;
+}
+
+// A mesma informação dos gráficos, em tabela
+function tabelaDeEvolucao() {
+    const cabecalho = INDICADORES_DE_HORAS.map(({ rotulo }) => `<th>${rotulo}</th>`).join('');
+    const linhas = evolucao.map((item) => `
+        <tr>
+            <td>${escaparHtml(rotuloPeriodo(item.start_date, item.end_date))}</td>
+            ${INDICADORES_DE_HORAS.map(({ campo, formatar }) => `<td>${item[campo] === null ? '—' : escaparHtml(formatar(item[campo]))}</td>`).join('')}
+        </tr>`).join('');
+    return `
+        <details class="evolution-table">
+            <summary>Ver os valores em tabela</summary>
+            <div class="table-wrapper">
+                <table><thead><tr><th>Competência</th>${cabecalho}</tr></thead><tbody>${linhas}</tbody></table>
+            </div>
+        </details>`;
+}
+
+function renderizarEvolucao() {
+    const graficos = document.getElementById('evolution-charts');
+    const vazio = document.getElementById('evolution-empty');
+    const temDados = Boolean(evolucao && evolucao.length);
+    graficos.innerHTML = temDados ? INDICADORES_DE_HORAS.map(graficoDeEvolucao).join('') + tabelaDeEvolucao() : '';
+    graficos.hidden = !temDados;
+    vazio.hidden = temDados;
+    vazio.textContent = evolucao === null ? 'Carregando...' : 'Nenhuma competência salva ainda.';
 }
 
 async function carregarComparativoDeHoras() {
     const pedido = ++pedidosDeComparativo.horas;
-    ['first', 'second'].forEach((posicao) => {
-        const select = document.getElementById(`compare-hours-${posicao}`);
-        document.getElementById(`compare-hours-${posicao}-title`).textContent = select.value ? select.selectedOptions[0].text : '';
-    });
-    renderizarComparativoDeHoras(null, 'Carregando...');
+    evolucao = null;
+    renderizarComparativoDeHoras();
+    renderizarEvolucao();
 
-    let dados = null;
+    let dados = [];
     try {
-        dados = await buscarComparacao('compare-hours');
+        dados = (await requisitar(EVOLUCAO_API_URL)).competencies;
     } catch (erro) {
         mostrarErro(erro.message);
     }
     if (pedido !== pedidosDeComparativo.horas) return;
-    renderizarComparativoDeHoras(dados, competencias.length ? 'Não foi possível carregar o comparativo.' : 'Nenhuma competência salva para comparar.');
+    evolucao = dados;
+    renderizarComparativoDeHoras();
+    renderizarEvolucao();
 }
 
 // Um colaborador por linha, com a quantidade e o tempo de cada competência. A
@@ -1020,6 +1312,7 @@ async function carregarComparativoDeRankings() {
 const INDICADORES_DAS_ABAS = {
     'ranking-intrajornada': () => carregarRanking('intra'),
     'ranking-interjornada': () => carregarRanking('inter'),
+    'ranking-atestados': () => carregarRanking('atestados'),
     'comparativo-horas': carregarComparativoDeHoras,
     'comparativo-rankings': carregarComparativoDeRankings,
 };
@@ -1369,12 +1662,32 @@ function linhaHistorico(registro) {
         </tr>`;
 }
 
+// Os afastamentos que cobrem o dia da ocorrência; null é a competência sem o relatório
+function renderizarContextoDeAfastamento(afastamentos) {
+    const contexto = document.getElementById('leave-context');
+    if (afastamentos === null) {
+        contexto.innerHTML = '<p>Relatório de afastamentos não importado nesta competência.</p>';
+    } else if (!afastamentos.length) {
+        contexto.innerHTML = '<p>Nenhum afastamento localizado no relatório importado para esta data.</p>';
+    } else {
+        contexto.innerHTML = `<ul>${afastamentos.map((afastamento) => {
+            const periodoDoAfastamento = afastamento.start === afastamento.end
+                ? dataBr(afastamento.start)
+                : `${dataBr(afastamento.start)} a ${dataBr(afastamento.end)}`;
+            return `<li><strong>${escaparHtml(afastamento.reason)}</strong> <span class="muted">· ${periodoDoAfastamento}</span></li>`;
+        }).join('')}</ul>`;
+    }
+}
+
 async function carregarHistorico(id) {
     const historico = document.getElementById('treatment-history');
+    const contexto = document.getElementById('leave-context');
     historico.innerHTML = '<p class="muted">Carregando...</p>';
+    contexto.innerHTML = '<p class="muted">Carregando...</p>';
     try {
         const dados = await requisitar(urlCom(TRATATIVAS_API_URL, id));
         if (!ocorrenciaAberta || ocorrenciaAberta.id !== id) return;
+        renderizarContextoDeAfastamento(dados.leaves);
         historico.innerHTML = dados.treatments.length
             ? `
                 <div class="table-wrapper">
@@ -1386,6 +1699,7 @@ async function carregarHistorico(id) {
             : '<p class="muted">Nenhuma tratativa registrada ainda.</p>';
     } catch (erro) {
         historico.innerHTML = `<p class="form-error">${escaparHtml(erro.message)}</p>`;
+        contexto.innerHTML = '';
     }
 }
 
@@ -1647,8 +1961,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('[data-report-input]').forEach((campo) => {
-        campo.addEventListener('change', () => importarRelatorio(campo));
+        campo.addEventListener('change', () => (campo.dataset.reportInput === BANCO_DE_HORAS
+            ? importarBancoDeHoras(campo)
+            : prepararRelatorio(campo)));
     });
+    const confirmarImportacao = document.getElementById('confirm-import');
+    if (confirmarImportacao) confirmarImportacao.addEventListener('click', processarRelatorios);
 
     const aoFiltrarOcorrencias = () => {
         paginas.ocorrencias = 1;
@@ -1704,12 +2022,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(`${chave}-scope`).addEventListener('change', () => carregarRanking(chave));
         document.getElementById(`${chave}-search`).addEventListener('input', aoFiltrarRanking);
         [`${chave}-location`, `${chave}-sort`].forEach((id) => {
-            document.getElementById(id).addEventListener('change', aoFiltrarRanking);
+            const campo = document.getElementById(id);
+            if (campo) campo.addEventListener('change', aoFiltrarRanking);
         });
     });
 
+    // Os totais de todas as competências já estão carregados: trocar a escolha só redesenha a tabela
     ['compare-hours-first', 'compare-hours-second'].forEach((id) => {
-        document.getElementById(id).addEventListener('change', carregarComparativoDeHoras);
+        document.getElementById(id).addEventListener('change', renderizarComparativoDeHoras);
     });
     ['compare-rankings-first', 'compare-rankings-second'].forEach((id) => {
         document.getElementById(id).addEventListener('change', carregarComparativoDeRankings);

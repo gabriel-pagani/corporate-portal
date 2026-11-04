@@ -5,10 +5,14 @@ O Sumarizado conduz: só gera ocorrência o dia de colaborador que aparece nele
 dentro da competência, e os relatórios de batidas ímpares e de ausências entram
 como complemento desse dia. A interjornada é a exceção: vem pronta do relatório
 de intervalos, que já traz o tempo de infração de cada dia.
+
+O relatório de afastamentos não gera ocorrência: dele saem o ranking de
+atestados e o contexto mostrado ao tratar uma ocorrência, sem mudar o tipo dela.
 """
 import math
 import re
 import unicodedata
+from calendar import FRIDAY, MONDAY, SATURDAY, SUNDAY, THURSDAY, TUESDAY, WEDNESDAY
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -21,6 +25,8 @@ ODD_PUNCH_COLUMNS = [f'Entrada {slot}' for slot in range(1, 5)] + [f'Saída {slo
 
 REST_PUNCH_COLUMNS = ['1ª batida', '2ª batida']
 
+LEAVE_REASON_COLUMNS = ['Motivo', 'Tipo de afastamento', 'Afastamento', 'Descrição']
+
 REPORT_COLUMNS = {
     SourceReport.SUMMARY: ['Matrícula', 'Nome', 'Dia', 'Localização', 'Departamento', 'Escala', *PUNCH_COLUMNS, 'Extra'],
     SourceReport.ODD_PUNCHES: ['Matrícula', 'Dia', 'Batidas', *ODD_PUNCH_COLUMNS],
@@ -29,12 +35,51 @@ REPORT_COLUMNS = {
         'Matrícula', 'Nome', 'Data do registro', 'Tipo de intervalo', 'Tempo de Infração',
         'Localização', 'Departamento', 'Filial', 'Cargo', *REST_PUNCH_COLUMNS,
     ],
+    SourceReport.LEAVES: ['Matrícula', 'Nome', 'Dia', 'Data início', 'Data fim', *LEAVE_REASON_COLUMNS, 'ID Afastamento'],
 }
 
 YES = {'sim', 'yes', 'true', '1', 'falta', 'integral'}
 
 # O dia zero das datas do Excel, que guarda a data como número de dias
 EXCEL_EPOCH = date(1899, 12, 30)
+
+WEEKEND = (SATURDAY, SUNDAY)
+
+# Os dias de descanso (DSR) de cada escala, pelo código com que a escala começa
+# no Sumarizado, como o RH informou. Nesses dias o intervalo não é cobrado. As
+# 12x36 revezam os dias, e o descanso segue a jornada de cada um: nenhum dia da
+# semana é fixo. Escala fora da lista (a 117.1 veio sem DSR informado), em
+# branco ou NaN:NaN não tem descanso presumido.
+SCHEDULE_REST_DAYS = {
+    '97.1': WEEKEND,
+    '125.1': (FRIDAY, SATURDAY),
+    '129.1': (SUNDAY, MONDAY),
+    '107.1': (THURSDAY, FRIDAY),
+    '114.1': WEEKEND,
+    '100.1': (SUNDAY,),
+    '122.1': WEEKEND,
+    '72.1': WEEKEND,
+    '127.3': WEEKEND,
+    '103.1': WEEKEND,
+    '109.1': (SUNDAY, MONDAY),
+    '133.1': (FRIDAY, SATURDAY),
+    '105.1': (FRIDAY, SATURDAY),
+    '124.1': (SUNDAY, MONDAY),
+    '104.1': (TUESDAY, WEDNESDAY),
+    '1.1': WEEKEND,
+    '134.1': (SUNDAY,),
+    '1.7': (SUNDAY,),
+    '1.9': (SUNDAY,),
+    '1.11': (),
+    '1.13': (),
+    '114.2': WEEKEND,
+    '122.2': WEEKEND,
+    '132.1': WEEKEND,
+}
+
+# Atestado médico, declaração médica, declaração odontológica e a "declaração
+# médico/odontológica" do Ahgora, já sem acento e em minúsculas
+MEDICAL_LEAVE = re.compile(r'\b(atestado|declaracao) (medic|odontolog)')
 
 
 # Os espaços repetidos também somem: o relatório de intervalos pode vir com
@@ -129,6 +174,87 @@ def is_yes(value):
     return normalize(value) in YES
 
 
+def schedule_code(scale):
+    match = re.match(r'\s*(\d+\.\d+)', str(scale or ''))
+    return match[1] if match else ''
+
+
+def is_rest_day(scale, day):
+    return day.weekday() in SCHEDULE_REST_DAYS.get(schedule_code(scale), ())
+
+
+def unknown_schedule_note(scale):
+    """O aviso da evidência de intervalo quando a escala não diz quais são os dias de descanso."""
+    code = schedule_code(scale)
+    if code in SCHEDULE_REST_DAYS:
+        return ''
+    if code:
+        return f' Escala {code} sem DSR informado: dias de descanso não presumidos.'
+    return ' Escala não identificada: dias de descanso não presumidos.'
+
+
+def leave_reason(row):
+    return next((row[column] for column in LEAVE_REASON_COLUMNS if row.get(column)), '')
+
+
+def leave_period(row):
+    """O primeiro e o último dia do afastamento: o Dia da linha, ou de Data início a Data fim."""
+    if day := parse_day(row.get('Dia')):
+        return day, day
+    start = parse_day(row.get('Data início'))
+    if not start:
+        return None, None
+    return start, parse_day(row.get('Data fim')) or start
+
+
+def leaves_on(rows, employee, day):
+    """Os afastamentos da matrícula que cobrem o dia, sem repetir."""
+    found = []
+    for row in rows:
+        if employee_id(row.get('Matrícula')) != employee:
+            continue
+        start, end = leave_period(row)
+        if start and start <= day <= end:
+            leave = {'reason': leave_reason(row) or 'Afastamento lançado', 'start': start.isoformat(), 'end': end.isoformat()}
+            if leave not in found:
+                found.append(leave)
+    return found
+
+
+def medical_leaves(rows, start, end):
+    """
+    Os atestados e as declarações médicas ou odontológicas de cada matrícula,
+    com os dias de afastamento que caem entre start e end. O documento é
+    identificado pelo ID do afastamento, para o mesmo atestado em dois
+    relatórios não contar duas vezes.
+    """
+    employees = {}
+    for row in rows:
+        employee = employee_id(row.get('Matrícula'))
+        reason = leave_reason(row)
+        if not employee or not MEDICAL_LEAVE.search(normalize(reason)):
+            continue
+        first, last = leave_period(row)
+        if not first:
+            continue
+
+        days = set()
+        day = max(first, start)
+        while day <= min(last, end):
+            days.add(day)
+            day += timedelta(days=1)
+        # Fora do período o afastamento não conta
+        if not days:
+            continue
+
+        entry = employees.setdefault(employee, {'employee_id': employee, 'employee_name': 'Sem nome', 'leaves': set(), 'days': set()})
+        if row.get('Nome'):
+            entry['employee_name'] = row['Nome']
+        entry['leaves'].add(row.get('ID Afastamento') or (first, last, normalize(reason)))
+        entry['days'] |= days
+    return employees
+
+
 def find_occurrences(summary, odd_punches, absences, rests, start, end):
     """As ocorrências do período e quantas linhas do Sumarizado entraram na análise."""
     odd_by_day = {}
@@ -162,7 +288,7 @@ def find_occurrences(summary, odd_punches, absences, rests, start, end):
             'scale': row.get('Escala', ''),
         }
         locations.setdefault((employee, day), base['location'])
-        occurrences = day_occurrences(row, odd_by_day.get((employee, day)), absences_by_day.get((employee, day), []))
+        occurrences = day_occurrences(row, day, odd_by_day.get((employee, day)), absences_by_day.get((employee, day), []))
         for type, evidence, minutes in occurrences:
             # Linha repetida no relatório não duplica a ocorrência: vale a primeira
             found.setdefault((day, employee, type), {**base, 'type': type, 'evidence': evidence, 'minutes': minutes})
@@ -196,7 +322,7 @@ def find_occurrences(summary, odd_punches, absences, rests, start, end):
     return list(found.values()), analysed
 
 
-def day_occurrences(row, odd, absences):
+def day_occurrences(row, day, odd, absences):
     """Os tipos de ocorrência de um dia do Sumarizado, com a evidência e os minutos de cada um."""
     if odd is not None:
         raw = odd.get('Batidas', '')
@@ -208,11 +334,15 @@ def day_occurrences(row, odd, absences):
 
     # O intervalo é o que vai da segunda à terceira batida. Faltando uma delas,
     # não dá para dizer que o intervalo foi curto, só que precisa ser conferido;
-    # e o dia sem batida nenhuma fica com o relatório de ausências.
+    # e o dia sem batida nenhuma fica com o relatório de ausências. No dia de
+    # descanso da escala o intervalo não é cobrado.
+    scale = row.get('Escala', '')
     punches = [(slot, row.get(column, '')) for slot, column in enumerate(PUNCH_COLUMNS, start=1)]
     second, third = punches[1][1], punches[2][1]
     second_minutes, third_minutes = clock_minutes(second), clock_minutes(third)
-    if second_minutes is not None and third_minutes is not None:
+    if is_rest_day(scale, day):
+        pass
+    elif second_minutes is not None and third_minutes is not None:
         gap = third_minutes - second_minutes
         if gap < 0:
             gap += 1440
@@ -220,11 +350,13 @@ def day_occurrences(row, odd, absences):
         if gap < 60:
             yield Occurrence.SHORT_BREAK, (
                 f'Batida 2: {second} · Batida 3: {third} · Intervalo calculado: {format_minutes(gap)}.'
+                + unknown_schedule_note(scale)
             ), 60 - gap
     elif any(raw for _, raw in punches):
         listed = ' · '.join(f'Batida {slot}: {raw}' for slot, raw in punches if raw)
         yield Occurrence.MISSING_BREAK, (
             f'{listed}. Não foi possível confirmar o intervalo pelas posições Batida 2 e Batida 3.'
+            + unknown_schedule_note(scale)
         ), None
 
     extra = row.get('Extra', '')

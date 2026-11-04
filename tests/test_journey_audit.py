@@ -13,7 +13,7 @@ from app.models import User
 from journey_audit.admin import CompetencyAdmin, OccurrenceAdmin
 from journey_audit.models import BankHoursNote, Competency, Occurrence, OccurrenceTreatment, SourceReport
 from journey_audit.analysis import (
-    balance_minutes, clock_minutes, duration_minutes, employee_id, format_minutes, parse_day,
+    balance_minutes, clock_minutes, duration_minutes, employee_id, format_minutes, parse_day, schedule_code,
 )
 from journey_audit.audit import current_period
 
@@ -22,6 +22,9 @@ START = '2026-10-21'
 END = '2026-11-20'
 
 DELETION_NOTE = 'A exclusão remove permanentemente'.encode()
+
+# A escala dos dados de exemplo não começa por um código: o DSR não é presumido
+NO_SCHEDULE = ' Escala não identificada: dias de descanso não presumidos.'
 
 SUMMARY_HEADER = [
     'Matrícula', 'Nome', 'Dia', 'Departamento', 'Escala',
@@ -57,6 +60,17 @@ REST = [
     ['3', 'Carla Dias', '22/10/2026', 'Intrajornada', '00:20', 'Matriz', '', '', ''],
     ['3', 'Carla Dias', '23/10/2026', 'Interjornada', '', 'Matriz', '', '', ''],
     ['3', 'Carla Dias', '20/10/2026', 'Interjornada', '01:00', 'Matriz', '', '', ''],
+]
+
+LEAVES = [
+    ['Matrícula', 'Nome', 'Data início', 'Data fim', 'Motivo', 'ID Afastamento'],
+    # O dia 20 fica fora da competência; o dia 22 aparece em dois documentos
+    ['001', 'Ana Souza', '20/10/2026', '22/10/2026', 'Atestado Médico', '10'],
+    ['001', 'Ana Souza', '22/10/2026', '22/10/2026', 'Declaração Odontológica', '11'],
+    ['2', 'Bruno Lima', '23/10/2026', '23/10/2026', 'Declaração Médico/Odontológica', '12'],
+    # Suspensão não é atestado, e o atestado fora da competência não conta
+    ['2', 'Bruno Lima', '25/10/2026', '26/10/2026', 'Suspensão', '13'],
+    ['3', 'Carla Dias', '01/10/2026', '05/10/2026', 'Atestado Médico', '14'],
 ]
 
 BANK_HOURS = [
@@ -208,6 +222,7 @@ def test_editor_sees_import_and_treatment(client, editor):
     content = client.get(reverse('journey_audit:audit')).content
     assert b'data-report-input="S"' in content
     assert b'data-report-input="N"' in content
+    assert b'data-report-input="L"' in content
     assert b'data-report-input="B"' in content
     assert b'id="treatment-form"' in content
     assert DELETION_NOTE not in content
@@ -227,6 +242,7 @@ def test_api_rejects_anonymous(client):
     assert client.get(reverse('journey_audit:competencies-api')).status_code == 401
     assert client.get(reverse('journey_audit:recurrence-api')).status_code == 401
     assert client.get(reverse('journey_audit:indicators-api')).status_code == 401
+    assert client.get(reverse('journey_audit:evolution-api')).status_code == 401
 
 
 @pytest.mark.django_db
@@ -245,10 +261,13 @@ def test_import_builds_occurrences_from_the_three_reports(client, editor):
 
     found = occurrences()
     assert {key: o.evidence for key, o in found.items()} == {
-        ('1', '2026-10-21', Occurrence.SHORT_BREAK): 'Batida 2: 12:00 · Batida 3: 12:30 · Intervalo calculado: 0h 30min.',
+        ('1', '2026-10-21', Occurrence.SHORT_BREAK): (
+            'Batida 2: 12:00 · Batida 3: 12:30 · Intervalo calculado: 0h 30min.' + NO_SCHEDULE
+        ),
         ('1', '2026-10-21', Occurrence.LONG_OVERTIME): 'Extra informada no sumarizado: 02:30 (2h 30min).',
         ('1', '2026-10-22', Occurrence.MISSING_BREAK): (
             'Batida 1: 08:00 · Batida 2: 12:00. Não foi possível confirmar o intervalo pelas posições Batida 2 e Batida 3.'
+            + NO_SCHEDULE
         ),
         ('1', '2026-10-22', Occurrence.OVERTIME): 'Extra informada no sumarizado: 00:45 (0h 45min).',
         ('2', '2026-10-23', Occurrence.ABSENCE): 'Relatório de ausências: Ausência integral: Sim. Confirmar se a falta procede.',
@@ -442,7 +461,7 @@ def test_xlsx_report_is_read_from_the_first_sheet(client, editor):
     assert set(found) == {('42', '2026-10-25', Occurrence.SHORT_BREAK), ('42', '2026-10-25', Occurrence.LONG_OVERTIME)}
     short_break = found[('42', '2026-10-25', Occurrence.SHORT_BREAK)]
     assert (short_break.employee_name, short_break.location) == ('Davi Rocha', 'Portaria')
-    assert short_break.evidence.endswith('Intervalo calculado: 0h 30min.')
+    assert short_break.evidence.endswith('Intervalo calculado: 0h 30min.' + NO_SCHEDULE)
 
 
 @pytest.mark.django_db
@@ -634,19 +653,25 @@ def test_rankings_add_up_the_breaks_of_each_employee(client, editor):
 
 
 @pytest.mark.django_db
-def test_indicators_total_the_overtime_and_the_bank_hours(client, editor, imported):
+def test_evolution_totals_each_competency(client, editor, imported):
     assert upload(client, SourceReport.BANK_HOURS, csv_file(BANK_HOURS)).status_code == 201
+    assert upload(client, SourceReport.LEAVES, csv_file(LEAVES)).status_code == 201
     other = Competency.objects.create(start_date=date(2020, 1, 21), end_date=date(2020, 2, 20))
     make_occurrence(other, date(2020, 1, 25), type=Occurrence.OVERTIME, employee='99', minutes=30)
+    make_occurrence(other, date(2020, 1, 25), type=Occurrence.SHORT_REST, employee='99', minutes=60)
+    # O que saiu dos relatórios não soma
+    make_occurrence(other, date(2020, 1, 26), type=Occurrence.OVERTIME, employee='99', minutes=100, in_reports=False)
 
-    # A Ana fez 02:30 e 00:45 de extras; o banco tem -01:30 e 12:15
-    payload = client.get(reverse('journey_audit:competency-indicators-api', args=[imported.id])).json()
-    assert (payload['overtime'], payload['bank_hours']) == ({'minutes': 195, 'employees': 1}, 645)
-    assert client.get(reverse('journey_audit:competency-indicators-api', args=[other.id])).json()['bank_hours'] is None
-
-    # Somando as competências não há banco de horas: cada relatório já é o saldo acumulado
-    payload = client.get(reverse('journey_audit:indicators-api')).json()
-    assert (payload['overtime'], payload['bank_hours']) == ({'minutes': 225, 'employees': 2}, None)
+    # A Ana fez 02:30 e 00:45 de extras; o banco tem -01:30 e 12:15; os atestados
+    # cobrem dois dias da Ana e um do Bruno. Sem os relatórios, banco e atestados ficam em branco.
+    rows = client.get(reverse('journey_audit:evolution-api')).json()['competencies']
+    assert [
+        (row['start_date'], row['overtime'], row['bank_hours'], row['short_breaks'], row['short_rests'], row['medical_leave_days'])
+        for row in rows
+    ] == [
+        ('2020-01-21', 30, None, 0, 1, None),
+        (START, 195, 645, 1, 0, 3),
+    ]
 
 
 @pytest.mark.django_db
@@ -745,3 +770,124 @@ def test_admin_does_not_edit_what_comes_from_the_reports():
     assert not occurrence_admin.has_add_permission(None)
     assert not occurrence_admin.has_change_permission(None)
     assert not occurrence_admin.has_delete_permission(None)
+
+
+def test_schedule_code_is_the_start_of_the_scale():
+    assert schedule_code('97.1 - Seg a Sex 08:00 às 17:00') == '97.1'
+    assert schedule_code('1.11 - 12x36') == '1.11'
+    assert schedule_code(' 1.1') == '1.1'
+    assert schedule_code('NaN:NaN') == ''
+    assert schedule_code('') == ''
+
+
+@pytest.mark.django_db
+def test_rest_days_follow_the_schedule_of_each_employee(client, editor):
+    header = ['Matrícula', 'Nome', 'Dia', 'Escala', 'Batida 1', 'Batida 2', 'Batida 3', 'Batida 4', 'Extra']
+    short = ['08:00', '12:00', '12:20', '17:00']
+    rows = [
+        header,
+        # 97.1 descansa no sábado e no domingo; a hora extra do sábado continua contando
+        ['9', 'Eva', '24/10/2026', '97.1 - Seg a Sex', *short, '01:00'],
+        ['9', 'Eva', '25/10/2026', '97.1 - Seg a Sex', '08:00', '12:00', '', '', ''],
+        ['9', 'Eva', '23/10/2026', '97.1 - Seg a Sex', *short, ''],
+        # 125.1 descansa na sexta e no sábado
+        ['13', 'Iara', '23/10/2026', '125.1', *short, ''],
+        ['13', 'Iara', '22/10/2026', '125.1', *short, ''],
+        # A 12x36 não fixa dia da semana, e a 117.1 e o NaN:NaN não têm DSR presumido
+        ['10', 'Fábio', '24/10/2026', '1.11 - 12x36', *short, ''],
+        ['11', 'Gil', '24/10/2026', '117.1 - Seg a Sex', *short, ''],
+        ['12', 'Hugo', '24/10/2026', 'NaN:NaN', *short, ''],
+    ]
+    assert upload(client, SourceReport.SUMMARY, csv_file(rows)).status_code == 201
+
+    interval = 'Batida 2: 12:00 · Batida 3: 12:20 · Intervalo calculado: 0h 20min.'
+    assert {key: o.evidence for key, o in occurrences().items() if o.type != Occurrence.OVERTIME} == {
+        ('9', '2026-10-23', Occurrence.SHORT_BREAK): interval,
+        ('13', '2026-10-22', Occurrence.SHORT_BREAK): interval,
+        ('10', '2026-10-24', Occurrence.SHORT_BREAK): interval,
+        ('11', '2026-10-24', Occurrence.SHORT_BREAK): interval + ' Escala 117.1 sem DSR informado: dias de descanso não presumidos.',
+        ('12', '2026-10-24', Occurrence.SHORT_BREAK): interval + NO_SCHEDULE,
+    }
+    assert set(occurrences(type=Occurrence.OVERTIME)) == {('9', '2026-10-24', Occurrence.OVERTIME)}
+
+
+@pytest.mark.django_db
+def test_leaves_report_does_not_touch_the_occurrences(client, editor, imported):
+    assert client.post(reverse('journey_audit:competency-finish-api', args=[imported.id])).status_code == 200
+    before = set(occurrences())
+
+    response = upload(client, SourceReport.LEAVES, csv_file(LEAVES, name='afastamentos.csv'))
+    assert response.status_code == 201
+    report = response.json()['reports']['L']
+    assert (report['file_name'], report['row_count']) == ('afastamentos.csv', 5)
+    # Só informativo: não analisa de novo nem reabre a conferência
+    assert set(occurrences()) == before
+    imported.refresh_from_db()
+    assert imported.finished_at is not None
+
+
+@pytest.mark.django_db
+def test_rejects_leaves_report_without_the_period_and_the_reason(client, editor):
+    response = upload(client, SourceReport.LEAVES, csv_file([['Matrícula', 'Nome'], ['1', 'Ana']]))
+    assert response.status_code == 400
+    assert response.json()['detail'] == (
+        'O arquivo não tem as colunas Data início ou Dia e Motivo ou Tipo de afastamento ou Afastamento ou Descrição. '
+        'Confira se é mesmo o relatório "Afastamentos".'
+    )
+
+
+@pytest.mark.django_db
+def test_medical_leaves_ranking_counts_documents_and_days(client, editor, imported):
+    url = reverse('journey_audit:competency-indicators-api', args=[imported.id])
+    assert client.get(url).json()['medical_leaves'] == []
+
+    assert upload(client, SourceReport.LEAVES, csv_file(LEAVES)).status_code == 201
+    assert client.get(url).json()['medical_leaves'] == [
+        {'employee_id': '1', 'employee_name': 'Ana Souza', 'count': 2, 'days': 2},
+        {'employee_id': '2', 'employee_name': 'Bruno Lima', 'count': 1, 'days': 1},
+    ]
+
+    # Somando as competências, os dias de cada uma se somam, e o atestado que
+    # atravessa duas competências, nos dois relatórios, conta uma vez só. O
+    # relatório pode trazer o motivo com outro nome de coluna, e o Dia no lugar do período.
+    assert upload(client, SourceReport.LEAVES, csv_file([
+        ['Matrícula', 'Nome', 'Data início', 'Data fim', 'Tipo de afastamento', 'ID Afastamento'],
+        ['1', 'Ana Souza', '20/11/2026', '22/11/2026', 'Atestado médico', '20'],
+        ['5', 'Eva', '19/12/2026', '22/12/2026', 'Atestado Médico', '30'],
+    ]), start='2026-11-21', end='2026-12-20').status_code == 201
+    assert upload(client, SourceReport.LEAVES, csv_file([
+        ['Matrícula', 'Nome', 'Dia', 'Data início', 'Data fim', 'Motivo', 'ID Afastamento'],
+        ['5', 'Eva', '', '19/12/2026', '22/12/2026', 'Atestado Médico', '30'],
+        ['6', '', '21/12/2026', '', '', 'Declaração Médica', ''],
+    ]), start='2026-12-21', end='2027-01-20').status_code == 201
+    assert client.get(reverse('journey_audit:indicators-api')).json()['medical_leaves'] == [
+        {'employee_id': '1', 'employee_name': 'Ana Souza', 'count': 3, 'days': 4},
+        {'employee_id': '2', 'employee_name': 'Bruno Lima', 'count': 1, 'days': 1},
+        {'employee_id': '5', 'employee_name': 'Eva', 'count': 1, 'days': 4},
+        {'employee_id': '6', 'employee_name': 'Sem nome', 'count': 1, 'days': 1},
+    ]
+
+
+@pytest.mark.django_db
+def test_treatment_shows_the_leaves_of_the_day_without_reclassifying(client, editor, imported):
+    assert upload(client, SourceReport.ODD_PUNCHES, csv_file(ODD_PUNCHES)).status_code == 201
+    odd_punches = Occurrence.objects.get(type=Occurrence.ODD_PUNCHES)
+    missing_break = Occurrence.objects.get(type=Occurrence.MISSING_BREAK)
+
+    def leaves(occurrence):
+        return client.get(reverse('journey_audit:treatments-api', args=[occurrence.id])).json()['leaves']
+
+    # Sem o relatório de afastamentos, não há o que cruzar
+    assert leaves(odd_punches) is None
+
+    assert upload(client, SourceReport.LEAVES, csv_file(LEAVES)).status_code == 201
+    assert leaves(odd_punches) == [{'reason': 'Suspensão', 'start': '2026-10-25', 'end': '2026-10-26'}]
+    assert leaves(missing_break) == [
+        {'reason': 'Atestado Médico', 'start': '2026-10-20', 'end': '2026-10-22'},
+        {'reason': 'Declaração Odontológica', 'start': '2026-10-22', 'end': '2026-10-22'},
+    ]
+    assert leaves(make_occurrence(imported, date(2026, 10, 30), employee='1')) == []
+
+    # A batida ímpar continua batida ímpar
+    odd_punches.refresh_from_db()
+    assert odd_punches.type == Occurrence.ODD_PUNCHES

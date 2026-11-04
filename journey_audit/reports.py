@@ -17,17 +17,20 @@ from xml.etree import ElementTree
 from django.core.exceptions import ValidationError
 
 from journey_audit.models import SourceReport
-from journey_audit.analysis import REPORT_COLUMNS, balance_minutes, employee_id, normalize
+from journey_audit.analysis import LEAVE_REASON_COLUMNS, REPORT_COLUMNS, balance_minutes, employee_id, normalize
 
 
 # Sem matrícula e dia nenhuma linha entra na análise, e no relatório de
 # interjornada também sem o tipo do intervalo e o tempo de infração: faltando
-# essas colunas, o arquivo provavelmente é outro relatório, escolhido no campo errado.
+# essas colunas, o arquivo provavelmente é outro relatório, escolhido no campo
+# errado. Uma tupla é a coluna que pode vir com qualquer um daqueles nomes: o
+# afastamento traz o Dia ou a Data início, e o motivo com nomes diferentes.
 REQUIRED_COLUMNS = {
     SourceReport.ODD_PUNCHES: ['Matrícula', 'Dia'],
     SourceReport.ABSENCES: ['Matrícula', 'Dia'],
     SourceReport.SUMMARY: ['Matrícula', 'Dia'],
     SourceReport.REST: ['Matrícula', 'Data do registro', 'Tipo de intervalo', 'Tempo de Infração'],
+    SourceReport.LEAVES: ['Matrícula', ('Data início', 'Dia'), tuple(LEAVE_REASON_COLUMNS)],
 }
 
 # Do banco de horas o saldo vem só da coluna SALDO, e não das outras de saldo
@@ -76,7 +79,12 @@ def project_rows(rows, report_type):
         column: positions[normalize(column)]
         for column in REPORT_COLUMNS[report_type] if normalize(column) in positions
     }
-    missing = [column for column in REQUIRED_COLUMNS[report_type] if column not in columns]
+    missing = [
+        ' ou '.join(names) for names in (
+            required if isinstance(required, tuple) else (required,) for required in REQUIRED_COLUMNS[report_type]
+        )
+        if not any(name in columns for name in names)
+    ]
     if missing:
         listed = ' e '.join(filter(None, [', '.join(missing[:-1]), missing[-1]]))
         raise ValidationError(
