@@ -6,10 +6,48 @@
 {% block head %}
         <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
         <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
+        <link href="{% static 'global/css/sidebar.css' %}" rel="stylesheet">
         <link href="{% static 'journey_audit/css/journey-audit.css' %}" rel="stylesheet">
 {% endblock head %}
 
 {% block body %}
+        <div class="sidebar" id="sidebar">
+            <div class="logo">
+                <a href="{% url "app:home" %}" title="Voltar ao menu principal">
+                    <img src="{% static 'global/images/white_logo.png' %}" id="logo-img" alt="Logo SMI"
+                        data-full-logo="{% static 'global/images/white_logo.png' %}"
+                        data-icon-logo="{% static 'global/images/icon.png' %}"
+                    />
+                </a>
+            </div>
+
+            <nav class="menu tabs" aria-label="Seções da auditoria">
+                <button type="button" class="tab" data-tab="visao-geral" title="Visão geral"><i class="fas fa-table-cells-large" aria-hidden="true"></i><span class="text">Visão geral</span></button>
+                <button type="button" class="tab" data-tab="ocorrencias" title="Ocorrências"><i class="fas fa-list-check" aria-hidden="true"></i><span class="text">Ocorrências</span></button>
+                <button type="button" class="tab" data-tab="intervalos" title="Intervalos Matriz"><i class="fas fa-mug-hot" aria-hidden="true"></i><span class="text">Intervalos Matriz</span></button>
+                <button type="button" class="tab" data-tab="banco-de-horas" title="Banco de Horas Obras"><i class="fas fa-piggy-bank" aria-hidden="true"></i><span class="text">Banco de Horas Obras</span></button>
+                <button type="button" class="tab" data-tab="horas-extras" title="Horas Extras Matriz"><i class="fas fa-business-time" aria-hidden="true"></i><span class="text">Horas Extras Matriz</span></button>
+                <button type="button" class="tab" data-tab="ranking-intrajornada" title="Ranking de Intrajornada Matriz"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Intrajornada Matriz</span></button>
+                <button type="button" class="tab" data-tab="ranking-interjornada" title="Ranking de Interjornada"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Interjornada</span></button>
+                <button type="button" class="tab" data-tab="ranking-atestados" title="Ranking de Atestados"><i class="fas fa-notes-medical" aria-hidden="true"></i><span class="text">Ranking de Atestados</span></button>
+                <button type="button" class="tab" data-tab="recorrencia" title="Ranking de Batidas Ímpares"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Batidas Ímpares</span></button>
+                <button type="button" class="tab" data-tab="graficos" title="Gráficos"><i class="fas fa-chart-column" aria-hidden="true"></i><span class="text">Gráficos</span></button>
+                <button type="button" class="tab" data-tab="comparativo-horas" title="Comparativo de Horas"><i class="fas fa-code-compare" aria-hidden="true"></i><span class="text">Comparativo de Horas</span></button>
+                <button type="button" class="tab" data-tab="comparativo-rankings" title="Comparativo dos Rankings"><i class="fas fa-code-compare" aria-hidden="true"></i><span class="text">Comparativo dos Rankings</span></button>
+                <button type="button" class="tab" data-tab="competencias" title="Histórico de competências"><i class="fas fa-box-archive" aria-hidden="true"></i><span class="text">Histórico de competências</span></button>
+                <button type="button" class="tab" data-tab="importar" title="Importar Relatórios"><i class="fas fa-file-import" aria-hidden="true"></i><span class="text">Importar Relatórios</span></button>
+            </nav>
+
+            <div class="bottom">
+                <a href="{% url "app:home" %}" title="Voltar ao menu principal">
+                    <i class="fas fa-arrow-left"></i>
+                    <span class="text">Voltar</span>
+                </a>
+                <button type="button" id="toggle" title="Minimizar menu lateral"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+
+        <main class="main-content">
         <div id="content" class="container journey-audit"
             data-csrf-token="{{ csrf_token }}"
             data-competencies-url="{% url 'journey_audit:competencies-api' %}"
@@ -24,12 +62,7 @@
             data-evolution-url="{% url 'journey_audit:evolution-api' %}"
         >
             <div class="header">
-                <a href="{% url "app:home" %}">
-                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
-                </a>
-                <div class="header-text">
-                    <h1>Auditoria de Jornada</h1>
-                </div>
+                <h1>Auditoria de Jornada</h1>
             </div>
 
             <div id="alert-error" class="alert" role="alert" hidden>
@@ -54,23 +87,6 @@
                 <button type="button" class="button primary" id="open-period">Abrir competência</button>
                 <p class="competency-status" id="competency-status" role="status" hidden></p>
             </section>
-
-            <nav class="tabs" aria-label="Seções da auditoria">
-                <button type="button" class="tab" data-tab="visao-geral"><i class="fas fa-table-cells-large"></i> Visão geral</button>
-                <button type="button" class="tab" data-tab="ocorrencias"><i class="fas fa-list-check"></i> Ocorrências</button>
-                <button type="button" class="tab" data-tab="intervalos"><i class="fas fa-mug-hot"></i> Intervalos Matriz</button>
-                <button type="button" class="tab" data-tab="banco-de-horas"><i class="fas fa-piggy-bank"></i> Banco de Horas Obras</button>
-                <button type="button" class="tab" data-tab="horas-extras"><i class="fas fa-business-time"></i> Horas Extras Matriz</button>
-                <button type="button" class="tab" data-tab="ranking-intrajornada"><i class="fas fa-ranking-star"></i> Ranking de Intrajornada Matriz</button>
-                <button type="button" class="tab" data-tab="ranking-interjornada"><i class="fas fa-ranking-star"></i> Ranking de Interjornada</button>
-                <button type="button" class="tab" data-tab="ranking-atestados"><i class="fas fa-notes-medical"></i> Ranking de Atestados</button>
-                <button type="button" class="tab" data-tab="recorrencia"><i class="fas fa-ranking-star"></i> Ranking de Batidas Ímpares</button>
-                <button type="button" class="tab" data-tab="graficos"><i class="fas fa-chart-column"></i> Gráficos</button>
-                <button type="button" class="tab" data-tab="comparativo-horas"><i class="fas fa-code-compare"></i> Comparativo de Horas</button>
-                <button type="button" class="tab" data-tab="comparativo-rankings"><i class="fas fa-code-compare"></i> Comparativo dos Rankings</button>
-                <button type="button" class="tab" data-tab="competencias"><i class="fas fa-box-archive"></i> Histórico de competências</button>
-                <button type="button" class="tab" data-tab="importar"><i class="fas fa-file-import"></i> Importar Relatórios</button>
-            </nav>
 
             <div class="tab-panel" data-panel="visao-geral">
                 <section class="kpi-grid" aria-label="Indicadores da competência">
@@ -834,6 +850,7 @@
                 </div>
             </dialog>
         </div>
+        </main>
 
         <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
 
@@ -844,5 +861,6 @@
         {{ permissions|json_script:"permissions-data" }}
         {{ responsible|json_script:"responsible-data" }}
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="{% static 'global/js/sidebar.js' %}"></script>
         <script src="{% static 'journey_audit/js/journey-audit.js' %}"></script>
 {% endblock body %}

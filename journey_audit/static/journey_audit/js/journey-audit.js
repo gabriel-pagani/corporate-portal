@@ -1537,7 +1537,8 @@ function configurarDicas() {
         mostrar(alvo, area.left + area.width / 2, area.top);
     });
     document.addEventListener('focusout', () => { dica.hidden = true; });
-    window.addEventListener('scroll', () => { dica.hidden = true; }, { passive: true });
+    // Quem rola é o conteúdo ao lado da sidebar, não a janela: a captura pega a rolagem de qualquer elemento
+    document.addEventListener('scroll', () => { dica.hidden = true; }, { passive: true, capture: true });
 }
 
 // Recorrência
@@ -1856,7 +1857,11 @@ function trocarAba(aba, atualizarEndereco = true) {
         painel.hidden = painel.dataset.panel !== destino;
     });
     // O replaceState troca o endereço sem rolar a página até a âncora
-    if (atualizarEndereco) history.replaceState(null, '', `#${destino}`);
+    if (atualizarEndereco) {
+        history.replaceState(null, '', `#${destino}`);
+        // A seção nova abre do começo, como se fosse outra página
+        document.querySelector('.main-content').scrollTop = 0;
+    }
 
     if (destino === 'recorrencia') carregarRecorrencia();
     if (destino === 'competencias') atualizarCompetencias().catch((erro) => mostrarErro(erro.message));

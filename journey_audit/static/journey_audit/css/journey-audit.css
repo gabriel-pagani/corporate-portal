@@ -49,37 +49,104 @@ input[type="date"] {
   color: #666;
 }
 
-/* Abas */
-.tabs {
+/* Página inteira, como o menu e os dashboards: sem o fundo e sem o cartão
+   flutuante do toners.css; a sidebar fica fixa e só o conteúdo rola */
+body {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+  background: #fff;
+}
+
+/* A sidebar e o conteúdo ocupam a altura da tela; o conteúdo rola dentro dela */
+.sidebar {
+  flex-shrink: 0;
+}
+
+.main-content {
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.journey-audit.container {
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+  padding: 25px 30px;
+  box-shadow: none;
+}
+
+/* O .logo do toners.css é o da imagem no cabeçalho; aqui é o bloco da sidebar */
+.sidebar .logo {
+  width: auto;
+  cursor: default;
+}
+
+/* As abas são os itens da sidebar */
+.sidebar .menu {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e2e2e2;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.tab {
-  padding: 8px 12px;
+.sidebar .tab,
+.sidebar .bottom a {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
   border-radius: 4px;
-  color: #333;
-  font-size: 15px;
-  white-space: nowrap;
-  transition: color 0.3s, background-color 0.3s;
-}
-
-.tab i {
-  margin-right: 4px;
-}
-
-.tab:hover {
-  background-color: #3333331e;
-}
-
-.tab.active {
-  background-color: #333;
   color: #fff;
-  font-weight: bold;
+  font-size: 16px;
+  text-align: left;
+  transition: background-color 0.2s;
+}
+
+.sidebar .tab i,
+.sidebar .bottom a i {
+  width: 24px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.sidebar .text {
+  margin-left: 12px;
+  line-height: 1.2;
+}
+
+.sidebar .tab:hover,
+.sidebar .bottom a:hover {
+  background-color: #33373c;
+}
+
+.sidebar .tab.active {
+  position: relative;
+  background-color: #3a4046;
+}
+
+.sidebar .tab.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background-color: #4a90e2;
+}
+
+.sidebar .bottom a {
+  margin-bottom: 10px;
+}
+
+.sidebar .tab:focus-visible {
+  outline-color: #fff;
+  outline-offset: -2px;
+}
+
+.sidebar.collapsed .tab,
+.sidebar.collapsed .bottom a {
+  justify-content: center;
+  padding: 10px 0;
 }
 
 /* Filtros com rótulo, dos rankings e dos comparativos */
