@@ -118,7 +118,7 @@ function correspondeABusca(documento, termo) {
 // ---- Navegação ----
 
 function lerPastaDaUrl() {
-    const id = Number(new URLSearchParams(window.location.search).get('pasta'));
+    const id = Number(new URLSearchParams(window.location.search).get('folder'));
     return pastaPorId(id) ? id : null;
 }
 
@@ -127,11 +127,11 @@ function abrirPasta(id, { historico = true } = {}) {
     if (historico) {
         const url = new URL(window.location.href);
         if (id === null) {
-            url.searchParams.delete('pasta');
+            url.searchParams.delete('folder');
         } else {
-            url.searchParams.set('pasta', id);
+            url.searchParams.set('folder', id);
         }
-        window.history.pushState({ pasta: id }, '', url);
+        window.history.pushState({ folder: id }, '', url);
     }
     mostrarMensagem('');
     renderizar();
@@ -547,7 +547,7 @@ async function excluirDocumento(id) {
 document.addEventListener('DOMContentLoaded', () => {
     ordenarPastas();
     pastaAtual = lerPastaDaUrl();
-    window.history.replaceState({ pasta: pastaAtual }, '');
+    window.history.replaceState({ folder: pastaAtual }, '');
 
     // Qualquer elemento com data-folder abre a pasta: a sidebar, o caminho e os cards
     document.body.addEventListener('click', (evento) => {
