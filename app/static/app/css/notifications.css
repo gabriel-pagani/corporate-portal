@@ -209,6 +209,17 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.post-message a {
+  color: #1a5fb4;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.post-message a:hover {
+  color: #0d3f7a;
+}
+
 .post-footer {
   display: flex;
   flex-wrap: wrap;
