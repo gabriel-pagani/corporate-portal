@@ -65,6 +65,10 @@ SERVICES = [
         'Abra e acompanhe chamados de suporte.', everyone,
     ),
     Service(
+        ServiceAccess.LIBRARY, 'Biblioteca', 'fa-book', 'app:library',
+        'Os documentos liberados para você.', everyone,
+    ),
+    Service(
         ServiceAccess.DASHBOARDS, 'Central de Dashboards', 'fa-chart-pie', 'app:dashboards',
         'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(),
     ),

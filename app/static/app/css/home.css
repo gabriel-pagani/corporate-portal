@@ -573,6 +573,11 @@ body {
   color: #ef5350;
 }
 
+/* Biblioteca: o download sai direto do card */
+.library-item > a:hover .item-aside {
+  color: #f2b705;
+}
+
 /* Previews estáticos: um esboço da página do serviço */
 .preview-static {
   display: flex;
@@ -660,6 +665,34 @@ body {
 .h70 { height: 70%; }
 .h85 { height: 85%; }
 .h95 { height: 95%; }
+
+.preview-static.library {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 52px;
+  gap: 12px;
+  max-height: 200px;
+}
+
+/* Uma pasta: a aba em cima e o corpo embaixo */
+.preview-static .mock-folder {
+  position: relative;
+  margin-top: 8px;
+  border-radius: 0 6px 6px 6px;
+  background: linear-gradient(180deg, #f2b705, rgba(242, 183, 5, 0.45));
+  opacity: 0.85;
+}
+
+.preview-static .mock-folder::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: 40%;
+  height: 8px;
+  border-radius: 4px 4px 0 0;
+  background-color: #f2b705;
+}
 
 .mock-label {
   width: 30%;

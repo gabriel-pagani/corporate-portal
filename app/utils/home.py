@@ -8,9 +8,12 @@ que é um sistema de fora, e o cadastro de clientes e fornecedores, que é um
 formulário) ficam com o desenho estático do template.
 """
 from django.db.models import Count, F, Q
+from django.urls import reverse
+from django.utils import timezone
 
 from app.models import Contact, ServiceAccess, Toner
 from app.utils.dashboards.access import get_user_dashboards
+from app.utils.library import file_icon, visible_documents
 from app.utils.notifications.delivery import serialize_notification, visible_notifications
 from app.utils.services import arranged_services
 
@@ -20,6 +23,8 @@ LATEST_NOTIFICATIONS = 10
 FAVORITE_DASHBOARDS = 12
 
 LOW_TONERS = 12
+
+RECENT_DOCUMENTS = 12
 
 
 def contacts_preview(user):
@@ -55,6 +60,23 @@ def dashboards_preview(user):
         'favorites': [
             {'title': dashboard.title, 'url': dashboard.get_absolute_url()}
             for dashboard in dashboards.filter(fav_by=user).order_by('title')[:FAVORITE_DASHBOARDS]
+        ],
+    }
+
+
+def library_preview(user):
+    documents = visible_documents(user)
+    return {
+        'total': documents.count(),
+        'recent': [
+            {
+                'title': document.title,
+                'folder': document.folder.name,
+                'icon': file_icon(document.file_name),
+                'updated_at': timezone.localtime(document.updated_at).strftime('%d/%m/%Y'),
+                'download_url': reverse('app:library-download', args=[document.id]),
+            }
+            for document in documents.order_by('-updated_at', 'title')[:RECENT_DOCUMENTS]
         ],
     }
 
@@ -116,6 +138,7 @@ def journey_audit_preview(user):
 PREVIEWS = {
     ServiceAccess.CONTACTS: contacts_preview,
     ServiceAccess.NOTIFICATIONS: notifications_preview,
+    ServiceAccess.LIBRARY: library_preview,
     ServiceAccess.DASHBOARDS: dashboards_preview,
     ServiceAccess.TONERS: toners_preview,
     ServiceAccess.JOURNEY_AUDIT: journey_audit_preview,

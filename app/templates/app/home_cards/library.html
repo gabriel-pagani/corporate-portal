@@ -1,0 +1,24 @@
+{% if preview.recent %}
+<p class="preview-caption"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Atualizados recentemente</p>
+<ul class="preview-list" data-fit data-more>
+    {% for document in preview.recent %}
+    <li class="library-item">
+        <a href="{{ document.download_url }}" title="Baixar {{ document.title }}">
+            <i class="fas {{ document.icon }} item-icon" aria-hidden="true"></i>
+            <span class="item-text">
+                <strong>{{ document.title }}</strong>
+                <small>{{ document.folder }} · {{ document.updated_at }}</small>
+            </span>
+            <i class="fas fa-download item-aside" aria-hidden="true"></i>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<a class="preview-static library" href="{{ service.url }}" tabindex="-1" aria-hidden="true">
+    <span class="mock-folder"></span><span class="mock-folder"></span><span class="mock-folder"></span>
+    <span class="mock-folder"></span><span class="mock-folder"></span><span class="mock-folder"></span>
+</a>
+<p class="preview-hint">Nenhum documento foi liberado para você ainda.</p>
+{% endif %}
+<p class="preview-footer">{{ preview.total }} documento{{ preview.total|pluralize }} disponíve{{ preview.total|pluralize:"l,is" }} para você</p>

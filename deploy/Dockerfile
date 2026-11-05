@@ -26,7 +26,9 @@ RUN groupadd --gid 1000 django && useradd --uid 1000 --gid django --create-home 
 
 COPY ../ .
 
-RUN mkdir -p /app/static_root && chown django:django /app/static_root
+# O volume nomeado nasce com o dono da pasta da imagem: sem ela, o media_root
+# viria do root, e o django não conseguiria gravar os documentos da biblioteca
+RUN mkdir -p /app/static_root /app/media_root && chown django:django /app/static_root /app/media_root
 
 USER django
 

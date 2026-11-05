@@ -1,0 +1,620 @@
+[hidden] {
+  display: none !important;
+}
+
+/* O fundo fica no body, como na home, para não ser redimensionado quando a sidebar colapsa */
+body {
+  background-image: url('../../global/images/fundo_estrada.png');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Sidebar: as pastas, como os setores dos dashboards */
+.search-container {
+  padding: 10px 12px;
+}
+
+.sidebar.collapsed .search-container {
+  display: none;
+}
+
+#search-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #4b4b4b;
+  border-radius: 4px;
+  font-size: 15px;
+}
+
+#search-input::placeholder {
+  color: #fff;
+  opacity: 0.8;
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.folder-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.folder-link:hover,
+.folder-link:focus-visible {
+  background-color: #33373c;
+}
+
+.folder-link i {
+  width: 24px;
+  color: #f2b705;
+  text-align: center;
+}
+
+.folder-link .text {
+  flex: 1;
+  min-width: 0;
+  margin-left: 12px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.folder-link.active {
+  position: relative;
+  background-color: #3a4046;
+}
+
+.folder-link.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background-color: #f2b705;
+}
+
+.folder-count {
+  flex-shrink: 0;
+  min-width: 22px;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background-color: #33373c;
+  color: #d5d9de;
+  font-size: 12px;
+  text-align: center;
+}
+
+.sidebar.collapsed .folder-count {
+  display: none;
+}
+
+.new-folder {
+  margin-top: 10px;
+  border: 1px dashed #4b4b4b;
+}
+
+.new-folder i {
+  color: #a9b0b8;
+}
+
+.bottom a {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  color: #fff;
+  transition: background 0.2s;
+}
+
+.bottom a:hover {
+  background-color: #33373c;
+}
+
+.bottom i {
+  width: 24px;
+  text-align: center;
+}
+
+.bottom .text {
+  margin-left: 12px;
+}
+
+/* Conteúdo: os cards da home sobre o fundo */
+.main-content.library {
+  height: 100vh;
+  padding: 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background-color: transparent;
+  color: #fff;
+}
+
+.library-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1500px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background-color: rgba(31, 35, 39, 0.9);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.library-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 20px;
+}
+
+.library-breadcrumb button {
+  color: #a9b0b8;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.library-breadcrumb button:hover {
+  color: #f2b705;
+}
+
+.library-breadcrumb .separator {
+  color: #6d747c;
+  font-size: 14px;
+}
+
+.library-breadcrumb strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.library-breadcrumb .fa-book {
+  color: #f2b705;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.library-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #3b4046;
+  border-radius: 6px;
+  background-color: #2a2e33;
+  color: #fff;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.library-button:hover {
+  border-color: #4b5057;
+  background-color: #33373c;
+}
+
+.library-button.primary {
+  border-color: #f2b705;
+  background-color: #f2b705;
+  color: #1f2327;
+  font-weight: 600;
+}
+
+.library-button.primary:hover {
+  background-color: #ffc928;
+}
+
+.library-button.danger:hover {
+  border-color: #ef5350;
+  color: #ef5350;
+}
+
+.library-button.icon {
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+}
+
+.library-button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.library-message {
+  max-width: 1500px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: rgba(46, 125, 50, 0.92);
+}
+
+.library-message.error {
+  background-color: rgba(198, 40, 40, 0.92);
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  max-width: 1500px;
+}
+
+.folder-card,
+.document-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background-color: rgba(31, 35, 39, 0.9);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: card-in 0.3s ease backwards;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+/* Pastas: o cabeçalho abre a pasta, e a lista já baixa os documentos. Cada
+   card fica da altura da própria lista, sem esticar até o maior da linha */
+.folder-card {
+  align-self: start;
+}
+
+.folder-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.folder-card-header:hover,
+.folder-card-header:focus-visible {
+  background-color: #2a2e33;
+}
+
+.folder-card-icon,
+.document-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background-color: #f2b705;
+  color: #1f2327;
+  font-size: 18px;
+}
+
+.folder-card-heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.folder-card-heading strong {
+  font-size: 19px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.folder-card-heading small {
+  margin-top: 2px;
+  color: #a9b0b8;
+  font-size: 14px;
+}
+
+.folder-card-open {
+  color: #a9b0b8;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.folder-card-header:hover .folder-card-open {
+  color: #f2b705;
+  transform: translateX(3px);
+}
+
+.folder-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 18px 16px;
+}
+
+.folder-card-body a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.folder-card-body a:hover,
+.folder-card-body a:focus-visible {
+  background-color: #33373c;
+}
+
+.folder-card-body a:hover .fa-download {
+  color: #f2b705;
+}
+
+.folder-card-body .item-icon {
+  width: 18px;
+  color: #a9b0b8;
+  text-align: center;
+}
+
+.folder-card-body .item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.folder-card-body .fa-download {
+  color: #a9b0b8;
+  font-size: 13px;
+}
+
+.folder-card-more {
+  padding: 4px 10px 0;
+  color: #a9b0b8;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-card-more:hover {
+  color: #f2b705;
+}
+
+.folder-card-empty {
+  padding: 4px 10px;
+  color: #a9b0b8;
+  font-size: 14px;
+}
+
+/* Documentos */
+.document-card {
+  padding: 16px 18px;
+  gap: 12px;
+}
+
+.document-card-top {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.document-icon.fa-file-pdf-bg { background-color: #ef5350; color: #fff; }
+.document-icon.fa-file-word-bg { background-color: #42a5f5; color: #fff; }
+.document-icon.fa-file-excel-bg,
+.document-icon.fa-file-csv-bg { background-color: #43a047; color: #fff; }
+.document-icon.fa-file-powerpoint-bg { background-color: #fb8c00; color: #fff; }
+.document-icon.fa-file-image-bg,
+.document-icon.fa-file-video-bg { background-color: #ab47bc; color: #fff; }
+
+.document-heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.document-heading h3 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.document-meta,
+.document-details {
+  color: #a9b0b8;
+  font-size: 13px;
+}
+
+.document-description {
+  display: -webkit-box;
+  color: #d5d9de;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-line;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow-wrap: anywhere;
+}
+
+.document-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.document-details i {
+  width: 16px;
+  margin-right: 6px;
+  text-align: center;
+}
+
+.document-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.document-actions .library-button.primary {
+  flex: 1;
+  justify-content: center;
+}
+
+.document-card.highlight {
+  border-color: #f2b705;
+}
+
+.library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 1500px;
+  padding: 50px 20px;
+  border-radius: 12px;
+  background-color: rgba(31, 35, 39, 0.9);
+  color: #d5d9de;
+  font-size: 17px;
+  text-align: center;
+}
+
+.library-empty i {
+  color: #f2b705;
+  font-size: 48px;
+  opacity: 0.8;
+}
+
+/* Modal do documento: os destinatários, com busca */
+.document-modal {
+  width: min(820px, calc(100% - 32px));
+}
+
+.field-hint {
+  color: #666;
+  font-size: 13px;
+}
+
+.recipients {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+}
+
+.recipients legend {
+  padding: 0 6px;
+  color: #666;
+  font-size: 13px;
+}
+
+.recipients .form-hint {
+  margin-bottom: 10px;
+}
+
+.recipient-pickers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.recipient-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.recipient-picker-header {
+  display: flex;
+  justify-content: space-between;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.recipient-picker-header small {
+  color: #666;
+  font-weight: 400;
+}
+
+.recipient-search {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.recipient-options {
+  height: 170px;
+  padding: 4px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow-y: auto;
+}
+
+.recipient-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.recipient-options label:hover {
+  background-color: #f3f3f3;
+}
+
+.recipient-options .empty {
+  padding: 6px;
+  color: #888;
+  font-size: 13px;
+}
+
+.recipients-summary {
+  margin-top: 10px;
+  color: #333;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .recipient-pickers {
+    grid-template-columns: 1fr;
+  }
+}

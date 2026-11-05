@@ -2,9 +2,12 @@ import json
 import requests
 from functools import wraps
 from datetime import datetime, timedelta
-from app.models import Contact, HomeLayout, Sector, ServiceAccess, Toner, TonerLocation, TonerMovement, User
+from app.models import (
+    Contact, HomeLayout, LibraryDocument, LibraryFolder, Sector, ServiceAccess, Toner, TonerLocation, TonerMovement,
+    User,
+)
 from app.forms import (
-    LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm, ContactForm,
+    LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm, ContactForm, LibraryDocumentForm, LibraryFolderForm,
 )
 from app.utils import otp, throttle
 from app.utils.dashboards.access import get_user_dashboards
@@ -21,14 +24,19 @@ from app.utils.toners.stock import (
 from app.utils.notifications.delivery import (
     visible_notifications, unread_notifications, serialize_notification,
 )
+from app.utils.library import (
+    ALLOWED_EXTENSIONS, MAX_FILE_SIZE, library_permissions, recipient_choices, serialize_document, serialize_folder,
+    visible_documents, visible_folders,
+)
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import F, ProtectedError
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -719,4 +727,126 @@ def home_layout_api(request):
         save_layout(request.user, payload.get('order'), payload.get('hidden', []), payload.get('sizes', {}))
     except ValueError as error:
         return JsonResponse({'detail': str(error)}, status=400)
+    return JsonResponse({'status': 'success'})
+
+
+
+@login_required
+@require_http_methods(['GET'])
+@track_access(ServiceAccess.LIBRARY)
+def library_view(request):
+    user = request.user
+    permissions = library_permissions(user)
+    documents = list(visible_documents(user).prefetch_related('users', 'groups'))
+    manages = permissions['add_document'] or permissions['change_document']
+
+    return render(request, 'app/library.html', {
+        'folders': [serialize_folder(folder) for folder in visible_folders(user, documents)],
+        'documents': [serialize_document(document, user) for document in documents],
+        'permissions': permissions,
+        # A lista de quem pode receber só vai para quem escolhe os destinatários
+        'recipients': recipient_choices() if manages else {'users': [], 'groups': []},
+        'accept': ','.join(f'.{extension}' for extension in ALLOWED_EXTENSIONS),
+        'max_file_size': MAX_FILE_SIZE,
+    })
+
+
+@login_required
+@require_http_methods(['GET'])
+def library_download_view(request, document_id):
+    # Só baixa o que foi liberado para este usuário
+    document = get_object_or_404(visible_documents(request.user), id=document_id)
+    try:
+        file = document.file.open('rb')
+    except FileNotFoundError:
+        raise Http404('Arquivo não encontrado.')
+    LibraryDocument.objects.filter(pk=document.pk).update(downloads=F('downloads') + 1)
+    return FileResponse(file, as_attachment=True, filename=document.file_name)
+
+
+@require_POST
+@json_permission_required('app.add_libraryfolder')
+def library_folders_api(request):
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = LibraryFolderForm(payload)
+    if not form.is_valid():
+        return form_errors_response(form)
+    return JsonResponse({'folder': serialize_folder(form.save())}, status=201)
+
+
+@require_http_methods(['POST', 'DELETE'])
+def library_folder_api(request, folder_id):
+    if request.method == 'DELETE':
+        return library_folder_delete(request, folder_id)
+    return library_folder_update(request, folder_id)
+
+
+@json_permission_required('app.change_libraryfolder')
+def library_folder_update(request, folder_id):
+    folder = get_object_or_404(LibraryFolder, id=folder_id)
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+
+    form = LibraryFolderForm(payload, instance=folder)
+    if not form.is_valid():
+        return form_errors_response(form)
+    return JsonResponse({'folder': serialize_folder(form.save())})
+
+
+@json_permission_required('app.delete_libraryfolder')
+def library_folder_delete(request, folder_id):
+    folder = get_object_or_404(LibraryFolder, id=folder_id)
+    # A pasta só sai vazia: apagar os documentos junto é fácil demais de fazer sem querer
+    try:
+        folder.delete()
+    except ProtectedError:
+        return JsonResponse(
+            {'detail': 'A pasta ainda tem documentos. Mova ou exclua os documentos antes de excluí-la.'},
+            status=400,
+        )
+    return JsonResponse({'status': 'success'})
+
+
+@require_POST
+@json_permission_required('app.add_librarydocument')
+def library_documents_api(request):
+    form = LibraryDocumentForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    with transaction.atomic():
+        document = form.save(commit=False)
+        document.created_by = request.user
+        document.save()
+        form.save_m2m()
+    return JsonResponse({'document': serialize_document(document, request.user)}, status=201)
+
+
+@require_http_methods(['POST', 'DELETE'])
+def library_document_api(request, document_id):
+    if request.method == 'DELETE':
+        return library_document_delete(request, document_id)
+    return library_document_update(request, document_id)
+
+
+@json_permission_required('app.change_librarydocument')
+def library_document_update(request, document_id):
+    document = get_object_or_404(LibraryDocument, id=document_id)
+    form = LibraryDocumentForm(request.POST, request.FILES, instance=document)
+    if not form.is_valid():
+        return form_errors_response(form)
+
+    with transaction.atomic():
+        document = form.save()
+    return JsonResponse({'document': serialize_document(document, request.user)})
+
+
+@json_permission_required('app.delete_librarydocument')
+def library_document_delete(request, document_id):
+    document = get_object_or_404(LibraryDocument, id=document_id)
+    document.delete()
     return JsonResponse({'status': 'success'})

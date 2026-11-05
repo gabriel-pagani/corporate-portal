@@ -51,8 +51,11 @@ services:
     image: intranet-django
     expose:
       - "8000"
+    # Os documentos da biblioteca ficam no media_volume, servidos só pelo django,
+    # que confere a quem cada um foi liberado. O backup do banco não os inclui.
     volumes:
       - static_volume:/app/static_root
+      - media_volume:/app/media_root
     env_file:
       - .env
     environment:
@@ -139,6 +142,7 @@ services:
 
 volumes:
   static_volume:
+  media_volume:
   postgres_data:
   redis_data:
 

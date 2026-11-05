@@ -5,7 +5,8 @@ from app.views import (
     login_view, logout_view, customers_vendors_api, toners_view, toners_api, toner_api,
     toner_movements_api, toner_requests_api, notifications_view, notifications_api, notification_read_api,
     notifications_read_all_api, contact_update_api, customers_vendors_view, login_token_view, otp_setup_view,
-    tickets_view, home_layout_api,
+    tickets_view, home_layout_api, library_view, library_download_view, library_folders_api, library_folder_api,
+    library_documents_api, library_document_api,
 )
 
 app_name = 'app'
@@ -24,6 +25,8 @@ urlpatterns = [
     path('notifications/', notifications_view, name='notifications'),
     path('customers-vendors/', customers_vendors_view, name='customers-vendors'),
     path('tickets/', tickets_view, name='tickets'),
+    path('library/', library_view, name='library'),
+    path('library/documents/<int:document_id>/download/', library_download_view, name='library-download'),
 
     # API
     path('api/home/layout/', home_layout_api, name='home-layout-api'),
@@ -33,6 +36,10 @@ urlpatterns = [
     path('api/toners/requests/', toner_requests_api, name='toner-requests-api'),
     path('api/toners/<int:toner_id>/', toner_api, name='toner-api'),
     path('api/toners/<int:toner_id>/movements/', toner_movements_api, name='toner-movements-api'),
+    path('api/library/folders/', library_folders_api, name='library-folders-api'),
+    path('api/library/folders/<int:folder_id>/', library_folder_api, name='library-folder-api'),
+    path('api/library/documents/', library_documents_api, name='library-documents-api'),
+    path('api/library/documents/<int:document_id>/', library_document_api, name='library-document-api'),
     path('api/notifications/', notifications_api, name='notifications-api'),
     path('api/notifications/read-all/', notifications_read_all_api, name='notifications-read-all-api'),
     path('api/notifications/<int:notification_id>/read/', notification_read_api, name='notification-read-api'),

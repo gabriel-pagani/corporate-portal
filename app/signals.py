@@ -3,11 +3,12 @@ from datetime import timedelta
 from django.contrib.auth.models import Permission
 from django.contrib.auth.signals import user_logged_in, user_login_failed
 from django.db.models import Q
-from django.db.models.signals import post_save, pre_save
+from django.db import transaction
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import Notification, Toner, User
+from .models import LibraryDocument, Notification, Toner, User
 from .utils import throttle
 
 
@@ -80,3 +81,32 @@ def notify_low_toner_stock(sender, instance, raw=False, **kwargs):
         end_at=now + timedelta(days=1),
     )
     notification.users.set(recipients)
+
+
+def delete_stored_file(storage, name):
+    # Só depois do commit: se a transação voltar atrás, o documento continua
+    # apontando para o arquivo, e ele precisa estar lá
+    if name:
+        transaction.on_commit(lambda: storage.delete(name))
+
+
+@receiver(pre_save, sender=LibraryDocument)
+def remember_library_file(sender, instance, raw=False, **kwargs):
+    instance._previous_file = None
+    if raw or not instance.pk:
+        return
+    instance._previous_file = sender.objects.filter(pk=instance.pk).values_list('file', flat=True).first()
+
+
+# Trocar o arquivo do documento não apaga o antigo por conta própria
+@receiver(post_save, sender=LibraryDocument)
+def delete_replaced_library_file(sender, instance, raw=False, **kwargs):
+    previous = getattr(instance, '_previous_file', None)
+    if raw or not previous or previous == instance.file.name:
+        return
+    delete_stored_file(instance.file.storage, previous)
+
+
+@receiver(post_delete, sender=LibraryDocument)
+def delete_library_file(sender, instance, **kwargs):
+    delete_stored_file(instance.file.storage, instance.file.name)

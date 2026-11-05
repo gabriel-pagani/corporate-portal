@@ -35,7 +35,7 @@ def test_cards_follow_the_sidebar_permissions(client):
     client.force_login(make_user())
 
     assert card_order(client) == [
-        ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS,
+        ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS, ServiceAccess.LIBRARY,
     ]
 
 
@@ -46,8 +46,8 @@ def test_cards_show_every_service_the_user_can_open(client):
     client.force_login(user)
 
     assert card_order(client) == [
-        ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS, ServiceAccess.DASHBOARDS,
-        ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
+        ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS, ServiceAccess.LIBRARY,
+        ServiceAccess.DASHBOARDS, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
     ]
 
 
@@ -62,6 +62,7 @@ def test_cards_are_ordered_by_access_count(client):
 
     assert card_order(client) == [
         ServiceAccess.TONERS, ServiceAccess.NOTIFICATIONS, ServiceAccess.CONTACTS, ServiceAccess.TICKETS,
+        ServiceAccess.LIBRARY,
     ]
 
 
@@ -248,12 +249,14 @@ def test_saved_layout_orders_and_hides_cards(client):
     client.force_login(user)
 
     response = save_layout(client, {
-        'order': [ServiceAccess.TICKETS, ServiceAccess.NOTIFICATIONS, ServiceAccess.CONTACTS],
+        'order': [ServiceAccess.TICKETS, ServiceAccess.NOTIFICATIONS, ServiceAccess.CONTACTS, ServiceAccess.LIBRARY],
         'hidden': [ServiceAccess.NOTIFICATIONS],
     })
 
     assert response.status_code == 200
-    assert card_order(client) == [ServiceAccess.TICKETS, ServiceAccess.NOTIFICATIONS, ServiceAccess.CONTACTS]
+    assert card_order(client) == [
+        ServiceAccess.TICKETS, ServiceAccess.NOTIFICATIONS, ServiceAccess.CONTACTS, ServiceAccess.LIBRARY,
+    ]
     assert hidden_cards(client) == [ServiceAccess.NOTIFICATIONS]
 
 
@@ -262,7 +265,7 @@ def test_service_gained_after_the_layout_goes_to_the_end(client):
     user = make_user()
     client.force_login(user)
     save_layout(client, {
-        'order': [ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS],
+        'order': [ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.LIBRARY],
         'hidden': [],
     })
 
@@ -271,7 +274,8 @@ def test_service_gained_after_the_layout_goes_to_the_end(client):
     client.force_login(user)
 
     assert card_order(client) == [
-        ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TONERS,
+        ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.LIBRARY,
+        ServiceAccess.TONERS,
     ]
     assert hidden_cards(client) == []
 
@@ -309,7 +313,9 @@ def test_reset_goes_back_to_the_access_order(client):
     response = client.delete(reverse('app:home-layout-api'))
 
     assert response.status_code == 200
-    assert response.json()['order'] == [ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS]
+    assert response.json()['order'] == [
+        ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.LIBRARY,
+    ]
     assert card_order(client) == response.json()['order']
     assert hidden_cards(client) == []
 
@@ -319,7 +325,7 @@ def test_all_cards_hidden_shows_the_empty_message(client):
     client.force_login(make_user())
     save_layout(client, {
         'order': [],
-        'hidden': [ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS],
+        'hidden': [ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS, ServiceAccess.LIBRARY],
     })
 
     content = client.get(reverse('app:home')).content.decode()
@@ -342,7 +348,7 @@ def test_cards_start_with_the_same_default_height(client):
     heights = card_heights(client)
 
     assert set(heights.values()) == {CARD_DEFAULT_HEIGHT}
-    assert len(heights) == 3
+    assert len(heights) == 4
 
 
 @pytest.mark.django_db

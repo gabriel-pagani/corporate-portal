@@ -1,0 +1,169 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Biblioteca{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'global/css/sidebar.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/library.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div class="sidebar" id="sidebar">
+            <div class="logo">
+                <a href="{% url "app:home" %}" title="Voltar ao menu principal">
+                    <img src="{% static 'global/images/white_logo.png' %}" id="logo-img"
+                        data-full-logo="{% static 'global/images/white_logo.png' %}"
+                        data-icon-logo="{% static 'global/images/icon.png' %}"
+                    />
+                </a>
+            </div>
+
+            <nav class="menu" aria-label="Pastas da biblioteca">
+                <div class="search-container">
+                    <input type="search" id="search-input" placeholder="Pesquise aqui..." autocomplete="off" aria-label="Pesquisar documentos">
+                </div>
+                <ul class="folder-list" id="folder-list"></ul>
+                {% if permissions.add_folder %}
+                <button type="button" class="folder-link new-folder" id="open-folder-modal" title="Criar uma pasta">
+                    <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                    <span class="text">Nova pasta</span>
+                </button>
+                {% endif %}
+            </nav>
+
+            <div class="bottom">
+                <a href="{% url "app:home" %}" title="Voltar ao menu principal">
+                    <i class="fas fa-arrow-left"></i>
+                    <span class="text">Voltar</span>
+                </a>
+                <button id="toggle" title="Minimizar menu lateral"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+
+        <main class="main-content library" id="library"
+            data-csrf-token="{{ csrf_token }}"
+            data-folders-url="{% url 'app:library-folders-api' %}"
+            data-documents-url="{% url 'app:library-documents-api' %}"
+        >
+            <header class="library-toolbar">
+                <nav class="library-breadcrumb" id="library-breadcrumb" aria-label="Local atual"></nav>
+                <div class="library-actions">
+                    {% if permissions.change_folder %}
+                    <button type="button" class="library-button" id="rename-folder" hidden>
+                        <i class="fas fa-pen" aria-hidden="true"></i> Renomear pasta
+                    </button>
+                    {% endif %}
+                    {% if permissions.delete_folder %}
+                    <button type="button" class="library-button danger" id="delete-folder" hidden>
+                        <i class="fas fa-trash" aria-hidden="true"></i> Excluir pasta
+                    </button>
+                    {% endif %}
+                    {% if permissions.add_document %}
+                    <button type="button" class="library-button primary" id="open-document-modal">
+                        <i class="fas fa-file-arrow-up" aria-hidden="true"></i> Novo documento
+                    </button>
+                    {% endif %}
+                </div>
+            </header>
+
+            <div class="library-message" id="library-message" role="status" hidden></div>
+
+            <section class="library-grid" id="library-grid" aria-live="polite"></section>
+
+            <div class="library-empty" id="library-empty" hidden>
+                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                <p id="library-empty-text"></p>
+            </div>
+        </main>
+
+        {% if permissions.add_folder or permissions.change_folder %}
+        <dialog id="folder-modal" class="form-modal folder-modal" aria-labelledby="folder-modal-title">
+            <div class="modal-header">
+                <h2 id="folder-modal-title">Nova pasta</h2>
+                <button type="button" class="modal-close" data-close-modal aria-label="Fechar formulário">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <form id="folder-form" class="form-grid" autocomplete="off">
+                <div class="field field-wide">
+                    <label for="folder-name">Nome</label>
+                    <input id="folder-name" name="name" type="text" maxlength="100" placeholder="Ex: Procedimentos de Segurança" required>
+                </div>
+                <div id="folder-error" class="form-error modal-form-error" role="alert" hidden></div>
+                <div class="modal-actions">
+                    <button type="button" class="button" data-close-modal>Cancelar</button>
+                    <button type="submit" class="button primary" id="folder-submit">Criar</button>
+                </div>
+            </form>
+        </dialog>
+        {% endif %}
+
+        {% if permissions.add_document or permissions.change_document %}
+        <dialog id="document-modal" class="form-modal document-modal" aria-labelledby="document-modal-title">
+            <div class="modal-header">
+                <h2 id="document-modal-title">Novo documento</h2>
+                <button type="button" class="modal-close" data-close-modal aria-label="Fechar formulário">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <form id="document-form" class="form-grid" autocomplete="off">
+                <div class="field">
+                    <label for="document-title">Título</label>
+                    <input id="document-title" name="title" type="text" maxlength="150" placeholder="Ex: Manual de Integração" required>
+                </div>
+                <div class="field">
+                    <label for="document-folder">Pasta</label>
+                    <select id="document-folder" name="folder" required></select>
+                </div>
+                <div class="field field-wide">
+                    <label for="document-description">Descrição (opcional)</label>
+                    <textarea id="document-description" name="description" rows="3" placeholder="Do que se trata o documento"></textarea>
+                </div>
+                <div class="field field-wide">
+                    <label for="document-file" id="document-file-label">Arquivo (até 20 MB)</label>
+                    <input id="document-file" name="file" type="file" accept="{{ accept }}">
+                    <small class="field-hint" id="document-file-current" hidden></small>
+                </div>
+                <fieldset class="recipients field-wide">
+                    <legend>Liberar para</legend>
+                    <p class="form-hint">Deixe usuários e grupos em branco para liberar a todos.</p>
+                    <div class="recipient-pickers">
+                        <div class="recipient-picker" data-picker="users">
+                            <div class="recipient-picker-header">
+                                <span>Usuários</span>
+                                <small data-picker-count></small>
+                            </div>
+                            <input type="search" class="recipient-search" placeholder="Pesquisar usuários..." aria-label="Pesquisar usuários">
+                            <ul class="recipient-options" data-picker-options></ul>
+                        </div>
+                        <div class="recipient-picker" data-picker="groups">
+                            <div class="recipient-picker-header">
+                                <span>Grupos</span>
+                                <small data-picker-count></small>
+                            </div>
+                            <input type="search" class="recipient-search" placeholder="Pesquisar grupos..." aria-label="Pesquisar grupos">
+                            <ul class="recipient-options" data-picker-options></ul>
+                        </div>
+                    </div>
+                    <p class="recipients-summary" id="recipients-summary"></p>
+                </fieldset>
+                <div id="document-error" class="form-error modal-form-error" role="alert" hidden></div>
+                <div class="modal-actions">
+                    <button type="button" class="button" data-close-modal>Cancelar</button>
+                    <button type="submit" class="button primary" id="document-submit">Enviar</button>
+                </div>
+            </form>
+        </dialog>
+        {% endif %}
+
+        {{ folders|json_script:"library-folders" }}
+        {{ documents|json_script:"library-documents" }}
+        {{ permissions|json_script:"library-permissions" }}
+        {{ recipients|json_script:"library-recipients" }}
+        {{ max_file_size|json_script:"library-max-file-size" }}
+
+        <script src="{% static 'global/js/sidebar.js' %}"></script>
+        <script src="{% static 'app/js/library.js' %}"></script>
+{% endblock body %}

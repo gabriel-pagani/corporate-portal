@@ -1,3 +1,5 @@
+import os
+import uuid
 from django.db import models
 from django.contrib import admin
 from django.conf import settings
@@ -349,10 +351,83 @@ class Notification(models.Model):
         verbose_name_plural = 'Notificações'
 
 
+class LibraryFolder(models.Model):
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        error_messages={'unique': 'Já existe uma pasta com este nome.'},
+        verbose_name='Nome',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Pasta da Biblioteca'
+        verbose_name_plural = 'Pastas da Biblioteca'
+
+
+def library_upload_to(instance, filename):
+    # O nome guardado no disco é sorteado: o original vai no file_name e volta
+    # só no download. Assim dois envios com o mesmo nome não se atropelam, e o
+    # caminho no disco não diz nada sobre o documento.
+    extension = os.path.splitext(filename)[1].lower()
+    return f'library/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}'
+
+
+class LibraryDocument(models.Model):
+    title = models.CharField(max_length=150, verbose_name='Título')
+    description = models.TextField(blank=True, verbose_name='Descrição')
+    folder = models.ForeignKey(
+        LibraryFolder,
+        on_delete=models.PROTECT,
+        related_name='documents',
+        verbose_name='Pasta',
+    )
+    file = models.FileField(upload_to=library_upload_to, max_length=255, verbose_name='Arquivo')
+    file_name = models.CharField(max_length=255, verbose_name='Nome do arquivo')
+    file_size = models.PositiveBigIntegerField(default=0, verbose_name='Tamanho')
+    users = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name='library_documents',
+        verbose_name='Usuários',
+        help_text='Deixe usuários e grupos em branco para liberar a todos.',
+    )
+    groups = models.ManyToManyField(
+        BaseGroup,
+        blank=True,
+        related_name='library_documents',
+        verbose_name='Grupos',
+    )
+    downloads = models.PositiveIntegerField(default=0, verbose_name='Downloads')
+    created_by = models.ForeignKey(
+        User,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='created_library_documents',
+        verbose_name='Autor',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        ordering = ['title']
+        verbose_name = 'Documento da Biblioteca'
+        verbose_name_plural = 'Documentos da Biblioteca'
+
+
 class ServiceAccess(models.Model):
     CONTACTS = 'contacts'
     NOTIFICATIONS = 'notifications'
     TICKETS = 'tickets'
+    LIBRARY = 'library'
     DASHBOARDS = 'dashboards'
     TONERS = 'toners'
     CUSTOMERS_VENDORS = 'customers-vendors'
@@ -361,6 +436,7 @@ class ServiceAccess(models.Model):
         (CONTACTS, 'Lista de Contatos'),
         (NOTIFICATIONS, 'Mural de Notificações'),
         (TICKETS, 'Central de Chamados'),
+        (LIBRARY, 'Biblioteca'),
         (DASHBOARDS, 'Central de Dashboards'),
         (TONERS, 'Controle de Toners'),
         (CUSTOMERS_VENDORS, 'Clientes e Fornecedores'),
