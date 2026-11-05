@@ -1,7 +1,7 @@
 import pytest
 from django.contrib.admin.sites import site
-from app.admin import ContactAdmin, TonerAdmin
-from app.models import Contact, Toner, TonerLocation
+from app.admin import DashboardAdmin, SectorAdmin
+from app.models import Dashboard, Sector
 
 
 # A busca do painel roda pelo get_search_results do próprio admin, que é onde o
@@ -13,23 +13,23 @@ def search(admin_class, model, term):
 
 @pytest.mark.django_db
 def test_search_without_accent_finds_accented_name():
-    contact = Contact.objects.create(name='José Antônio')
-    assert search(ContactAdmin, Contact, 'jose antonio') == [contact]
+    sector = Sector.objects.create(name='Logística Pátio')
+    assert search(SectorAdmin, Sector, 'logistica patio') == [sector]
 
 
 @pytest.mark.django_db
 def test_search_with_accent_still_finds_the_same_name():
-    contact = Contact.objects.create(name='José Antônio')
-    assert search(ContactAdmin, Contact, 'JOSÉ') == [contact]
+    sector = Sector.objects.create(name='Logística Pátio')
+    assert search(SectorAdmin, Sector, 'LOGÍSTICA') == [sector]
 
 
 @pytest.mark.django_db
 def test_search_reaches_the_accented_name_of_a_related_record():
-    toner = Toner.objects.create(name='CF410A', location=TonerLocation.objects.create(name='Almoxarifado Térreo'))
-    assert search(TonerAdmin, Toner, 'terreo') == [toner]
+    dashboard = Dashboard.objects.create(title='Vendas', sector=Sector.objects.create(name='Almoxarifado Térreo'))
+    assert search(DashboardAdmin, Dashboard, 'terreo') == [dashboard]
 
 
 @pytest.mark.django_db
 def test_search_that_matches_nothing_stays_empty():
-    Contact.objects.create(name='José Antônio')
-    assert search(ContactAdmin, Contact, 'mariana') == []
+    Sector.objects.create(name='Logística Pátio')
+    assert search(SectorAdmin, Sector, 'mariana') == []

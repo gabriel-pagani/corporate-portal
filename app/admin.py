@@ -9,8 +9,7 @@ from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from .models import (
-    User, Group, Sector, Dashboard, GroupDashboards, Contact, Toner, TonerLocation, TonerMovement,
-    TonerRequest, TonerRequestItem, Notification,
+    User, Group, Sector, Dashboard, GroupDashboards, TonerLocation, TonerRequest, TonerRequestItem, Notification,
 )
 from .utils.permissions_report import permissions_report_pdf, user_permissions_report
 
@@ -110,17 +109,6 @@ class SectorAdmin(VersionAdmin, UnaccentSearchAdmin):
     search_fields = ('name__unaccent',)
 
 
-@admin.register(Contact)
-class ContactAdmin(VersionAdmin, UnaccentSearchAdmin):
-    list_display = ('get_display_name', 'number', 'sector', 'machine',)
-    search_fields = (
-        'name__unaccent', 'user__username', 'user__first_name__unaccent', 'user__last_name__unaccent',
-        'number', 'sector__name__unaccent', 'machine',
-    )
-    list_filter = ('sector',)
-    autocomplete_fields = ('sector', 'user')
-
-
 @admin.register(Dashboard)
 class DashboardAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('title', 'sector', 'status')
@@ -183,52 +171,10 @@ class DashboardAdmin(VersionAdmin, UnaccentSearchAdmin):
         )
 
 
-# A quantidade só muda por movimentação, para o histórico sempre fechar com o estoque
-class TonerMovementInline(admin.TabularInline):
-    model = TonerMovement
-    extra = 0
-    can_delete = False
-    fields = ('created_at', 'type', 'quantity', 'reason', 'user',)
-    readonly_fields = fields
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-
 @admin.register(TonerLocation)
 class TonerLocationAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('name',)
     search_fields = ('name__unaccent',)
-
-
-@admin.register(Toner)
-class TonerAdmin(VersionAdmin, UnaccentSearchAdmin):
-    list_display = ('name', 'location', 'observations', 'idprd', 'quantity', 'minimum_quantity', 'requested_quantity', 'is_stock_ok',)
-    search_fields = ('name', 'location__name__unaccent', 'observations__unaccent',)
-    list_filter = ('location',)
-    readonly_fields = ('quantity', 'updated_at',)
-    autocomplete_fields = ('location',)
-    inlines = (TonerMovementInline,)
-
-    def get_readonly_fields(self, request, obj=None):
-        # O nome identifica o toner no histórico, então só muda enquanto não houver movimentação
-        if obj and obj.movements.exists():
-            return self.readonly_fields + ('name',)
-        return self.readonly_fields
-
-
-@admin.register(TonerMovement)
-class TonerMovementAdmin(UnaccentSearchAdmin):
-    list_display = ('created_at', 'toner', 'type', 'quantity', 'reason', 'user',)
-    search_fields = ('toner__name', 'toner__location__name__unaccent', 'reason__unaccent', 'user__username',)
-    list_filter = ('type', 'toner__location',)
-    date_hierarchy = 'created_at'
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
 
 
 class TonerRequestItemInline(admin.TabularInline):
