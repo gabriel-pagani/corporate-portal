@@ -506,6 +506,16 @@ document.addEventListener('DOMContentLoaded', () => {
     botaoPersonalizar.addEventListener('click', entrarEdicao);
     botaoConcluir.addEventListener('click', sairEdicao);
 
+    // Esc conclui a personalização, como o botão Concluir. Fica na captura para
+    // ver o menu do usuário antes de ele fechar: com o menu aberto, Esc só o fecha.
+    // No meio de um arrasto ou de um ajuste de altura, espera soltar
+    document.addEventListener('keydown', (evento) => {
+        if (evento.key !== 'Escape' || !editando || arrasto || redimensionamento) return;
+        if (document.getElementById('user-dropdown')?.classList.contains('show')) return;
+        evento.preventDefault();
+        sairEdicao();
+    }, true);
+
     botaoRestaurar.addEventListener('click', async () => {
         clearTimeout(temporizador);
         temporizador = null;
