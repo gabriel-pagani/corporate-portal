@@ -76,7 +76,7 @@ async function requisitar(url, metodo = 'GET', corpo = null) {
 
     // O nginx recusa o upload grande antes do django, com uma página HTML
     if (resposta.status === 413) {
-        throw new Error('O arquivo passa de 20 MB.');
+        throw new Error('O arquivo passa de 50 MB.');
     }
     const dados = await resposta.json().catch(() => ({}));
     if (!resposta.ok) {
@@ -455,8 +455,8 @@ function abrirModalDocumento(documento = null) {
     arquivo.value = '';
     arquivo.required = !documento;
     document.getElementById('document-file-label').textContent = documento
-        ? 'Substituir o arquivo (opcional, até 20 MB)'
-        : 'Arquivo (até 20 MB)';
+        ? 'Substituir o arquivo (opcional, até 50 MB)'
+        : 'Arquivo (até 50 MB)';
     const atual = document.getElementById('document-file-current');
     atual.hidden = !documento;
     atual.textContent = documento ? `Arquivo atual: ${documento.file_name} (${formatarTamanho(documento.size)})` : '';
@@ -480,7 +480,7 @@ async function aoSalvarDocumento(evento) {
     const arquivo = document.getElementById('document-file').files[0];
 
     if (arquivo && arquivo.size > TAMANHO_MAXIMO) {
-        erro.textContent = 'O arquivo passa de 20 MB.';
+        erro.textContent = 'O arquivo passa de 50 MB.';
         erro.hidden = false;
         return;
     }

@@ -297,7 +297,7 @@ def test_document_refuses_large_files(client, manager, folder):
     })
 
     assert response.status_code == 400
-    assert response.json()['detail'] == 'O arquivo passa de 20 MB.'
+    assert response.json()['detail'] == 'O arquivo passa de 50 MB.'
     assert not LibraryDocument.objects.exists()
 
 

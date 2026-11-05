@@ -109,7 +109,7 @@ class LibraryDocumentForm(forms.ModelForm):
         if not isinstance(file, UploadedFile):
             return file
         if file.size > MAX_FILE_SIZE:
-            raise forms.ValidationError('O arquivo passa de 20 MB.')
+            raise forms.ValidationError('O arquivo passa de 50 MB.')
         if file_extension(file.name) not in ALLOWED_EXTENSIONS:
             raise forms.ValidationError('Este tipo de arquivo não é aceito na biblioteca.')
         return file

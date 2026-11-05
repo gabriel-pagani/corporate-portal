@@ -19,7 +19,7 @@ from app.utils.notifications.delivery import author_name
 
 # O mesmo limite do nginx para as rotas de envio: acima dele o upload nem chega
 # ao django
-MAX_FILE_SIZE = 20 * 1024 * 1024
+MAX_FILE_SIZE = 50 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = (
     'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
