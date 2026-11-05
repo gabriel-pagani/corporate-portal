@@ -146,24 +146,16 @@ window.addEventListener('popstate', () => {
 
 function renderizarSidebar() {
     const lista = document.getElementById('folder-list');
-    const itens = [
-        `<li>
-            <button type="button" class="folder-link${pastaAtual === null ? ' active' : ''}" data-folder="" title="Todos os arquivos">
-                <i class="fas fa-book" aria-hidden="true"></i>
-                <span class="text">Todos os arquivos</span>
-                <span class="folder-count">${documentos.length}</span>
-            </button>
-        </li>`,
-        ...pastas.map((pasta) => `
+    // Só as pastas: a lista de todos os arquivos é a própria página, e volta-se
+    // a ela pelo "Biblioteca" do caminho
+    lista.innerHTML = pastas.map((pasta) => `
         <li>
             <button type="button" class="folder-link${pasta.id === pastaAtual ? ' active' : ''}" data-folder="${pasta.id}" title="${escaparHtml(pasta.name)}">
                 <i class="fas ${pasta.id === pastaAtual ? 'fa-folder-open' : 'fa-folder'}" aria-hidden="true"></i>
                 <span class="text">${escaparHtml(pasta.name)}</span>
                 <span class="folder-count">${documentosDaPasta(pasta.id).length}</span>
             </button>
-        </li>`),
-    ];
-    lista.innerHTML = itens.join('');
+        </li>`).join('');
 }
 
 function renderizarCaminho(termo) {
