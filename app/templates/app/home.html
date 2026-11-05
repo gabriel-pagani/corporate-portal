@@ -67,16 +67,16 @@
                         <i class="fas fa-chevron-down dropdown-icon"></i>
                     </a>
                     <div class="user-dropdown" id="user-dropdown">
-                        <button type="button" class="dropdown-button" id="quick-access-customize" title="Escolher e organizar os cards da página inicial">
-                            <i class="fas fa-sliders"></i>
-                            <span class="text">Personalizar</span>
-                        </button>
                         {% if request.user.is_staff %}
                             <a href="{% url "admin:index" %}" title="Acessar portal de administração do site">
                                 <i class="fa-solid fa-screwdriver-wrench"></i>
                                 <span class="text">Portal de Administração</span>
                             </a>
-                        {% endif %}
+                        {% endif %}                        
+                        <button type="button" class="dropdown-button" id="quick-access-customize" title="Escolher e organizar os cards da página inicial">
+                            <i class="fas fa-sliders"></i>
+                            <span class="text">Personalizar</span>
+                        </button>
                         <form action="{% url "app:logout" %}" method="post">
                             {% csrf_token %}
                             <button type="submit" class="dropdown-button" title="Se desconectar">
