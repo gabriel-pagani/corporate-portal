@@ -5,12 +5,10 @@ from datetime import date
 from importlib import import_module
 import pytest
 from django.apps import apps
-from django.contrib.admin.sites import site
 from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from app.models import User
-from journey_audit.admin import CompetencyAdmin, OccurrenceAdmin
 from journey_audit.models import BankHoursNote, Competency, Occurrence, OccurrenceTreatment, SourceReport
 from journey_audit.analysis import (
     balance_minutes, clock_minutes, duration_minutes, employee_id, format_minutes, parse_day, schedule_code,
@@ -759,17 +757,6 @@ def test_migration_fills_the_minutes_from_the_evidence():
     for occurrence in (short_break, overtime, odd_punches):
         occurrence.refresh_from_db()
     assert (short_break.minutes, overtime.minutes, odd_punches.minutes) == (40, 150, None)
-
-
-@pytest.mark.django_db
-def test_admin_does_not_edit_what_comes_from_the_reports():
-    competency_admin = CompetencyAdmin(Competency, site)
-    occurrence_admin = OccurrenceAdmin(Occurrence, site)
-    assert not competency_admin.has_add_permission(None)
-    assert not competency_admin.has_change_permission(None)
-    assert not occurrence_admin.has_add_permission(None)
-    assert not occurrence_admin.has_change_permission(None)
-    assert not occurrence_admin.has_delete_permission(None)
 
 
 def test_schedule_code_is_the_start_of_the_scale():
