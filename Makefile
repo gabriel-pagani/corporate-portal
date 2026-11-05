@@ -5,8 +5,11 @@ COMPOSE = docker compose -f deploy/docker-compose.yml
 # As tags das imagens (postgres:16, python:3.12-slim-bookworm...) recebem as
 # correções de segurança sem mudar de nome. Sem o pull, o build reaproveita a
 # imagem que já está na máquina, e o Dependabot não avisa porque a tag é a mesma.
+#
+# O nginx só lê o http.conf ao subir, e o up -d não recria o container quando
+# só o arquivo montado muda: sem o restart, a configuração nova fica de fora.
 build:
-	@$(COMPOSE) pull --ignore-buildable && $(COMPOSE) build --pull && $(COMPOSE) up -d
+	@$(COMPOSE) pull --ignore-buildable && $(COMPOSE) build --pull && $(COMPOSE) up -d && $(COMPOSE) restart nginx
 
 start:
 	@$(COMPOSE) up -d

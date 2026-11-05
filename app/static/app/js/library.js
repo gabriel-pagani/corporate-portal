@@ -74,9 +74,11 @@ async function requisitar(url, metodo = 'GET', corpo = null) {
         throw new Error('Não foi possível se comunicar com o servidor.');
     }
 
-    // O nginx recusa o upload grande antes do django, com uma página HTML
+    // O nginx recusa o upload grande antes do django, com uma página HTML. O
+    // arquivo acima de 50 MB já foi barrado aqui antes do envio: chegar a isto é
+    // o servidor com um limite menor que o do portal
     if (resposta.status === 413) {
-        throw new Error('O arquivo passa de 50 MB.');
+        throw new Error('O servidor recusou o envio por tamanho. Avise a TI.');
     }
     const dados = await resposta.json().catch(() => ({}));
     if (!resposta.ok) {
