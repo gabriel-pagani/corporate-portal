@@ -29,7 +29,7 @@
                     <span class="text">Mural de Notificações</span>
                     <span class="notification-unread-badge" id="notification-unread-badge" hidden></span>
                 </a>    
-                <a href="http://servicos.gruposmi.com.br/front/ticket.php" title="Acessar central de chamados">
+                <a href="{% url "app:tickets" %}" title="Acessar central de chamados">
                     <i class="fas fa-headphones"></i>
                     <span class="text">Central de Chamados</span>
                 </a>                            
@@ -67,6 +67,10 @@
                         <i class="fas fa-chevron-down dropdown-icon"></i>
                     </a>
                     <div class="user-dropdown" id="user-dropdown">
+                        <button type="button" class="dropdown-button" id="quick-access-customize" title="Escolher e organizar os cards da página inicial">
+                            <i class="fas fa-sliders"></i>
+                            <span class="text">Personalizar</span>
+                        </button>
                         {% if request.user.is_staff %}
                             <a href="{% url "admin:index" %}" title="Acessar portal de administração do site">
                                 <i class="fa-solid fa-screwdriver-wrench"></i>
@@ -75,7 +79,7 @@
                         {% endif %}
                         <form action="{% url "app:logout" %}" method="post">
                             {% csrf_token %}
-                            <button type="submit" class="logout-button" title="Se desconectar">
+                            <button type="submit" class="dropdown-button" title="Se desconectar">
                                 <i class="fas fa-sign-out-alt"></i>
                                 <span class="text">Sair</span>
                             </button>
@@ -86,7 +90,54 @@
             </div>
         </div>
 
-        <div class="main-content"></div>
+        <main class="main-content">
+            <div class="quick-access-toolbar" id="quick-access-toolbar" hidden
+                data-layout-url="{% url 'app:home-layout-api' %}"
+                data-csrf-token="{{ csrf_token }}">
+                <p class="toolbar-hint" id="quick-access-hint" hidden>Arraste os cards para reorganizar e use o olho para ocultar ou exibir.</p>
+                <button type="button" class="toolbar-button" id="quick-access-reset" hidden title="Voltar à ordem pelos seus acessos, com todos os cards">
+                    <i class="fas fa-rotate-left" aria-hidden="true"></i> Restaurar padrão
+                </button>
+                <button type="button" class="toolbar-button primary" id="quick-access-finish" hidden>
+                    <i class="fas fa-check" aria-hidden="true"></i> Concluir
+                </button>
+            </div>
+
+            <p class="quick-access-empty" id="quick-access-empty"{% if visible_cards %} hidden{% endif %}>
+                Todos os cards estão ocultos. Use <strong>Personalizar</strong>, no menu do seu usuário, para escolher quais exibir.
+            </p>
+
+            <section class="quick-access" id="quick-access" aria-label="Acesso rápido aos serviços">
+                {% for card in cards %}
+                {% with service=card.service preview=card.preview %}
+                <article class="service-card service-{{ service.key }}{% if card.hidden %} is-hidden{% endif %}" data-service="{{ service.key }}">
+                    <div class="card-edit-controls">
+                        <span class="card-drag-handle" title="Arraste para mover" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
+                        <button type="button" class="card-visibility" aria-pressed="{{ card.hidden|yesno:'false,true' }}"
+                            title="{% if card.hidden %}Exibir{% else %}Ocultar{% endif %} o card {{ service.title }}">
+                            <i class="fas {% if card.hidden %}fa-eye-slash{% else %}fa-eye{% endif %}" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <a class="service-card-header" href="{{ service.url }}" title="Acessar {{ service.title }}">
+                        <span class="service-card-icon"><i class="fas {{ service.icon }}"></i></span>
+                        <span class="service-card-heading">
+                            <strong>{{ service.title }}</strong>
+                            <small>{{ service.description }}</small>
+                        </span>
+                        <i class="fas fa-arrow-right service-card-open" aria-hidden="true"></i>
+                    </a>
+                    <div class="service-card-body">
+                        <div class="service-card-content">
+                            {% include "app/home_cards/"|add:service.key|add:".html" %}
+                        </div>
+                    </div>
+                </article>
+                {% endwith %}
+                {% endfor %}
+            </section>
+        </main>
+
+        {{ contacts|json_script:"home-contacts" }}
 
         <script src="{% static 'global/js/sidebar.js' %}"></script>
         <script src="{% static 'app/js/home.js' %}"></script>

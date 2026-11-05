@@ -1,0 +1,23 @@
+<div class="preview-summary{% if preview.unread_count %} attention{% endif %}" id="home-unread-summary">
+    <span class="summary-value" id="home-unread-count">{{ preview.unread_count }}</span>
+    <span class="summary-label" id="home-unread-label">não lida{{ preview.unread_count|pluralize }}</span>
+</div>
+<ul class="preview-list" id="home-notifications"
+    data-api-url="{% url 'app:notifications-api' %}?all=1"
+    data-board-url="{% url 'app:notifications' %}"
+    data-limit="{{ preview.latest|length|default:3 }}">
+    {% for notification in preview.latest %}
+    <li class="notification-item level-{{ notification.level }}{% if not notification.is_read %} unread{% endif %}" data-id="{{ notification.id }}">
+        <a href="{% url 'app:notifications' %}" title="{{ notification.level_display }}{% if not notification.is_read %} · não lida{% endif %}">
+            <i class="fas {% if notification.level == 'U' %}fa-circle-exclamation{% elif notification.level == 'A' %}fa-triangle-exclamation{% else %}fa-circle-info{% endif %} item-icon" aria-hidden="true"></i>
+            <span class="item-text">
+                <strong>{{ notification.title }}</strong>
+                <small>{{ notification.message }}</small>
+            </span>
+            <time class="item-aside">{{ notification.start_at }}</time>
+        </a>
+    </li>
+    {% empty %}
+    <li class="preview-empty">Nenhuma notificação no mural.</li>
+    {% endfor %}
+</ul>

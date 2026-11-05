@@ -5,6 +5,7 @@ from app.views import (
     login_view, logout_view, customers_vendors_api, toners_view, toners_api, toner_api,
     toner_movements_api, toner_requests_api, notifications_view, notifications_api, notification_read_api,
     notifications_read_all_api, contact_update_api, customers_vendors_view, login_token_view, otp_setup_view,
+    tickets_view, home_layout_api,
 )
 
 app_name = 'app'
@@ -22,8 +23,10 @@ urlpatterns = [
     path('toners/', toners_view, name='toners'),
     path('notifications/', notifications_view, name='notifications'),
     path('customers-vendors/', customers_vendors_view, name='customers-vendors'),
+    path('tickets/', tickets_view, name='tickets'),
 
     # API
+    path('api/home/layout/', home_layout_api, name='home-layout-api'),
     path('api/customers-vendors/', customers_vendors_api, name='customers-vendors-api'),
     path('api/contacts/<int:contact_id>/', contact_update_api, name='contact-update-api'),
     path('api/toners/', toners_api, name='toners-api'),

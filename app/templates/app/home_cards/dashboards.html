@@ -1,0 +1,22 @@
+{% if preview.favorites %}
+<p class="preview-caption"><i class="fas fa-star" aria-hidden="true"></i> Seus favoritos</p>
+<ul class="preview-list">
+    {% for dashboard in preview.favorites %}
+    <li>
+        <a href="{{ dashboard.url }}" title="Abrir {{ dashboard.title }}">
+            <i class="fas fa-chart-column item-icon" aria-hidden="true"></i>
+            <span class="item-text"><strong>{{ dashboard.title }}</strong></span>
+            <i class="fas fa-chevron-right item-aside" aria-hidden="true"></i>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<a class="preview-static chart" href="{{ service.url }}" tabindex="-1" aria-hidden="true">
+    <span class="mock-bar h40"></span><span class="mock-bar h65"></span><span class="mock-bar h50"></span>
+    <span class="mock-bar h85"></span><span class="mock-bar h60"></span><span class="mock-bar h95"></span>
+    <span class="mock-bar h70"></span>
+</a>
+<p class="preview-hint">Favorite um dashboard para abri-lo direto daqui.</p>
+{% endif %}
+<p class="preview-footer">{{ preview.total }} dashboard{{ preview.total|pluralize }} disponíve{{ preview.total|pluralize:"l,is" }} para você</p>

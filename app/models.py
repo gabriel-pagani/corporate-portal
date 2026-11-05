@@ -339,3 +339,58 @@ class Notification(models.Model):
         ordering = ['-start_at']
         verbose_name = 'Notificação'
         verbose_name_plural = 'Notificações'
+
+
+class ServiceAccess(models.Model):
+    CONTACTS = 'contacts'
+    NOTIFICATIONS = 'notifications'
+    TICKETS = 'tickets'
+    DASHBOARDS = 'dashboards'
+    TONERS = 'toners'
+    CUSTOMERS_VENDORS = 'customers-vendors'
+    JOURNEY_AUDIT = 'journey-audit'
+    SERVICES = [
+        (CONTACTS, 'Lista de Contatos'),
+        (NOTIFICATIONS, 'Mural de Notificações'),
+        (TICKETS, 'Central de Chamados'),
+        (DASHBOARDS, 'Central de Dashboards'),
+        (TONERS, 'Controle de Toners'),
+        (CUSTOMERS_VENDORS, 'Clientes e Fornecedores'),
+        (JOURNEY_AUDIT, 'Auditoria de Jornada'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='service_accesses', verbose_name='Usuário')
+    service = models.CharField(max_length=30, choices=SERVICES, verbose_name='Serviço')
+    count = models.PositiveIntegerField(default=0, verbose_name='Acessos')
+    last_accessed_at = models.DateTimeField(default=timezone.now, verbose_name='Último acesso')
+
+    def __str__(self):
+        return f'{self.user} - {self.get_service_display()} ({self.count})'
+
+    class Meta:
+        ordering = ['user', '-count']
+        verbose_name = 'Acesso a Serviço'
+        verbose_name_plural = 'Acessos a Serviços'
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'service'], name='unique_service_access_per_user'),
+        ]
+
+
+class HomeLayout(models.Model):
+    """
+    Os cards da home como o usuário arrumou: a ordem e os que ficam ocultos.
+
+    Sem layout salvo a home segue a ordem dos acessos. O serviço que o usuário
+    passar a ter depois de arrumar entra no fim, visível.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='home_layout', verbose_name='Usuário')
+    order = models.JSONField(default=list, blank=True, verbose_name='Ordem')
+    hidden = models.JSONField(default=list, blank=True, verbose_name='Ocultos')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
+
+    def __str__(self):
+        return f'Home de {self.user}'
+
+    class Meta:
+        verbose_name = 'Layout da Home'
+        verbose_name_plural = 'Layouts da Home'

@@ -1,0 +1,6 @@
+<form class="contact-search" action="{% url 'app:contacts' %}" method="get" role="search">
+    <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" name="q" id="home-contact-search" placeholder="Buscar por nome, ramal ou setor" autocomplete="off" aria-label="Buscar contatos" aria-controls="home-contact-results">
+</form>
+<ul class="preview-list" id="home-contact-results" data-contacts-url="{% url 'app:contacts' %}" aria-live="polite"></ul>
+<p class="preview-hint" id="home-contact-hint" data-total="{{ preview.contacts|length }}">{{ preview.contacts|length }} contato{{ preview.contacts|length|pluralize }} na lista. Digite para buscar.</p>

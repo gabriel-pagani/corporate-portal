@@ -96,6 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const ids = new Set(dados.notifications.map((n) => n.id));
         atualizarContador(ids.size);
+        // Avisa quem mostra as notificações em outro lugar da página, como o card da home
+        document.dispatchEvent(new CustomEvent('notifications:updated', { detail: { unreadIds: ids } }));
 
         for (const id of dispensadas) {
             if (!ids.has(id)) dispensadas.delete(id);

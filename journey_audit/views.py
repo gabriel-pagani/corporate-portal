@@ -5,6 +5,8 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
+from app.models import ServiceAccess
+from app.utils.services import track_access
 from app.views import form_errors_response, json_permission_required, parse_json_body
 from journey_audit.audit import (
     catalog, competencies_queryset, competency_payload, current_period, evolution, import_report, indicators,
@@ -17,6 +19,7 @@ from journey_audit.models import BankHoursNote, Competency, Occurrence
 
 @login_required
 @permission_required('journey_audit.view_competency', raise_exception=True)
+@track_access(ServiceAccess.JOURNEY_AUDIT)
 def audit_view(request):
     user = request.user
     start, end = current_period()

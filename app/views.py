@@ -2,12 +2,14 @@ import json
 import requests
 from functools import wraps
 from datetime import datetime, timedelta
-from app.models import Contact, Sector, Toner, TonerLocation, TonerMovement, User
+from app.models import Contact, HomeLayout, Sector, ServiceAccess, Toner, TonerLocation, TonerMovement, User
 from app.forms import (
     LoginForm, TonerForm, TonerUpdateForm, TonerMovementForm, ContactForm,
 )
 from app.utils import otp, throttle
 from app.utils.dashboards.access import get_user_dashboards
+from app.utils.home import quick_access_cards
+from app.utils.services import TICKETS_URL, ranked_services, save_layout, track_access
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors, sanitize_entry
 from app.utils.toners.stock import (
@@ -66,9 +68,25 @@ def get_safe_next_url(request, next_url):
 
 @login_required
 def home_view(request):
+    cards = quick_access_cards(request.user)
+    contacts = next(
+        (card['preview']['contacts'] for card in cards if card['service'].key == ServiceAccess.CONTACTS), [],
+    )
     return render(request, 'app/home.html', {
-        'has_dashboards': get_user_dashboards(request.user).exists(),
+        'has_dashboards': any(card['service'].key == ServiceAccess.DASHBOARDS for card in cards),
+        'cards': cards,
+        'visible_cards': [card for card in cards if not card['hidden']],
+        'contacts': contacts,
     })
+
+
+# A central de chamados é um sistema de fora: o link passa por aqui só para o
+# acesso contar na ordem dos cards da home
+@login_required
+@require_http_methods(['GET'])
+@track_access(ServiceAccess.TICKETS)
+def tickets_view(request):
+    return redirect(TICKETS_URL)
 
 
 def login_view(request):
@@ -198,6 +216,7 @@ def logout_view(request):
 
 
 @login_required
+@track_access(ServiceAccess.CONTACTS)
 def contacts_view(request):
     can_add = request.user.has_perm('app.add_contact')
     can_change = request.user.has_perm('app.change_contact')
@@ -245,6 +264,7 @@ def serialize_contact(contact):
 
 
 @login_required
+@track_access(ServiceAccess.DASHBOARDS)
 def dashboards_view(request):
     user = request.user
     dashboards = get_user_dashboards(user)
@@ -280,6 +300,7 @@ def dashboards_view(request):
 
 
 @login_required
+@track_access(ServiceAccess.DASHBOARDS)
 def dashboard_view(request, dashboard_id):
     user = request.user
     current_dashboard = get_object_or_404(get_user_dashboards(user), id=dashboard_id)
@@ -369,6 +390,7 @@ def customers_vendors_api(request):
 @login_required
 @permission_required('app.register_customers_suppliers', raise_exception=True)
 @require_http_methods(['GET', 'POST'])
+@track_access(ServiceAccess.CUSTOMERS_VENDORS)
 def customers_vendors_view(request):
     entry = {'cnpj': '', 'ie': '', 'type': 'c'}
     data = None
@@ -479,6 +501,7 @@ def contact_delete(request, contact_id):
 
 @login_required
 @permission_required('app.view_toner', raise_exception=True)
+@track_access(ServiceAccess.TONERS)
 def toners_view(request):
     user = request.user
     toners = [serialize_toner(toner) for toner in toners_queryset()]
@@ -639,6 +662,7 @@ def toner_requests_api(request):
 
 @login_required
 @require_http_methods(['GET'])
+@track_access(ServiceAccess.NOTIFICATIONS)
 def notifications_view(request):
     notifications = [serialize_notification(n) for n in visible_notifications(request.user)]
     return render(request, 'app/notifications.html', {
@@ -672,4 +696,22 @@ def notification_read_api(request, notification_id):
 @json_login_required
 def notifications_read_all_api(request):
     request.user.read_notifications.add(*unread_notifications(request.user))
+    return JsonResponse({'status': 'success'})
+
+
+@require_http_methods(['POST', 'DELETE'])
+@json_login_required
+def home_layout_api(request):
+    # Apagar o layout devolve a home à ordem dos acessos, com todos os cards
+    if request.method == 'DELETE':
+        HomeLayout.objects.filter(user=request.user).delete()
+        return JsonResponse({'order': [service.key for service in ranked_services(request.user)]})
+
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+    try:
+        save_layout(request.user, payload.get('order'), payload.get('hidden', []))
+    except ValueError as error:
+        return JsonResponse({'detail': str(error)}, status=400)
     return JsonResponse({'status': 'success'})

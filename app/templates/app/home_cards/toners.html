@@ -1,0 +1,22 @@
+{% if preview.low_count %}
+<div class="preview-summary attention">
+    <span class="summary-value">{{ preview.low_count }}</span>
+    <span class="summary-label">toner{{ preview.low_count|pluralize }} no estoque mínimo</span>
+</div>
+<ul class="preview-list">
+    {% for toner in preview.low %}
+    <li>
+        <a href="{{ service.url }}" title="Abrir o controle de toners">
+            <i class="fas fa-print item-icon" aria-hidden="true"></i>
+            <span class="item-text">
+                <strong>{{ toner.name }}</strong>
+                <small>{{ toner.location|default:"Sem local" }}{% if toner.requested_quantity %} · {{ toner.requested_quantity }} solicitado{{ toner.requested_quantity|pluralize }}{% endif %}</small>
+            </span>
+            <span class="stock-badge{% if not toner.quantity %} empty{% endif %} item-aside" title="Em estoque / mínimo">{{ toner.quantity }}/{{ toner.minimum_quantity }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="preview-ok"><i class="fas fa-circle-check" aria-hidden="true"></i> Todos os toners estão acima do estoque mínimo.</p>
+{% endif %}

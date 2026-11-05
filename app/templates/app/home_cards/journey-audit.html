@@ -1,0 +1,18 @@
+<p class="preview-caption"><i class="fas fa-calendar-days" aria-hidden="true"></i> Competência de {{ preview.start_date|date:"d/m/Y" }} a {{ preview.end_date|date:"d/m/Y" }}</p>
+{% if preview.competency %}
+<div class="preview-stats">
+    <div class="preview-summary{% if preview.competency.pending_count %} attention{% endif %}">
+        <span class="summary-value">{{ preview.competency.pending_count }}</span>
+        <span class="summary-label">pendente{{ preview.competency.pending_count|pluralize }} de tratativa</span>
+    </div>
+    <div class="preview-summary">
+        <span class="summary-value">{{ preview.competency.occurrence_count }}</span>
+        <span class="summary-label">ocorrência{{ preview.competency.occurrence_count|pluralize }}</span>
+    </div>
+</div>
+{% if preview.competency.finished_at %}
+<p class="preview-ok"><i class="fas fa-circle-check" aria-hidden="true"></i> Conferência finalizada em {{ preview.competency.finished_at|date:"d/m/Y" }}.</p>
+{% endif %}
+{% else %}
+<p class="preview-empty">Os relatórios desta competência ainda não foram importados.</p>
+{% endif %}
