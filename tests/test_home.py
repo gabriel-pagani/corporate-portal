@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import timedelta
 
@@ -412,3 +413,20 @@ def test_journey_audit_card_breaks_the_occurrences_down_by_type(client):
     assert re.search(r'Falta a confirmar</strong></span>\s*<span[^>]*>2 pendentes</span>\s*<span[^>]*>2</span>', content)
     assert re.search(r'Horas extras</strong></span>\s*<span[^>]*>1</span>', content)
     assert content.index('Falta a confirmar') < content.index('Horas extras')
+
+
+@pytest.mark.django_db
+def test_customize_mode_can_be_cancelled_and_restores_without_the_server(client):
+    user = make_user()
+    register_access(user, ServiceAccess.TICKETS)
+    client.force_login(user)
+
+    content = client.get(reverse('app:home')).content.decode()
+
+    assert 'id="quick-access-cancel"' in content
+    assert 'Esc ou Cancelar desfaz as alterações' in content
+    # O "Restaurar padrão" monta a ordem dos acessos com o que veio na página
+    order = re.search(r'<script id="home-default-order" type="application/json">(.*?)</script>', content).group(1)
+    assert json.loads(order) == [
+        ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.LIBRARY,
+    ]

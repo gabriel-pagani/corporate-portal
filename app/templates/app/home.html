@@ -98,9 +98,12 @@
             <div class="quick-access-toolbar" id="quick-access-toolbar" hidden
                 data-layout-url="{% url 'app:home-layout-api' %}"
                 data-csrf-token="{{ csrf_token }}">
-                <p class="toolbar-hint" id="quick-access-hint" hidden>Arraste os cards para reorganizar, puxe a borda de baixo para mudar a altura e use o olho para ocultar ou exibir. Esc conclui.</p>
+                <p class="toolbar-hint" id="quick-access-hint" hidden>Arraste os cards para reorganizar, puxe a borda de baixo para mudar a altura e use o olho para ocultar ou exibir. Concluir salva; Esc ou Cancelar desfaz as alterações.</p>
                 <button type="button" class="toolbar-button" id="quick-access-reset" hidden title="Voltar à ordem pelos seus acessos, com todos os cards">
                     <i class="fas fa-rotate-left" aria-hidden="true"></i> Restaurar padrão
+                </button>
+                <button type="button" class="toolbar-button" id="quick-access-cancel" hidden title="Desfazer as alterações (Esc)">
+                    <i class="fas fa-xmark" aria-hidden="true"></i> Cancelar
                 </button>
                 <button type="button" class="toolbar-button primary" id="quick-access-finish" hidden>
                     <i class="fas fa-check" aria-hidden="true"></i> Concluir
@@ -144,6 +147,7 @@
         </main>
 
         {{ contacts|json_script:"home-contacts" }}
+        {{ default_order|json_script:"home-default-order" }}
 
         <script src="{% static 'global/js/sidebar.js' %}"></script>
         <script src="{% static 'app/js/home.js' %}"></script>

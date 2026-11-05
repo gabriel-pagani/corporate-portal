@@ -90,6 +90,9 @@ def home_view(request):
         'card_min_height': CARD_MIN_HEIGHT,
         'card_max_height': CARD_MAX_HEIGHT,
         'contacts': contacts,
+        # A ordem pelos acessos, que o "Restaurar padrão" mostra sem ir ao
+        # servidor: só o Concluir grava, para o Esc poder desfazer tudo
+        'default_order': [service.key for service in ranked_services(request.user)],
     })
 
 

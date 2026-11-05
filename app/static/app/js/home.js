@@ -286,6 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const botaoPersonalizar = document.getElementById('quick-access-customize');
     const botaoConcluir = document.getElementById('quick-access-finish');
+    const botaoCancelar = document.getElementById('quick-access-cancel');
     const botaoRestaurar = document.getElementById('quick-access-reset');
     const dica = document.getElementById('quick-access-hint');
     const vazio = document.getElementById('quick-access-empty');
@@ -418,8 +419,11 @@ document.addEventListener('DOMContentLoaded', () => {
         temporizadorDom = setTimeout(sincronizarDom, DURACAO + 40);
     }
 
-    // Salvar
-    let temporizador = null;
+    // Salvar: nada vai ao servidor durante a edição. O Concluir grava de uma
+    // vez, e o Esc e o Cancelar voltam ao que estava, como em outros sistemas
+    const ordemPadrao = JSON.parse(document.getElementById('home-default-order')?.textContent || '[]');
+    let inicial = null;
+    let restaurado = false;
 
     function mostrarAviso(texto, erro = false) {
         barra.hidden = false;
@@ -443,14 +447,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return resposta.json();
     }
 
+    function estado() {
+        return {
+            ordem: [...ordem],
+            ocultos: ordem.filter(oculto),
+            alturas: new Map(alturas),
+        };
+    }
+
+    // Chave comparável do estado, para saber se houve alteração
+    function assinatura({ ordem: cards, ocultos, alturas: mapa }) {
+        return JSON.stringify([
+            cards.map((card) => card.dataset.service),
+            ocultos.map((card) => card.dataset.service),
+            [...mapa].sort(),
+        ]);
+    }
+
+    function ehPadrao(atual) {
+        const ordemAtual = atual.ordem.map((card) => card.dataset.service);
+        return !atual.ocultos.length && !atual.alturas.size
+            && ordemPadrao.every((chave, indice) => ordemAtual[indice] === chave);
+    }
+
     async function enviar() {
-        temporizador = null;
+        const atual = estado();
+        const mudou = assinatura(atual) !== assinatura(inicial);
+        if (!mudou && !restaurado) return;
+
         try {
-            await requisitar('POST', {
-                order: ordem.map((card) => card.dataset.service),
-                hidden: ordem.filter(oculto).map((card) => card.dataset.service),
-                sizes: Object.fromEntries(alturas),
-            });
+            // Restaurado e deixado assim, o layout salvo some e a home volta a
+            // seguir os acessos; mexer depois de restaurar grava o novo arranjo
+            if (restaurado && ehPadrao(atual)) {
+                await requisitar('DELETE');
+            } else {
+                await requisitar('POST', {
+                    order: atual.ordem.map((card) => card.dataset.service),
+                    hidden: atual.ocultos.map((card) => card.dataset.service),
+                    sizes: Object.fromEntries(atual.alturas),
+                });
+            }
             if (dica.classList.contains('error')) mostrarAviso(textoDica);
             if (!editando) barra.hidden = true;
         } catch (erro) {
@@ -458,15 +494,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function salvar() {
-        clearTimeout(temporizador);
-        temporizador = setTimeout(enviar, 400);
-    }
-
-    function salvarAgora() {
-        if (temporizador === null) return;
-        clearTimeout(temporizador);
-        enviar();
+    function desfazer() {
+        ordem = [...inicial.ordem];
+        ordem.forEach((card) => definirOculto(card, inicial.ocultos.includes(card)));
+        alturas.clear();
+        inicial.alturas.forEach((altura, chave) => alturas.set(chave, altura));
     }
 
     // Modo de personalizar
@@ -481,10 +513,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function entrarEdicao() {
         editando = true;
+        inicial = estado();
+        restaurado = false;
         grade.classList.add('editing');
         ordem.forEach((card) => { card.tabIndex = 0; });
         botaoPersonalizar.hidden = true;
         botaoConcluir.hidden = false;
+        botaoCancelar.hidden = false;
         botaoRestaurar.hidden = false;
         mostrarAviso(textoDica);
         aplicar();
@@ -496,42 +531,48 @@ document.addEventListener('DOMContentLoaded', () => {
         ordem.forEach((card) => card.removeAttribute('tabindex'));
         botaoPersonalizar.hidden = false;
         botaoConcluir.hidden = true;
+        botaoCancelar.hidden = true;
         botaoRestaurar.hidden = true;
-        // A barra só fica fora da edição para mostrar um erro ao salvar
-        if (!dica.classList.contains('error')) barra.hidden = true;
-        salvarAgora();
+        barra.hidden = true;
+        dica.classList.remove('error');
         aplicar();
+        sincronizarDepois();
+    }
+
+    function concluir() {
+        sairEdicao();
+        enviar();
+    }
+
+    function cancelar() {
+        desfazer();
+        sairEdicao();
     }
 
     botaoPersonalizar.addEventListener('click', entrarEdicao);
-    botaoConcluir.addEventListener('click', sairEdicao);
+    botaoConcluir.addEventListener('click', concluir);
+    botaoCancelar.addEventListener('click', cancelar);
 
-    // Esc conclui a personalização, como o botão Concluir. Fica na captura para
+    // Esc cancela a personalização, como o botão Cancelar. Fica na captura para
     // ver o menu do usuário antes de ele fechar: com o menu aberto, Esc só o fecha.
     // No meio de um arrasto ou de um ajuste de altura, espera soltar
     document.addEventListener('keydown', (evento) => {
         if (evento.key !== 'Escape' || !editando || arrasto || redimensionamento) return;
         if (document.getElementById('user-dropdown')?.classList.contains('show')) return;
         evento.preventDefault();
-        sairEdicao();
+        cancelar();
     }, true);
 
-    botaoRestaurar.addEventListener('click', async () => {
-        clearTimeout(temporizador);
-        temporizador = null;
-        try {
-            const { order } = await requisitar('DELETE');
-            const porChave = new Map(ordem.map((card) => [card.dataset.service, card]));
-            const restaurada = order.map((chave) => porChave.get(chave)).filter(Boolean);
-            ordem = restaurada.concat(ordem.filter((card) => !restaurada.includes(card)));
-            ordem.forEach((card) => definirOculto(card, false));
-            alturas.clear();
-            mostrarAviso(textoDica);
-            aplicar();
-            sincronizarDepois();
-        } catch (erro) {
-            mostrarAviso('Não foi possível restaurar os cards. Tente novamente.', true);
-        }
+    // Restaurar só mostra a ordem dos acessos: quem grava é o Concluir
+    botaoRestaurar.addEventListener('click', () => {
+        const porChave = new Map(ordem.map((card) => [card.dataset.service, card]));
+        const restaurada = ordemPadrao.map((chave) => porChave.get(chave)).filter(Boolean);
+        ordem = restaurada.concat(ordem.filter((card) => !restaurada.includes(card)));
+        ordem.forEach((card) => definirOculto(card, false));
+        alturas.clear();
+        restaurado = true;
+        aplicar();
+        sincronizarDepois();
     });
 
     grade.addEventListener('click', (evento) => {
@@ -539,7 +580,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!botao || !editando) return;
         const card = botao.closest('.service-card');
         definirOculto(card, !oculto(card));
-        salvar();
     });
 
     function mudarAltura(card, altura) {
@@ -560,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (evento.shiftKey && (evento.key === 'ArrowUp' || evento.key === 'ArrowDown')) {
             evento.preventDefault();
             const passo = evento.key === 'ArrowDown' ? PASSO_TECLADO : -PASSO_TECLADO;
-            if (mudarAltura(card, alturaDe(card) + passo)) salvar();
+            mudarAltura(card, alturaDe(card) + passo);
             return;
         }
 
@@ -574,7 +614,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ordem.splice(para, 0, card);
         aplicar();
         sincronizarDepois();
-        salvar();
     });
 
     function rolarAutomatico(y) {
@@ -614,13 +653,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function encerrarRedimensionamento(evento) {
-        const { card, inicioAltura } = redimensionamento;
+        const { card } = redimensionamento;
         if (card.hasPointerCapture(evento.pointerId)) card.releasePointerCapture(evento.pointerId);
         cancelAnimationFrame(quadro);
         redimensionamento = null;
         card.classList.remove('resizing');
         document.body.classList.remove('card-resizing');
-        if (alturaDe(card) !== inicioAltura) salvar();
     }
 
     // Arrastar
@@ -756,11 +794,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => card.classList.remove('dropping'), DURACAO);
         sincronizarDepois();
-        salvar();
     }
 
     grade.addEventListener('pointerup', soltar);
     grade.addEventListener('pointercancel', soltar);
-
-    window.addEventListener('pagehide', salvarAgora);
 });
