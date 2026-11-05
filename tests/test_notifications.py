@@ -154,3 +154,33 @@ def test_read_all_marks_only_what_the_user_receives(client, user, other_user):
 @pytest.mark.django_db
 def test_read_all_rejects_anonymous(client):
     assert client.post(reverse('app:notifications-read-all-api')).status_code == 401
+
+
+@pytest.mark.django_db
+def test_api_includes_the_author(client, user, other_user):
+    other_user.first_name, other_user.last_name = 'Maria', 'Silva'
+    other_user.save()
+    Notification.objects.create(title='Com autor', message='x', created_by=other_user)
+    Notification.objects.create(title='Sem autor', message='x')
+
+    notifications = client.get(reverse('app:notifications-api')).json()['notifications']
+    authors = {notification['title']: notification['author'] for notification in notifications}
+    assert authors == {'Com autor': 'Maria Silva', 'Sem autor': None}
+
+
+@pytest.mark.django_db
+def test_admin_records_who_created_the_notification(rf, user, other_user):
+    from django.contrib.admin.sites import site
+    model_admin = site._registry[Notification]
+    request = rf.post('/')
+    request.user = user
+
+    notification = Notification(title='Pelo admin', message='x')
+    model_admin.save_model(request, notification, None, False)
+    assert notification.created_by == user
+
+    # Editar por outra pessoa não troca o autor
+    request.user = other_user
+    model_admin.save_model(request, notification, None, True)
+    notification.refresh_from_db()
+    assert notification.created_by == user

@@ -272,7 +272,7 @@ class NotificationAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_filter = ('level', 'is_active',)
     date_hierarchy = 'start_at'
     filter_horizontal = ('users', 'groups',)
-    readonly_fields = ('get_read_by', 'created_at',)
+    readonly_fields = ('get_read_by', 'created_by', 'created_at',)
     fieldsets = (
         (None, {
             'fields': ('title', 'message', 'level', 'is_active',)
@@ -284,9 +284,14 @@ class NotificationAdmin(VersionAdmin, UnaccentSearchAdmin):
             'fields': ('start_at', 'end_at',)
         }),
         ('Leitura', {
-            'fields': ('get_read_by', 'created_at',)
+            'fields': ('get_read_by', 'created_by', 'created_at',)
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('users', 'groups', 'read_by')

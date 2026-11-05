@@ -22,11 +22,18 @@ def visible_notifications(user):
         .filter(Q(end_at__isnull=True) | Q(end_at__gt=now))
         .filter(for_everyone | for_user | for_groups)
         .annotate(is_read=is_read)
+        .select_related('created_by')
     )
 
 
 def unread_notifications(user):
     return visible_notifications(user).filter(is_read=False).order_by('start_at')
+
+
+def author_name(user):
+    if user is None:
+        return None
+    return user.get_full_name() or user.username
 
 
 def serialize_notification(notification):
@@ -38,5 +45,6 @@ def serialize_notification(notification):
         'level_display': notification.get_level_display(),
         'start_at': timezone.localtime(notification.start_at).strftime('%d/%m/%Y %H:%M'),
         'is_read': notification.is_read,
+        'author': author_name(notification.created_by),
         'views': notification.views,
     }

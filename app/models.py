@@ -326,6 +326,14 @@ class Notification(models.Model):
         verbose_name='Lida Por',
     )
     views = models.PositiveIntegerField(default=0, verbose_name='Visualizações')
+    created_by = models.ForeignKey(
+        User,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='created_notifications',
+        verbose_name='Autor',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Criada em')
 
     def clean(self):
