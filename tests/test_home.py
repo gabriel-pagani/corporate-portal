@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from app.models import Contact, Dashboard, HomeLayout, Notification, Sector, ServiceAccess, Toner, User
-from app.utils.services import TICKETS_URL, register_access
+from app.utils.services import CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, SERVICES, TICKETS_URL, register_access
 from journey_audit.audit import current_period
 from journey_audit.models import Competency, Occurrence
 
@@ -229,7 +229,7 @@ def test_contacts_card_embeds_the_list_for_the_search(client):
 
 def hidden_cards(client):
     content = client.get(reverse('app:home')).content.decode()
-    return re.findall(r'class="service-card service-[\w-]+ is-hidden" data-service="([\w-]+)"', content)
+    return re.findall(r'class="service-card service-[\w-]+ is-hidden"[^>]*data-service="([\w-]+)"', content)
 
 
 def save_layout(client, payload):
@@ -325,3 +325,84 @@ def test_all_cards_hidden_shows_the_empty_message(client):
     content = client.get(reverse('app:home')).content.decode()
 
     assert re.search(r'id="quick-access-empty">', content)
+
+
+def card_heights(client):
+    content = client.get(reverse('app:home')).content.decode()
+    return {
+        service: int(height)
+        for height, service in re.findall(r'data-height="(\d+)" data-default-height="\d+" data-service="([\w-]+)"', content)
+    }
+
+
+@pytest.mark.django_db
+def test_cards_start_with_the_default_height_of_the_service(client):
+    client.force_login(make_user())
+
+    heights = card_heights(client)
+
+    assert heights == {service.key: service.height for service in SERVICES if service.key in heights}
+    assert len(heights) == 3
+
+
+@pytest.mark.django_db
+def test_saved_heights_are_rendered(client):
+    client.force_login(make_user())
+    response = save_layout(client, {
+        'order': [ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS],
+        'hidden': [],
+        'sizes': {ServiceAccess.CONTACTS: 520},
+    })
+
+    assert response.status_code == 200
+    heights = card_heights(client)
+    assert heights[ServiceAccess.CONTACTS] == 520
+    assert heights[ServiceAccess.TICKETS] == next(s.height for s in SERVICES if s.key == ServiceAccess.TICKETS)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('sizes', [
+    {ServiceAccess.CONTACTS: CARD_MIN_HEIGHT - 1},
+    {ServiceAccess.CONTACTS: CARD_MAX_HEIGHT + 1},
+    {ServiceAccess.CONTACTS: '300'},
+    {ServiceAccess.CONTACTS: 300.5},
+    {ServiceAccess.CONTACTS: True},
+    {'inexistente': 300},
+    [300],
+])
+def test_layout_api_rejects_invalid_heights(client, sizes):
+    user = make_user()
+    client.force_login(user)
+
+    response = save_layout(client, {'order': [ServiceAccess.CONTACTS], 'hidden': [], 'sizes': sizes})
+
+    assert response.status_code == 400
+    assert not HomeLayout.objects.filter(user=user).exists()
+
+
+@pytest.mark.django_db
+def test_reset_also_drops_the_heights(client):
+    client.force_login(make_user())
+    save_layout(client, {'order': [ServiceAccess.CONTACTS], 'hidden': [], 'sizes': {ServiceAccess.CONTACTS: 600}})
+
+    client.delete(reverse('app:home-layout-api'))
+
+    assert card_heights(client)[ServiceAccess.CONTACTS] != 600
+
+
+@pytest.mark.django_db
+def test_journey_audit_card_breaks_the_occurrences_down_by_type(client):
+    start, end = current_period()
+    competency = Competency.objects.create(start_date=start, end_date=end)
+    for employee, kind in [('1', Occurrence.ABSENCE), ('2', Occurrence.ABSENCE), ('1', Occurrence.OVERTIME)]:
+        Occurrence.objects.create(
+            competency=competency, day=start, employee_id=employee, employee_name='Fulano', location='Matriz',
+            type=kind, evidence='-',
+        )
+    client.force_login(make_user('view_competency'))
+
+    content = card(client, ServiceAccess.JOURNEY_AUDIT)
+
+    assert re.search(r'Falta a confirmar</strong></span>\s*<span[^>]*>2 pendentes</span>\s*<span[^>]*>2</span>', content)
+    assert re.search(r'Horas extras</strong></span>\s*<span[^>]*>1</span>', content)
+    assert content.index('Falta a confirmar') < content.index('Horas extras')

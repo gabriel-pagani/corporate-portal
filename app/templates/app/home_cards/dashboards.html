@@ -1,6 +1,6 @@
 {% if preview.favorites %}
 <p class="preview-caption"><i class="fas fa-star" aria-hidden="true"></i> Seus favoritos</p>
-<ul class="preview-list">
+<ul class="preview-list" data-fit data-more>
     {% for dashboard in preview.favorites %}
     <li>
         <a href="{{ dashboard.url }}" title="Abrir {{ dashboard.title }}">

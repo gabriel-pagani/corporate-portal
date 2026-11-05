@@ -322,15 +322,69 @@ body {
   transform: translateX(3px);
 }
 
+.service-card-header {
+  flex-shrink: 0;
+}
+
+/* Com o mosaico, a altura é a do card e o conteúdo se ajusta a ela: o corpo
+   ocupa o que sobra, e as listas marcadas com data-fit mostram só o que cabe */
 .service-card-body {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-height: 0;
   padding: 14px 18px 18px;
+  overflow: hidden;
 }
 
 .service-card-content {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
+}
+
+.service-card-content > * {
+  flex-shrink: 0;
+}
+
+/* Encolhe até o espaço que sobra, mas não cresce além dos itens: assim o
+   "e mais N" fica colado no último item que coube */
+.preview-list[data-fit] {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-list[data-fit] > li[hidden] {
+  display: none;
+}
+
+.preview-footer {
+  margin-top: auto;
+}
+
+.preview-more {
+  color: #a9b0b8;
+  font-size: 13px;
+}
+
+.preview-more a:hover {
+  color: #f2b705;
+}
+
+/* Sem o mosaico (sem JS) as listas ficam com os primeiros itens */
+.quick-access:not(.masonry) .preview-list[data-fit] > li:nth-child(n+5) {
+  display: none;
+}
+
+.occurrence-total {
+  min-width: 24px;
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
 }
 
 /* Listas dos previews: contatos, notificações, favoritos e toners */
@@ -522,9 +576,12 @@ body {
 /* Previews estáticos: um esboço da página do serviço */
 .preview-static {
   display: flex;
+  flex: 1 1 auto !important;
   flex-direction: column;
   gap: 9px;
+  min-height: 60px;
   padding: 14px;
+  overflow: hidden;
   border: 1px solid #33373c;
   border-radius: 8px;
   background-color: #15181b;
@@ -544,6 +601,7 @@ body {
 .mock-toolbar,
 .mock-row {
   display: flex !important;
+  flex-shrink: 0;
   align-items: center;
   gap: 10px;
   background: none !important;
@@ -586,8 +644,7 @@ body {
   flex-direction: row;
   align-items: flex-end;
   gap: 8px;
-  height: 120px;
-  box-sizing: border-box;
+  max-height: 260px;
 }
 
 .mock-bar {
@@ -798,8 +855,60 @@ body {
 }
 
 /* Na edição o card inteiro é a alça: nada dentro dele navega ou recebe clique */
-.editing .service-card > :not(.card-edit-controls) {
+.editing .service-card > :not(.card-edit-controls):not(.card-resize-handle) {
   pointer-events: none;
+}
+
+/* A borda de baixo muda a altura: uma barrinha aparece no meio dela */
+.card-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 18px;
+  opacity: 0;
+  pointer-events: none;
+  cursor: ns-resize;
+  transition: opacity 0.2s;
+}
+
+.card-resize-handle::after {
+  content: '';
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background-color: #6b727a;
+  transition: background 0.2s, width 0.2s;
+}
+
+.editing .card-resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-resize-handle:hover::after,
+.service-card.resizing .card-resize-handle::after {
+  width: 64px;
+  background-color: #f2b705;
+}
+
+/* Enquanto a borda é puxada, a altura acompanha o ponteiro sem atraso */
+.quick-access.masonry.animated .service-card.resizing {
+  border-color: #f2b705;
+  transition:
+    transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.25s ease,
+    border-color 0.25s ease;
+}
+
+body.card-resizing,
+body.card-resizing * {
+  cursor: ns-resize !important;
+  user-select: none;
 }
 
 .editing .service-card-open {

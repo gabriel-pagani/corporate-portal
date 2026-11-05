@@ -3,7 +3,7 @@
     <span class="summary-value">{{ preview.low_count }}</span>
     <span class="summary-label">toner{{ preview.low_count|pluralize }} no estoque mínimo</span>
 </div>
-<ul class="preview-list">
+<ul class="preview-list" data-fit data-more>
     {% for toner in preview.low %}
     <li>
         <a href="{{ service.url }}" title="Abrir o controle de toners">

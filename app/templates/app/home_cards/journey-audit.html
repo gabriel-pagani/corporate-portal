@@ -13,6 +13,17 @@
 {% if preview.competency.finished_at %}
 <p class="preview-ok"><i class="fas fa-circle-check" aria-hidden="true"></i> Conferência finalizada em {{ preview.competency.finished_at|date:"d/m/Y" }}.</p>
 {% endif %}
+<ul class="preview-list" data-fit data-more>
+    {% for row in preview.competency.by_type %}
+    <li>
+        <a href="{{ service.url }}" title="Abrir a auditoria de jornada">
+            <span class="item-text"><strong>{{ row.label }}</strong></span>
+            {% if row.pending %}<span class="stock-badge item-aside" title="Pendentes de tratativa">{{ row.pending }} pendente{{ row.pending|pluralize }}</span>{% endif %}
+            <span class="item-aside occurrence-total" title="Ocorrências">{{ row.total }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
 {% else %}
 <p class="preview-empty">Os relatórios desta competência ainda não foram importados.</p>
 {% endif %}

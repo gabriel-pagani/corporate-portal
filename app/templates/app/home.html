@@ -94,7 +94,7 @@
             <div class="quick-access-toolbar" id="quick-access-toolbar" hidden
                 data-layout-url="{% url 'app:home-layout-api' %}"
                 data-csrf-token="{{ csrf_token }}">
-                <p class="toolbar-hint" id="quick-access-hint" hidden>Arraste os cards para reorganizar e use o olho para ocultar ou exibir.</p>
+                <p class="toolbar-hint" id="quick-access-hint" hidden>Arraste os cards para reorganizar, puxe a borda de baixo para mudar a altura e use o olho para ocultar ou exibir.</p>
                 <button type="button" class="toolbar-button" id="quick-access-reset" hidden title="Voltar à ordem pelos seus acessos, com todos os cards">
                     <i class="fas fa-rotate-left" aria-hidden="true"></i> Restaurar padrão
                 </button>
@@ -107,10 +107,11 @@
                 Todos os cards estão ocultos. Use <strong>Personalizar</strong>, no menu do seu usuário, para escolher quais exibir.
             </p>
 
-            <section class="quick-access" id="quick-access" aria-label="Acesso rápido aos serviços">
+            <section class="quick-access" id="quick-access" aria-label="Acesso rápido aos serviços"
+                data-min-height="{{ card_min_height }}" data-max-height="{{ card_max_height }}">
                 {% for card in cards %}
                 {% with service=card.service preview=card.preview %}
-                <article class="service-card service-{{ service.key }}{% if card.hidden %} is-hidden{% endif %}" data-service="{{ service.key }}">
+                <article class="service-card service-{{ service.key }}{% if card.hidden %} is-hidden{% endif %}" data-height="{{ card.height }}" data-default-height="{{ service.height }}" data-service="{{ service.key }}">
                     <div class="card-edit-controls">
                         <span class="card-drag-handle" title="Arraste para mover" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
                         <button type="button" class="card-visibility" aria-pressed="{{ card.hidden|yesno:'false,true' }}"
@@ -131,6 +132,7 @@
                             {% include "app/home_cards/"|add:service.key|add:".html" %}
                         </div>
                     </div>
+                    <span class="card-resize-handle" title="Arraste para mudar a altura" aria-hidden="true"></span>
                 </article>
                 {% endwith %}
                 {% endfor %}

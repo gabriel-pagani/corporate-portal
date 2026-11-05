@@ -20,6 +20,11 @@ from app.utils.dashboards.access import get_user_dashboards
 
 TICKETS_URL = 'http://servicos.gruposmi.com.br/front/ticket.php'
 
+# Os limites da altura que o usuário dá a um card ao redimensioná-lo, em pixels
+CARD_MIN_HEIGHT = 180
+
+CARD_MAX_HEIGHT = 900
+
 
 @dataclass(frozen=True)
 class Service:
@@ -29,6 +34,8 @@ class Service:
     url_name: str
     description: str
     is_available: Callable
+    # A altura do card enquanto o usuário não escolhe outra
+    height: int
 
     @property
     def url(self):
@@ -46,31 +53,31 @@ def has_perm(perm):
 SERVICES = [
     Service(
         ServiceAccess.CONTACTS, 'Lista de Contatos', 'fa-phone', 'app:contacts',
-        'Ramais e setores de todos os colaboradores.', everyone,
+        'Ramais e setores de todos os colaboradores.', everyone, 380,
     ),
     Service(
         ServiceAccess.NOTIFICATIONS, 'Mural de Notificações', 'fa-bullhorn', 'app:notifications',
-        'Os avisos enviados para você.', everyone,
+        'Os avisos enviados para você.', everyone, 380,
     ),
     Service(
         ServiceAccess.TICKETS, 'Central de Chamados', 'fa-headphones', 'app:tickets',
-        'Abra e acompanhe chamados de suporte.', everyone,
+        'Abra e acompanhe chamados de suporte.', everyone, 290,
     ),
     Service(
         ServiceAccess.DASHBOARDS, 'Central de Dashboards', 'fa-chart-pie', 'app:dashboards',
-        'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(),
+        'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(), 360,
     ),
     Service(
         ServiceAccess.TONERS, 'Controle de Toners', 'fa-print', 'app:toners',
-        'Estoque, movimentações e solicitações de toner.', has_perm('app.view_toner'),
+        'Estoque, movimentações e solicitações de toner.', has_perm('app.view_toner'), 340,
     ),
     Service(
         ServiceAccess.CUSTOMERS_VENDORS, 'Clientes e Fornecedores', 'fa-address-card', 'app:customers-vendors',
-        'Cadastro de clientes e fornecedores no RM pelo CNPJ.', has_perm('app.register_customers_suppliers'),
+        'Cadastro de clientes e fornecedores no RM pelo CNPJ.', has_perm('app.register_customers_suppliers'), 320,
     ),
     Service(
         ServiceAccess.JOURNEY_AUDIT, 'Auditoria de Jornada', 'fa-user-clock', 'journey_audit:audit',
-        'Conferência das ocorrências de ponto da competência.', has_perm('journey_audit.view_competency'),
+        'Conferência das ocorrências de ponto da competência.', has_perm('journey_audit.view_competency'), 380,
     ),
 ]
 
@@ -104,25 +111,29 @@ def ranked_services(user):
 
 def arranged_services(user):
     """
-    Os serviços na ordem dos cards da home, cada um com a marca de oculto.
+    Os serviços na ordem dos cards da home, cada um com a marca de oculto e a
+    altura do card.
 
     Quem arrumou os cards vê do jeito que arrumou; os serviços que não estão
-    no layout salvo entram no fim, na ordem dos acessos.
+    no layout salvo entram no fim, na ordem dos acessos, com a altura padrão.
     """
     services = ranked_services(user)
     layout = HomeLayout.objects.filter(user=user).first()
     if layout is None:
-        return [(service, False) for service in services]
+        return [(service, False, service.height) for service in services]
 
     position = {key: index for index, key in enumerate(layout.order)}
     hidden = set(layout.hidden)
     # A ordenação é estável: os que ficam fora do layout mantêm a ordem dos acessos
     services = sorted(services, key=lambda service: position.get(service.key, len(position)))
-    return [(service, service.key in hidden) for service in services]
+    return [
+        (service, service.key in hidden, layout.sizes.get(service.key, service.height))
+        for service in services
+    ]
 
 
-def save_layout(user, order, hidden):
-    """Guarda o layout; levanta ValueError se a lista vier com serviço que não existe."""
+def save_layout(user, order, hidden, sizes):
+    """Guarda o layout; levanta ValueError se vier serviço que não existe ou altura fora dos limites."""
     known = {key for key, _ in ServiceAccess.SERVICES}
     for keys in (order, hidden):
         if not isinstance(keys, list) or not all(isinstance(key, str) for key in keys):
@@ -131,7 +142,21 @@ def save_layout(user, order, hidden):
             raise ValueError('Serviço desconhecido.')
         if len(set(keys)) != len(keys):
             raise ValueError('Serviço repetido.')
-    HomeLayout.objects.update_or_create(user=user, defaults={'order': order, 'hidden': hidden})
+
+    if not isinstance(sizes, dict):
+        raise ValueError('Envie as alturas como um objeto de serviço e altura.')
+    if set(sizes) - known:
+        raise ValueError('Serviço desconhecido.')
+    for height in sizes.values():
+        # O bool é int no Python, e True viraria um card de 1 pixel
+        if isinstance(height, bool) or not isinstance(height, int):
+            raise ValueError('A altura do card deve ser um número inteiro.')
+        if not CARD_MIN_HEIGHT <= height <= CARD_MAX_HEIGHT:
+            raise ValueError(f'A altura do card deve ficar entre {CARD_MIN_HEIGHT} e {CARD_MAX_HEIGHT}.')
+
+    HomeLayout.objects.update_or_create(
+        user=user, defaults={'order': order, 'hidden': hidden, 'sizes': sizes},
+    )
 
 
 def register_access(user, service):

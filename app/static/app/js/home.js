@@ -45,7 +45,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Card da lista de contatos: a busca filtra ali mesmo, e o Enter abre a lista completa
+// Listas dos cards: mostram só os itens que cabem inteiros na altura que o
+// card tem. Os que não cabem ficam ocultos e, nas listas com data-more, viram
+// um "e mais N" logo abaixo. Quem preenche a lista avisa por ajustarLista, e a
+// mudança de altura do card chega pelo ResizeObserver do corpo do card (a
+// lista em si encolhe até os itens, e não cresce sozinha quando o card cresce).
+function cortarLista(lista) {
+    const itens = [...lista.children];
+    itens.forEach((item) => { item.hidden = false; });
+
+    // Sem altura definida (antes do mosaico) não há o que cortar
+    const limite = lista.clientHeight;
+    if (!limite || lista.scrollHeight <= limite + 1) return 0;
+
+    let ocultos = 0;
+    for (const item of itens) {
+        if (ocultos || item.offsetTop + item.offsetHeight > limite + 1) {
+            item.hidden = true;
+            ocultos += 1;
+        }
+    }
+    return ocultos;
+}
+
+function ajustarLista(lista) {
+    let ocultos = cortarLista(lista);
+
+    if ('more' in lista.dataset) {
+        let mais = lista.nextElementSibling;
+        if (!mais || !mais.classList.contains('preview-more')) {
+            mais = document.createElement('p');
+            mais.className = 'preview-more';
+            const link = document.createElement('a');
+            const cabecalho = lista.closest('.service-card')?.querySelector('.service-card-header');
+            link.href = cabecalho ? cabecalho.getAttribute('href') : '#';
+            mais.appendChild(link);
+            lista.after(mais);
+        }
+        // O "e mais N" ocupa uma linha: com ele à mostra cabe um item a menos
+        mais.hidden = ocultos === 0;
+        if (ocultos) ocultos = cortarLista(lista);
+        mais.firstElementChild.textContent = `e mais ${ocultos}`;
+        mais.hidden = ocultos === 0;
+    }
+
+    lista.dispatchEvent(new CustomEvent('lista:ajustada', { detail: { ocultos } }));
+    return ocultos;
+}
+
+const observadorListas = new ResizeObserver((entradas) => {
+    entradas.forEach((entrada) => {
+        entrada.target.querySelectorAll('.preview-list[data-fit]').forEach(ajustarLista);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.service-card-body').forEach((corpo) => observadorListas.observe(corpo));
+});
+
+// Card da lista de contatos: a busca filtra ali mesmo, mostra quantos couberem
+// no card, e o Enter abre a lista completa
 document.addEventListener('DOMContentLoaded', () => {
     const campo = document.getElementById('home-contact-search');
     const resultados = document.getElementById('home-contact-results');
@@ -53,9 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const dados = document.getElementById('home-contacts');
     if (!campo || !resultados || !dica || !dados) return;
 
-    const LIMITE = 4;
+    // Mais do que isso não cabe nem no card mais alto
+    const LIMITE = 40;
     const contatos = JSON.parse(dados.textContent);
     const dicaInicial = dica.textContent;
+    let encontrados = 0;
 
     function normalizar(texto) {
         return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
@@ -99,27 +160,28 @@ document.addEventListener('DOMContentLoaded', () => {
         return item;
     }
 
-    function filtrar() {
-        const termo = normalizar(campo.value);
-        resultados.replaceChildren();
-
-        if (!termo) {
+    function atualizarDica(ocultos) {
+        if (!normalizar(campo.value)) {
             dica.textContent = dicaInicial;
-            return;
-        }
-
-        const encontrados = indice.filter((entrada) => entrada.texto.includes(termo));
-        encontrados.slice(0, LIMITE).forEach(({ contato }) => resultados.appendChild(criarItem(contato)));
-
-        if (!encontrados.length) {
+        } else if (!encontrados) {
             dica.textContent = 'Nenhum contato encontrado.';
-        } else if (encontrados.length > LIMITE) {
-            dica.textContent = `E mais ${encontrados.length - LIMITE}. Pressione Enter para ver todos.`;
         } else {
-            dica.textContent = 'Pressione Enter para abrir na lista de contatos.';
+            const fora = ocultos + Math.max(0, encontrados - LIMITE);
+            dica.textContent = fora
+                ? `Mais ${fora} fora do card. Enter abre a lista completa.`
+                : 'Enter abre na lista de contatos.';
         }
     }
 
+    function filtrar() {
+        const termo = normalizar(campo.value);
+        const lista = termo ? indice.filter((entrada) => entrada.texto.includes(termo)) : [];
+        encontrados = lista.length;
+        resultados.replaceChildren(...lista.slice(0, LIMITE).map(({ contato }) => criarItem(contato)));
+        ajustarLista(resultados);
+    }
+
+    resultados.addEventListener('lista:ajustada', ({ detail }) => atualizarDica(detail.ocultos));
     campo.addEventListener('input', filtrar);
 });
 
@@ -137,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         A: 'fa-triangle-exclamation',
         U: 'fa-circle-exclamation',
     };
-    const limite = Number(lista.dataset.limit) || 3;
+    const limite = Number(lista.dataset.limit) || 10;
     let buscando = false;
 
     function atualizarResumo(quantidade) {
@@ -191,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 itens.push(vazio);
             }
             lista.replaceChildren(...itens);
+            ajustarLista(lista);
         } catch (erro) {
             // Sem rede o card fica como estava; a próxima rodada tenta de novo
         } finally {
@@ -213,9 +276,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Mosaico e personalização dos cards. Os cards ficam em colunas com o mesmo
-// espaço entre todos, e as colunas mais curtas esticam os seus cards para todas
-// fecharem juntas: as alturas variam, mas não sobra buraco. Como a posição de
-// cada card é um transform, reorganizar é só recalcular, e o CSS anima.
+// espaço entre todos, cada um com a altura que o usuário escolheu (ou a padrão
+// do serviço). Como a posição de cada card é um transform, reorganizar ou
+// redimensionar é só recalcular, e o CSS anima o resto.
 document.addEventListener('DOMContentLoaded', () => {
     const grade = document.getElementById('quick-access');
     const barra = document.getElementById('quick-access-toolbar');
@@ -231,10 +294,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ESPACO = 20;
     const COLUNA_MINIMA = 340;
-    const ALTURA_BASE = 230;
-    // Cada serviço tem o seu acréscimo, sorteado pelo nome: varia entre os
-    // cards, mas o mesmo card não muda de tamanho a cada visita
-    const ACRESCIMOS = [0, 40, 80, 120];
+    const ALTURA_MINIMA = Number(grade.dataset.minHeight) || 180;
+    const ALTURA_MAXIMA = Number(grade.dataset.maxHeight) || 900;
+    const PASSO_TECLADO = 20;
     const DURACAO = 420;
     const reduzMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -242,26 +304,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let posicoes = new Map();
     let editando = false;
     let arrasto = null;
+    let redimensionamento = null;
     let lugar = null;
     let quadro = null;
+
+    // Só as alturas que o usuário mudou vão para o servidor; o resto segue a
+    // padrão do serviço, que pode mudar numa versão futura
+    const alturas = new Map();
+    ordem.forEach((card) => {
+        if (card.dataset.height !== card.dataset.defaultHeight) {
+            alturas.set(card.dataset.service, Number(card.dataset.height));
+        }
+    });
 
     const oculto = (card) => card.classList.contains('is-hidden');
     const visiveis = () => ordem.filter((card) => editando || !oculto(card));
     const transform = (p) => `translate3d(${p.x}px, ${p.y}px, 0)`;
-
-    function acrescimo(card) {
-        let hash = 7;
-        for (const letra of card.dataset.service) hash = (hash * 31 + letra.charCodeAt(0)) >>> 0;
-        return ACRESCIMOS[hash % ACRESCIMOS.length];
-    }
-
-    function alturaNatural(card) {
-        const corpo = card.querySelector('.service-card-body');
-        const estilo = getComputedStyle(corpo);
-        return card.querySelector('.service-card-header').offsetHeight
-            + card.querySelector('.service-card-content').offsetHeight
-            + parseFloat(estilo.paddingTop) + parseFloat(estilo.paddingBottom) + 2;
-    }
+    const limitar = (valor, minimo, maximo) => Math.max(minimo, Math.min(maximo, valor));
+    const alturaDe = (card) => alturas.get(card.dataset.service) ?? Number(card.dataset.defaultHeight);
 
     function calcular() {
         const cards = visiveis();
@@ -270,30 +330,22 @@ document.addEventListener('DOMContentLoaded', () => {
         colunas = Math.min(colunas, Math.max(cards.length, 1));
         const larguraColuna = (largura - ESPACO * (colunas - 1)) / colunas;
 
-        // A largura vem antes da medida: a altura depende de como o texto quebra
         for (const card of ordem) card.style.width = `${larguraColuna}px`;
 
-        const pilhas = Array.from({ length: colunas }, () => ({ altura: -ESPACO, itens: [] }));
+        // Cada card vai para a coluna mais curta, na ordem escolhida
+        const pilhas = Array.from({ length: colunas }, (_, indice) => ({
+            x: indice * (larguraColuna + ESPACO),
+            altura: 0,
+        }));
+        const resultado = new Map();
         for (const card of cards) {
-            const altura = Math.max(alturaNatural(card), ALTURA_BASE + acrescimo(card));
             const pilha = pilhas.reduce((menor, atual) => (atual.altura < menor.altura ? atual : menor));
-            pilha.itens.push({ card, altura });
-            pilha.altura += altura + ESPACO;
+            const h = alturaDe(card);
+            resultado.set(card, { x: pilha.x, y: pilha.altura, w: larguraColuna, h });
+            pilha.altura += h + ESPACO;
         }
 
-        const total = Math.max(0, ...pilhas.map((pilha) => pilha.altura));
-        const resultado = new Map();
-        pilhas.forEach((pilha, indice) => {
-            if (!pilha.itens.length) return;
-            const extra = colunas > 1 ? (total - pilha.altura) / pilha.itens.length : 0;
-            const x = indice * (larguraColuna + ESPACO);
-            let y = 0;
-            for (const { card, altura } of pilha.itens) {
-                const h = altura + extra;
-                resultado.set(card, { x, y, w: larguraColuna, h });
-                y += h + ESPACO;
-            }
-        });
+        const total = Math.max(0, ...pilhas.map((pilha) => pilha.altura - ESPACO));
         return { resultado, total };
     }
 
@@ -351,15 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
         agendar();
     }).observe(grade);
 
-    // O conteúdo muda de altura sozinho: a busca de contatos, as notificações
-    // que chegam, a fonte que termina de carregar
-    const observadorConteudo = new ResizeObserver(agendar);
-    ordem.forEach((card) => observadorConteudo.observe(card.querySelector('.service-card-content')));
-
     // Ordem do DOM igual à da tela, para o Tab seguir os cards. Mover um nó
     // interrompe a transição dele, então só acontece com tudo parado.
     function sincronizarDom() {
-        if (arrasto) return;
+        if (arrasto || redimensionamento) return;
         const focado = document.activeElement;
         ordem.forEach((card) => grade.appendChild(card));
         if (focado && grade.contains(focado)) focado.focus({ preventScroll: true });
@@ -402,6 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await requisitar('POST', {
                 order: ordem.map((card) => card.dataset.service),
                 hidden: ordem.filter(oculto).map((card) => card.dataset.service),
+                sizes: Object.fromEntries(alturas),
             });
             if (dica.classList.contains('error')) mostrarAviso(textoDica);
             if (!editando) barra.hidden = true;
@@ -467,6 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const restaurada = order.map((chave) => porChave.get(chave)).filter(Boolean);
             ordem = restaurada.concat(ordem.filter((card) => !restaurada.includes(card)));
             ordem.forEach((card) => definirOculto(card, false));
+            alturas.clear();
             mostrarAviso(textoDica);
             aplicar();
             sincronizarDepois();
@@ -483,16 +532,33 @@ document.addEventListener('DOMContentLoaded', () => {
         salvar();
     });
 
-    // Pelo teclado: com o card focado, as setas o levam para trás ou para a frente
+    function mudarAltura(card, altura) {
+        const nova = Math.round(limitar(altura, ALTURA_MINIMA, ALTURA_MAXIMA));
+        if (nova === alturaDe(card)) return false;
+        alturas.set(card.dataset.service, nova);
+        aplicar();
+        return true;
+    }
+
+    // Pelo teclado: com o card focado, as setas o levam para trás ou para a
+    // frente, e com Shift aumentam ou diminuem a altura
     grade.addEventListener('keydown', (evento) => {
-        if (!editando || arrasto) return;
+        if (!editando || arrasto || redimensionamento) return;
         const card = evento.target.closest('.service-card');
         if (!card || evento.target !== card) return;
+
+        if (evento.shiftKey && (evento.key === 'ArrowUp' || evento.key === 'ArrowDown')) {
+            evento.preventDefault();
+            const passo = evento.key === 'ArrowDown' ? PASSO_TECLADO : -PASSO_TECLADO;
+            if (mudarAltura(card, alturaDe(card) + passo)) salvar();
+            return;
+        }
+
         const passo = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[evento.key];
         if (!passo) return;
         evento.preventDefault();
         const de = ordem.indexOf(card);
-        const para = Math.max(0, Math.min(ordem.length - 1, de + passo));
+        const para = limitar(de + passo, 0, ordem.length - 1);
         if (de === para) return;
         ordem.splice(de, 1);
         ordem.splice(para, 0, card);
@@ -501,10 +567,8 @@ document.addEventListener('DOMContentLoaded', () => {
         salvar();
     });
 
-    // Arrastar
-    function rolarAutomatico() {
+    function rolarAutomatico(y) {
         const area = rolagem.getBoundingClientRect();
-        const y = arrasto.ponteiro.y;
         const margem = 80;
         if (y < area.top + margem) {
             rolagem.scrollTop -= Math.ceil((area.top + margem - y) / 5);
@@ -513,6 +577,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Redimensionar: a borda de baixo segue o ponteiro, e o que está abaixo
+    // do card e nas outras colunas se acomoda com a animação de sempre
+    function quadroDoRedimensionamento() {
+        if (!redimensionamento) return;
+        const { card, ponteiroY, inicioY, inicioAltura } = redimensionamento;
+        rolarAutomatico(ponteiroY);
+        // A rolagem conta: puxar até a borda da tela e deixar rolar também estica o card
+        mudarAltura(card, inicioAltura + (ponteiroY + rolagem.scrollTop) - inicioY);
+        quadro = requestAnimationFrame(quadroDoRedimensionamento);
+    }
+
+    function iniciarRedimensionamento(evento, card) {
+        evento.preventDefault();
+        redimensionamento = {
+            card,
+            id: evento.pointerId,
+            ponteiroY: evento.clientY,
+            inicioY: evento.clientY + rolagem.scrollTop,
+            inicioAltura: alturaDe(card),
+        };
+        card.classList.add('resizing');
+        document.body.classList.add('card-resizing');
+        card.setPointerCapture(evento.pointerId);
+        quadro = requestAnimationFrame(quadroDoRedimensionamento);
+    }
+
+    function encerrarRedimensionamento(evento) {
+        const { card, inicioAltura } = redimensionamento;
+        if (card.hasPointerCapture(evento.pointerId)) card.releasePointerCapture(evento.pointerId);
+        cancelAnimationFrame(quadro);
+        redimensionamento = null;
+        card.classList.remove('resizing');
+        document.body.classList.remove('card-resizing');
+        if (alturaDe(card) !== inicioAltura) salvar();
+    }
+
+    // Arrastar
     function reordenar(px, py, agora) {
         let alvo = null;
         for (const [card, p] of posicoes) {
@@ -543,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function quadroDoArrasto(agora) {
         if (!arrasto || !arrasto.ativo) return;
         const { card } = arrasto;
-        rolarAutomatico();
+        rolarAutomatico(arrasto.ponteiro.y);
 
         const caixa = grade.getBoundingClientRect();
         const alvoX = arrasto.ponteiro.x - caixa.left - arrasto.pega.x;
@@ -554,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const antes = arrasto.atual.x;
         arrasto.atual.x += (alvoX - arrasto.atual.x) * suavidade;
         arrasto.atual.y += (alvoY - arrasto.atual.y) * suavidade;
-        const inclinacao = reduzMovimento ? 0 : Math.max(-5, Math.min(5, (arrasto.atual.x - antes) * 0.3));
+        const inclinacao = reduzMovimento ? 0 : limitar((arrasto.atual.x - antes) * 0.3, -5, 5);
         arrasto.inclinacao += (inclinacao - arrasto.inclinacao) * 0.18;
         arrasto.escala += ((reduzMovimento ? 1 : 1.035) - arrasto.escala) * 0.25;
 
@@ -578,11 +679,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     grade.addEventListener('pointerdown', (evento) => {
-        if (!editando || arrasto || evento.button !== 0) return;
+        if (!editando || arrasto || redimensionamento || evento.button !== 0) return;
         const card = evento.target.closest('.service-card');
         if (!card || evento.target.closest('.card-visibility')) return;
         const p = posicoes.get(card);
         if (!p) return;
+
+        if (evento.target.closest('.card-resize-handle')) {
+            iniciarRedimensionamento(evento, card);
+            return;
+        }
 
         evento.preventDefault();
         card.focus({ preventScroll: true });
@@ -605,6 +711,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     grade.addEventListener('pointermove', (evento) => {
+        if (redimensionamento && evento.pointerId === redimensionamento.id) {
+            redimensionamento.ponteiroY = evento.clientY;
+            return;
+        }
         if (!arrasto || evento.pointerId !== arrasto.id) return;
         arrasto.ponteiro = { x: evento.clientX, y: evento.clientY };
         const distancia = Math.hypot(evento.clientX - arrasto.inicio.x, evento.clientY - arrasto.inicio.y);
@@ -612,6 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function soltar(evento) {
+        if (redimensionamento && evento.pointerId === redimensionamento.id) {
+            encerrarRedimensionamento(evento);
+            return;
+        }
         if (!arrasto || evento.pointerId !== arrasto.id) return;
         const { card, ativo } = arrasto;
         if (card.hasPointerCapture(evento.pointerId)) card.releasePointerCapture(evento.pointerId);

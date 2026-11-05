@@ -9,7 +9,9 @@ from app.forms import (
 from app.utils import otp, throttle
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.home import quick_access_cards
-from app.utils.services import TICKETS_URL, ranked_services, save_layout, track_access
+from app.utils.services import (
+    CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, TICKETS_URL, ranked_services, save_layout, track_access,
+)
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors, sanitize_entry
 from app.utils.toners.stock import (
@@ -76,6 +78,8 @@ def home_view(request):
         'has_dashboards': any(card['service'].key == ServiceAccess.DASHBOARDS for card in cards),
         'cards': cards,
         'visible_cards': [card for card in cards if not card['hidden']],
+        'card_min_height': CARD_MIN_HEIGHT,
+        'card_max_height': CARD_MAX_HEIGHT,
         'contacts': contacts,
     })
 
@@ -711,7 +715,7 @@ def home_layout_api(request):
     if payload is None:
         return JsonResponse({'detail': 'JSON inválido.'}, status=400)
     try:
-        save_layout(request.user, payload.get('order'), payload.get('hidden', []))
+        save_layout(request.user, payload.get('order'), payload.get('hidden', []), payload.get('sizes', {}))
     except ValueError as error:
         return JsonResponse({'detail': str(error)}, status=400)
     return JsonResponse({'status': 'success'})

@@ -378,7 +378,8 @@ class ServiceAccess(models.Model):
 
 class HomeLayout(models.Model):
     """
-    Os cards da home como o usuário arrumou: a ordem e os que ficam ocultos.
+    Os cards da home como o usuário arrumou: a ordem, os que ficam ocultos e a
+    altura dos que ele redimensionou.
 
     Sem layout salvo a home segue a ordem dos acessos. O serviço que o usuário
     passar a ter depois de arrumar entra no fim, visível.
@@ -386,6 +387,7 @@ class HomeLayout(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='home_layout', verbose_name='Usuário')
     order = models.JSONField(default=list, blank=True, verbose_name='Ordem')
     hidden = models.JSONField(default=list, blank=True, verbose_name='Ocultos')
+    sizes = models.JSONField(default=dict, blank=True, verbose_name='Alturas')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
 
     def __str__(self):
