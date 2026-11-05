@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from app.models import Contact, Dashboard, HomeLayout, Notification, Sector, ServiceAccess, Toner, User
-from app.utils.services import CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, SERVICES, TICKETS_URL, register_access
+from app.utils.services import CARD_DEFAULT_HEIGHT, CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, TICKETS_URL, register_access
 from journey_audit.audit import current_period
 from journey_audit.models import Competency, Occurrence
 
@@ -336,12 +336,12 @@ def card_heights(client):
 
 
 @pytest.mark.django_db
-def test_cards_start_with_the_default_height_of_the_service(client):
+def test_cards_start_with_the_same_default_height(client):
     client.force_login(make_user())
 
     heights = card_heights(client)
 
-    assert heights == {service.key: service.height for service in SERVICES if service.key in heights}
+    assert set(heights.values()) == {CARD_DEFAULT_HEIGHT}
     assert len(heights) == 3
 
 
@@ -357,7 +357,7 @@ def test_saved_heights_are_rendered(client):
     assert response.status_code == 200
     heights = card_heights(client)
     assert heights[ServiceAccess.CONTACTS] == 520
-    assert heights[ServiceAccess.TICKETS] == next(s.height for s in SERVICES if s.key == ServiceAccess.TICKETS)
+    assert heights[ServiceAccess.TICKETS] == CARD_DEFAULT_HEIGHT
 
 
 @pytest.mark.django_db

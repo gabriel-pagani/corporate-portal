@@ -111,7 +111,7 @@
                 data-min-height="{{ card_min_height }}" data-max-height="{{ card_max_height }}">
                 {% for card in cards %}
                 {% with service=card.service preview=card.preview %}
-                <article class="service-card service-{{ service.key }}{% if card.hidden %} is-hidden{% endif %}" data-height="{{ card.height }}" data-default-height="{{ service.height }}" data-service="{{ service.key }}">
+                <article class="service-card service-{{ service.key }}{% if card.hidden %} is-hidden{% endif %}" data-height="{{ card.height }}" data-default-height="{{ card_default_height }}" data-service="{{ service.key }}">
                     <div class="card-edit-controls">
                         <span class="card-drag-handle" title="Arraste para mover" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
                         <button type="button" class="card-visibility" aria-pressed="{{ card.hidden|yesno:'false,true' }}"

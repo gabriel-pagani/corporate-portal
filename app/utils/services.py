@@ -20,7 +20,10 @@ from app.utils.dashboards.access import get_user_dashboards
 
 TICKETS_URL = 'http://servicos.gruposmi.com.br/front/ticket.php'
 
-# Os limites da altura que o usuário dá a um card ao redimensioná-lo, em pixels
+# A altura dos cards enquanto o usuário não escolhe outra, e os limites da que
+# ele dá a um card ao redimensioná-lo, em pixels
+CARD_DEFAULT_HEIGHT = 380
+
 CARD_MIN_HEIGHT = 180
 
 CARD_MAX_HEIGHT = 900
@@ -34,8 +37,6 @@ class Service:
     url_name: str
     description: str
     is_available: Callable
-    # A altura do card enquanto o usuário não escolhe outra
-    height: int
 
     @property
     def url(self):
@@ -53,31 +54,31 @@ def has_perm(perm):
 SERVICES = [
     Service(
         ServiceAccess.CONTACTS, 'Lista de Contatos', 'fa-phone', 'app:contacts',
-        'Ramais e setores de todos os colaboradores.', everyone, 380,
+        'Ramais e setores de todos os colaboradores.', everyone,
     ),
     Service(
         ServiceAccess.NOTIFICATIONS, 'Mural de Notificações', 'fa-bullhorn', 'app:notifications',
-        'Os avisos enviados para você.', everyone, 380,
+        'Os avisos enviados para você.', everyone,
     ),
     Service(
         ServiceAccess.TICKETS, 'Central de Chamados', 'fa-headphones', 'app:tickets',
-        'Abra e acompanhe chamados de suporte.', everyone, 290,
+        'Abra e acompanhe chamados de suporte.', everyone,
     ),
     Service(
         ServiceAccess.DASHBOARDS, 'Central de Dashboards', 'fa-chart-pie', 'app:dashboards',
-        'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(), 360,
+        'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(),
     ),
     Service(
         ServiceAccess.TONERS, 'Controle de Toners', 'fa-print', 'app:toners',
-        'Estoque, movimentações e solicitações de toner.', has_perm('app.view_toner'), 340,
+        'Estoque, movimentações e solicitações de toner.', has_perm('app.view_toner'),
     ),
     Service(
         ServiceAccess.CUSTOMERS_VENDORS, 'Clientes e Fornecedores', 'fa-address-card', 'app:customers-vendors',
-        'Cadastro de clientes e fornecedores no RM pelo CNPJ.', has_perm('app.register_customers_suppliers'), 320,
+        'Cadastro de clientes e fornecedores no RM pelo CNPJ.', has_perm('app.register_customers_suppliers'),
     ),
     Service(
         ServiceAccess.JOURNEY_AUDIT, 'Auditoria de Jornada', 'fa-user-clock', 'journey_audit:audit',
-        'Conferência das ocorrências de ponto da competência.', has_perm('journey_audit.view_competency'), 380,
+        'Conferência das ocorrências de ponto da competência.', has_perm('journey_audit.view_competency'),
     ),
 ]
 
@@ -120,14 +121,14 @@ def arranged_services(user):
     services = ranked_services(user)
     layout = HomeLayout.objects.filter(user=user).first()
     if layout is None:
-        return [(service, False, service.height) for service in services]
+        return [(service, False, CARD_DEFAULT_HEIGHT) for service in services]
 
     position = {key: index for index, key in enumerate(layout.order)}
     hidden = set(layout.hidden)
     # A ordenação é estável: os que ficam fora do layout mantêm a ordem dos acessos
     services = sorted(services, key=lambda service: position.get(service.key, len(position)))
     return [
-        (service, service.key in hidden, layout.sizes.get(service.key, service.height))
+        (service, service.key in hidden, layout.sizes.get(service.key, CARD_DEFAULT_HEIGHT))
         for service in services
     ]
 
