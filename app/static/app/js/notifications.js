@@ -24,6 +24,27 @@ function escaparHtml(texto) {
     }[c]));
 }
 
+const REGEX_URL = /https?:\/\/[^\s<>"']+/gi;
+
+function link(url) {
+    const href = escaparHtml(url);
+    return `<a href="${href}">${href}</a>`;
+}
+
+// Escapa a mensagem e transforma as URLs dela em links clicáveis
+function mensagemComLinks(texto) {
+    const mensagem = String(texto ?? '');
+    let html = '';
+    let inicio = 0;
+    for (const achado of mensagem.matchAll(REGEX_URL)) {
+        // Pontuação colada no fim ("veja https://...!") não faz parte do endereço
+        const url = achado[0].replace(/[.,;:!?)\]]+$/, '');
+        html += escaparHtml(mensagem.slice(inicio, achado.index)) + link(url);
+        inicio = achado.index + url.length;
+    }
+    return html + escaparHtml(mensagem.slice(inicio));
+}
+
 // Remove acentos para tornar a pesquisa mais tolerante
 function removerAcentos(texto) {
     return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -74,7 +95,7 @@ function cartao(notificacao) {
                     <h3 class="post-title">${escaparHtml(notificacao.title)}</h3>
                     ${lida ? '' : '<span class="badge unread">Nova</span>'}
                 </div>
-                <p class="post-message">${escaparHtml(notificacao.message)}</p>
+                <p class="post-message">${mensagemComLinks(notificacao.message)}</p>
                 <div class="post-footer">
                     <span><i class="far fa-clock"></i> ${escaparHtml(notificacao.start_at)} &middot; ${escaparHtml(notificacao.level_display)} &middot; ${notificacao.author ? `<i class="far fa-user"></i> ${escaparHtml(notificacao.author)} &middot; ` : ''}${escaparHtml(notificacao.views)} ${notificacao.views === 1 ? 'visualização' : 'visualizações'}</span>
                     ${lida ? '' : `<button type="button" class="button small" data-action="ler" data-id="${notificacao.id}"><i class="fas fa-check"></i> Marcar como lida</button>`}
