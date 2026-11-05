@@ -16,9 +16,6 @@ const permissoes = lerJson('library-permissions');
 const destinatarios = lerJson('library-recipients');
 const TAMANHO_MAXIMO = lerJson('library-max-file-size');
 
-// Quantos documentos cada card de pasta lista antes do "e mais N"
-const DOCUMENTOS_POR_PASTA = 5;
-
 let pastaAtual = null;
 let editandoPastaId = null;
 let editandoDocumentoId = null;
@@ -151,9 +148,9 @@ function renderizarSidebar() {
     const lista = document.getElementById('folder-list');
     const itens = [
         `<li>
-            <button type="button" class="folder-link${pastaAtual === null ? ' active' : ''}" data-folder="" title="Todas as pastas">
+            <button type="button" class="folder-link${pastaAtual === null ? ' active' : ''}" data-folder="" title="Todos os arquivos">
                 <i class="fas fa-book" aria-hidden="true"></i>
-                <span class="text">Todas as pastas</span>
+                <span class="text">Todos os arquivos</span>
                 <span class="folder-count">${documentos.length}</span>
             </button>
         </li>`,
@@ -186,37 +183,6 @@ function renderizarCaminho(termo) {
         <button type="button" data-folder="">Biblioteca</button>
         <i class="fas fa-chevron-right separator" aria-hidden="true"></i>
         <strong>${escaparHtml(pastaPorId(pastaAtual).name)}</strong>`;
-}
-
-function cardPasta(pasta, indice) {
-    const lista = documentosDaPasta(pasta.id);
-    const visiveis = lista.slice(0, DOCUMENTOS_POR_PASTA);
-    const restantes = lista.length - visiveis.length;
-
-    const corpo = lista.length
-        ? visiveis.map((documento) => `
-            <a href="${documento.download_url}" title="Baixar ${escaparHtml(documento.title)}">
-                <i class="fas ${documento.icon} item-icon" aria-hidden="true"></i>
-                <span class="item-text">${escaparHtml(documento.title)}</span>
-                <i class="fas fa-download" aria-hidden="true"></i>
-            </a>`).join('')
-        : '<p class="folder-card-empty">Pasta vazia.</p>';
-
-    return `
-        <article class="folder-card" style="animation-delay: ${Math.min(indice, 12) * 0.03}s">
-            <button type="button" class="folder-card-header" data-folder="${pasta.id}" title="Abrir a pasta ${escaparHtml(pasta.name)}">
-                <span class="folder-card-icon"><i class="fas fa-folder" aria-hidden="true"></i></span>
-                <span class="folder-card-heading">
-                    <strong>${escaparHtml(pasta.name)}</strong>
-                    <small>${plural(lista.length, 'documento', 'documentos')}</small>
-                </span>
-                <i class="fas fa-arrow-right folder-card-open" aria-hidden="true"></i>
-            </button>
-            <div class="folder-card-body">
-                ${corpo}
-                ${restantes > 0 ? `<button type="button" class="folder-card-more" data-folder="${pasta.id}">e mais ${restantes}</button>` : ''}
-            </div>
-        </article>`;
 }
 
 function textoDestinatarios(documento) {
@@ -277,11 +243,13 @@ function renderizarConteudo(termo) {
         return;
     }
 
+    // Na raiz vão todos os arquivos, cada um com a sua pasta; as pastas ficam na sidebar
     if (pastaAtual === null) {
-        grade.innerHTML = pastas.map(cardPasta).join('');
-        if (pastas.length) {
+        const todos = [...documentos].sort((a, b) => comparar(a.title, b.title) || comparar(a.folder, b.folder));
+        grade.innerHTML = todos.map((documento, indice) => cardDocumento(documento, indice, true)).join('');
+        if (todos.length) {
             mostrarVazio('');
-        } else if (permissoes.add_folder) {
+        } else if (permissoes.add_folder && !pastas.length) {
             mostrarVazio('Nenhuma pasta criada ainda. Use "Nova pasta", na barra lateral, para começar.');
         } else {
             mostrarVazio('Nenhum documento foi liberado para você ainda.');
