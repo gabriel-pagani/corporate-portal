@@ -2,17 +2,18 @@
 A auditoria de jornada no banco: importar os relatórios, manter as ocorrências
 em dia com eles e registrar as tratativas do RH.
 """
+from collections import defaultdict
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, Func, IntegerField, Prefetch, Q, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Func, IntegerField, Prefetch, Q
 from django.utils import timezone
 
 from journey_audit.models import Competency, Occurrence, OccurrenceTreatment, SourceReport
 from journey_audit.analysis import (
-    balance_minutes, employee_id, find_occurrences, leaves_on, medical_leaves, normalize,
+    balance_minutes, employee_id, find_occurrences, is_unidentified_schedule, leave_events, leaves_on,
+    medical_leaves, normalize,
 )
 from journey_audit.reports import read_report
 
@@ -48,6 +49,13 @@ def current_period(today=None):
         start = (start.replace(day=1) - timedelta(days=1)).replace(day=COMPETENCY_START_DAY)
     end = (start + timedelta(days=31)).replace(day=COMPETENCY_START_DAY - 1)
     return start, end
+
+
+def occurrence_priority(type, scale):
+    """A prioridade do tipo; o intervalo sem marcações da escala não identificada só pede conferência."""
+    if type == Occurrence.MISSING_BREAK and is_unidentified_schedule(scale):
+        return 'Média'
+    return PRIORITIES[type]
 
 
 def user_name(user):
@@ -91,7 +99,7 @@ def fit(field, value):
 
 def analyse(competency):
     rows = {report.type: report.rows for report in competency.reports.all()}
-    found, competency.analysed_rows = find_occurrences(
+    found, competency.analysed_rows, excluded = find_occurrences(
         rows.get(SourceReport.SUMMARY, []),
         rows.get(SourceReport.ODD_PUNCHES, []),
         rows.get(SourceReport.ABSENCES, []),
@@ -121,7 +129,14 @@ def analyse(competency):
     Occurrence.objects.bulk_create(created, batch_size=1000)
     Occurrence.objects.bulk_update(changed, ANALYSIS_FIELDS, batch_size=500)
     # O que sumiu dos relatórios continua guardado, com a tratativa que tiver: a
-    # recorrência e a regra do ajuste mensal ainda contam com ele
+    # recorrência e a regra do ajuste mensal ainda contam com ele. O dia do
+    # Serviços/Obras não sumiu, saiu da auditoria: some de vez, a menos que já
+    # tenha tratativa registrada.
+    leaving = [
+        occurrence.pk for occurrence in current.values()
+        if (occurrence.employee_id, occurrence.day) in excluded
+    ]
+    Occurrence.objects.filter(pk__in=leaving, treatments__isnull=True).delete()
     gone = [occurrence.pk for occurrence in current.values() if occurrence.in_reports]
     Occurrence.objects.filter(pk__in=gone).update(in_reports=False)
 
@@ -163,12 +178,12 @@ def odd_punches_recurrence():
     occurrences = (
         Occurrence.objects.filter(type=Occurrence.ODD_PUNCHES)
         .order_by('day')
-        .values_list('employee_id', 'employee_name', 'day', 'treatment')
+        .values_list('employee_id', 'employee_name', 'location', 'day', 'treatment')
     )
-    for employee, name, day, treatment in occurrences:
+    for employee, name, location, day, treatment in occurrences:
         entry = employees.setdefault(employee, {'employee_id': employee, 'days': set(), 'adjustments': 0})
-        # Fica o nome do dia mais recente
-        entry['employee_name'] = name
+        # Ficam o nome e a localização do dia mais recente
+        entry.update(employee_name=name, location=location)
         entry['days'].add(day)
         entry['adjustments'] += treatment == Occurrence.ADJUSTED
 
@@ -185,10 +200,11 @@ def merged_medical_leaves(reports):
     for report in reports:
         found = medical_leaves(report.rows, report.competency.start_date, report.competency.end_date)
         for employee, entry in found.items():
-            merged = employees.setdefault(employee, {**entry, 'leaves': set(), 'days': set()})
-            merged['employee_name'] = entry['employee_name']
+            merged = employees.setdefault(employee, {**entry, 'leaves': set(), 'days': set(), 'reasons': set()})
+            merged.update(employee_name=entry['employee_name'], location=entry['location'])
             merged['leaves'] |= entry['leaves']
             merged['days'] |= entry['days']
+            merged['reasons'] |= entry['reasons']
     return employees
 
 
@@ -220,49 +236,126 @@ def indicators(competency=None):
             {
                 'employee_id': entry['employee_id'],
                 'employee_name': entry['employee_name'],
+                'location': entry['location'],
                 'count': len(entry['leaves']),
                 'days': len(entry['days']),
+                'reasons': sorted(entry['reasons'], key=normalize),
             }
             for entry in merged_medical_leaves(leaves).values()
         ],
     }
 
 
+def bank_totals(report):
+    """O saldo líquido, a soma dos positivos e a dos negativos do banco de horas."""
+    balances = [balance_minutes(row['Saldo']) for row in report.rows]
+    positive = sum(balance for balance in balances if balance > 0)
+    negative = sum(balance for balance in balances if balance < 0)
+    return {'bank_hours': positive + negative, 'bank_positive': positive, 'bank_negative': negative}
+
+
 def evolution():
     """
-    Os totais de cada competência, da mais antiga à mais recente: horas extras,
-    banco de horas, intervalos e dias de atestado. O banco de horas e os dias de
-    atestado ficam em branco na competência sem o relatório deles.
+    Os totais de cada competência, da mais antiga à mais recente: as ocorrências
+    de cada tipo, os atestados e declarações e o banco de horas. O banco de
+    horas e os atestados ficam em branco na competência sem o relatório deles.
     """
-    in_reports = Q(occurrences__in_reports=True)
-    competencies = Competency.objects.annotate(
-        overtime=Coalesce(Sum('occurrences__minutes', filter=in_reports & Q(
-            occurrences__type__in=[Occurrence.OVERTIME, Occurrence.LONG_OVERTIME],
-        )), 0),
-        short_breaks=Count('occurrences', filter=in_reports & Q(occurrences__type=Occurrence.SHORT_BREAK)),
-        short_rests=Count('occurrences', filter=in_reports & Q(occurrences__type=Occurrence.SHORT_REST)),
-    ).order_by('start_date', 'end_date')
+    counts = defaultdict(dict)
+    rows = (
+        Occurrence.objects.filter(in_reports=True)
+        .values_list('competency_id', 'type')
+        .annotate(total=Count('id'))
+        .order_by()
+    )
+    for competency_id, type, total in rows:
+        counts[competency_id][type] = total
+
     reports = {
         (report.competency_id, report.type): report
         for report in SourceReport.objects.filter(type__in=SourceReport.INFORMATIVE).select_related('competency')
     }
 
-    rows = []
-    for competency in competencies:
+    result = []
+    for competency in Competency.objects.order_by('start_date', 'end_date'):
         bank = reports.get((competency.id, SourceReport.BANK_HOURS))
         leaves = reports.get((competency.id, SourceReport.LEAVES))
-        rows.append({
+        result.append({
             **serialize_competency(competency),
-            'overtime': competency.overtime,
-            'bank_hours': sum(balance_minutes(row['Saldo']) for row in bank.rows) if bank else None,
-            'short_breaks': competency.short_breaks,
-            'short_rests': competency.short_rests,
-            # Os dias de cada colaborador: dois afastados no mesmo dia são dois dias
-            'medical_leave_days': sum(
-                len(entry['days']) for entry in merged_medical_leaves([leaves]).values()
+            'types': counts[competency.id],
+            'medical_leaves': sum(
+                len(entry['leaves']) for entry in merged_medical_leaves([leaves]).values()
             ) if leaves else None,
+            **(bank_totals(bank) if bank else dict.fromkeys(['bank_hours', 'bank_positive', 'bank_negative'])),
         })
-    return rows
+    return result
+
+
+# O que o comparativo por colaborador mede nas ocorrências: os tipos que contam
+# (todos, no total de ocorrências) e se soma os minutos em vez da quantidade.
+# O banco de horas e os atestados vêm dos relatórios deles.
+EMPLOYEE_INDICATORS = {
+    'occurrences': (None, False),
+    'intra': ((Occurrence.SHORT_BREAK,), False),
+    'inter': ((Occurrence.SHORT_REST,), False),
+    'extra': ((Occurrence.OVERTIME, Occurrence.LONG_OVERTIME), True),
+    'bank': None,
+    'medical': None,
+}
+
+
+def employee_comparison(competency_ids, indicator):
+    """
+    O indicador de cada colaborador em cada competência, só de quem tem algum
+    registro nelas. Os valores ficam pelo id da competência; nos atestados, os
+    dias de afastamento vão à parte.
+    """
+    employees = {}
+
+    def entry(employee, name, location):
+        item = employees.setdefault(employee, {
+            'employee_id': employee, 'employee_name': name, 'location': location,
+            'types': set(), 'values': {}, 'days': {},
+        })
+        # Ficam o nome e a localização da competência mais recente que os tiver
+        item['employee_name'] = name or item['employee_name']
+        if location and location != 'Não informado':
+            item['location'] = location
+        return item
+
+    if indicator == 'bank':
+        reports = SourceReport.objects.filter(competency_id__in=competency_ids, type=SourceReport.BANK_HOURS)
+        for report in reports.order_by('competency__start_date'):
+            for row in report.rows:
+                item = entry(employee_id(row['Matrícula']), row.get('Nome') or 'Sem nome', row.get('Localização') or 'Não informado')
+                item['values'][report.competency_id] = item['values'].get(report.competency_id, 0) + balance_minutes(row['Saldo'])
+                item['types'].add('Banco de horas')
+    elif indicator == 'medical':
+        reports = SourceReport.objects.filter(competency_id__in=competency_ids, type=SourceReport.LEAVES)
+        for report in reports.select_related('competency').order_by('competency__start_date'):
+            competency = report.competency
+            for employee, found in medical_leaves(report.rows, competency.start_date, competency.end_date).items():
+                item = entry(employee, found['employee_name'], found['location'])
+                item['values'][competency.id] = len(found['leaves'])
+                item['days'][competency.id] = len(found['days'])
+                item['types'] |= found['reasons']
+    else:
+        types, minutes = EMPLOYEE_INDICATORS[indicator]
+        occurrences = Occurrence.objects.filter(competency_id__in=competency_ids, in_reports=True)
+        if types:
+            occurrences = occurrences.filter(type__in=types)
+        labels = dict(Occurrence.TYPES)
+        rows = occurrences.order_by('day').values_list(
+            'competency_id', 'employee_id', 'employee_name', 'location', 'type', 'minutes',
+        )
+        for competency_id, employee, name, location, type, value in rows:
+            item = entry(employee, name, location)
+            item['values'][competency_id] = item['values'].get(competency_id, 0) + ((value or 0) if minutes else 1)
+            item['types'].add(labels[type])
+
+    return sorted(
+        ({**item, 'types': sorted(item['types'], key=normalize)} for item in employees.values()),
+        key=lambda item: (normalize(item['employee_name']), item['employee_id']),
+    )
 
 
 def occurrence_leaves(occurrence):
@@ -336,6 +429,7 @@ def serialize_report(report):
 def serialize_occurrence(occurrence):
     return {
         'id': occurrence.id,
+        'priority': occurrence_priority(occurrence.type, occurrence.scale),
         'day': occurrence.day.isoformat(),
         'employee_id': occurrence.employee_id,
         'employee_name': occurrence.employee_name,
@@ -390,6 +484,40 @@ def bank_hours(competency):
     return rows
 
 
+def serialize_leave_event(event):
+    return {
+        'employee_id': event['employee_id'],
+        'employee_name': event['employee_name'],
+        'location': event['location'],
+        'reason': event['reason'],
+        'medical': event['medical'],
+        'periods': [
+            [first.isoformat(), last.isoformat() if last else None]
+            for first, last in sorted(event['periods'], key=lambda period: period[0])
+        ],
+    }
+
+
+def competency_leaves(competency):
+    """
+    Os afastamentos da competência, de todos os motivos, e quantos dias de
+    afastamento eles somam (cada colaborador conta o dia uma vez); None sem o
+    relatório de afastamentos.
+    """
+    report = competency.reports.filter(type=SourceReport.LEAVES).first()
+    if report is None:
+        return None
+
+    events = leave_events(report.rows, competency.start_date, competency.end_date)
+    days = defaultdict(set)
+    for event in events:
+        days[event['employee_id']] |= event['days']
+    return {
+        'events': [serialize_leave_event(event) for event in events],
+        'days': sum(len(found) for found in days.values()),
+    }
+
+
 def competency_payload(competency):
     # As linhas dos relatórios ficam no banco: aqui só a contagem delas
     reports = competency.reports.select_related('uploaded_by').defer('rows').annotate(
@@ -401,4 +529,5 @@ def competency_payload(competency):
         'reports': {report.type: serialize_report(report) for report in reports},
         'occurrences': [serialize_occurrence(occurrence) for occurrence in competency.occurrences.filter(in_reports=True)],
         'bank_hours': bank_hours(competency),
+        'leaves': competency_leaves(competency),
     }

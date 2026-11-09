@@ -9,8 +9,8 @@ from app.models import ServiceAccess
 from app.utils.services import track_access
 from app.views import form_errors_response, json_permission_required, parse_json_body
 from journey_audit.audit import (
-    catalog, competencies_queryset, competency_payload, current_period, evolution, import_report, indicators,
-    occurrence_leaves, odd_punches_recurrence, register_treatment, serialize_bank_hours_note, serialize_competency,
+    EMPLOYEE_INDICATORS, catalog, competencies_queryset, competency_payload, current_period, employee_comparison,
+    evolution, import_report, indicators, occurrence_leaves, odd_punches_recurrence, register_treatment, serialize_bank_hours_note, serialize_competency,
     serialize_competency_summary, serialize_occurrence, serialize_treatment,
 )
 from journey_audit.forms import BankHoursNoteForm, JourneyReportForm, OccurrenceTreatmentForm
@@ -182,3 +182,18 @@ def indicators_api(request, competency_id=None):
 @json_permission_required('journey_audit.view_competency')
 def evolution_api(request):
     return JsonResponse({'competencies': evolution()})
+
+
+# As competências vão repetidas na consulta: ?competencies=1&competencies=2
+@require_http_methods(['GET'])
+@json_permission_required('journey_audit.view_competency')
+def employee_comparison_api(request):
+    indicator = request.GET.get('indicator', '')
+    if indicator not in EMPLOYEE_INDICATORS:
+        return JsonResponse({'detail': 'Escolha um indicador válido.'}, status=400)
+    try:
+        ids = [int(value) for value in request.GET.getlist('competencies')]
+    except ValueError:
+        return JsonResponse({'detail': 'Competência inválida.'}, status=400)
+
+    return JsonResponse({'employees': employee_comparison(ids, indicator)})

@@ -1,7 +1,7 @@
 from django.urls import path
 from journey_audit.views import (
-    audit_view, bank_hours_note_api, competencies_api, competency_api, competency_finish_api, evolution_api,
-    indicators_api, recurrence_api, reports_api, treatments_api,
+    audit_view, bank_hours_note_api, competencies_api, competency_api, competency_finish_api, employee_comparison_api,
+    evolution_api, indicators_api, recurrence_api, reports_api, treatments_api,
 )
 
 app_name = 'journey_audit'
@@ -32,4 +32,5 @@ urlpatterns = [
     path('api/journey-audit/recurrence/', recurrence_api, name='recurrence-api'),
     path('api/journey-audit/indicators/', indicators_api, name='indicators-api'),
     path('api/journey-audit/evolution/', evolution_api, name='evolution-api'),
+    path('api/journey-audit/employee-comparison/', employee_comparison_api, name='employee-comparison-api'),
 ]

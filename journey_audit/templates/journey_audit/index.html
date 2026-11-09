@@ -30,10 +30,10 @@
                 <button type="button" class="tab" data-tab="ranking-intrajornada" title="Ranking de Intrajornada Matriz"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Intrajornada Matriz</span></button>
                 <button type="button" class="tab" data-tab="ranking-interjornada" title="Ranking de Interjornada"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Interjornada</span></button>
                 <button type="button" class="tab" data-tab="ranking-atestados" title="Ranking de Atestados"><i class="fas fa-notes-medical" aria-hidden="true"></i><span class="text">Ranking de Atestados</span></button>
-                <button type="button" class="tab" data-tab="recorrencia" title="Ranking de Batidas Ímpares"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Batidas Ímpares</span></button>
                 <button type="button" class="tab" data-tab="graficos" title="Gráficos"><i class="fas fa-chart-column" aria-hidden="true"></i><span class="text">Gráficos</span></button>
-                <button type="button" class="tab" data-tab="comparativo-horas" title="Comparativo de Horas"><i class="fas fa-code-compare" aria-hidden="true"></i><span class="text">Comparativo de Horas</span></button>
-                <button type="button" class="tab" data-tab="comparativo-rankings" title="Comparativo dos Rankings"><i class="fas fa-code-compare" aria-hidden="true"></i><span class="text">Comparativo dos Rankings</span></button>
+                <button type="button" class="tab" data-tab="comparativo-ocorrencias" title="Comparativo de Ocorrências"><i class="fas fa-chart-line" aria-hidden="true"></i><span class="text">Comparativo de Ocorrências</span></button>
+                <button type="button" class="tab" data-tab="comparativo-colaborador" title="Comparativo por Colaborador"><i class="fas fa-code-compare" aria-hidden="true"></i><span class="text">Comparativo por Colaborador</span></button>
+                <button type="button" class="tab" data-tab="recorrencia" title="Ranking de Batidas Ímpares"><i class="fas fa-ranking-star" aria-hidden="true"></i><span class="text">Ranking de Batidas Ímpares</span></button>
                 <button type="button" class="tab" data-tab="competencias" title="Histórico de competências"><i class="fas fa-box-archive" aria-hidden="true"></i><span class="text">Histórico de competências</span></button>
                 <button type="button" class="tab" data-tab="importar" title="Importar Relatórios"><i class="fas fa-file-import" aria-hidden="true"></i><span class="text">Importar Relatórios</span></button>
             </nav>
@@ -60,6 +60,7 @@
             data-treatments-url="{% url 'journey_audit:treatments-api' 0 %}"
             data-recurrence-url="{% url 'journey_audit:recurrence-api' %}"
             data-evolution-url="{% url 'journey_audit:evolution-api' %}"
+            data-employee-comparison-url="{% url 'journey_audit:employee-comparison-api' %}"
         >
             <div class="header">
                 <h1>Auditoria de Jornada</h1>
@@ -103,7 +104,7 @@
                     <button type="button" class="kpi" data-shortcut="missing-break">
                         <span class="kpi-label"><i class="fas fa-circle-question kpi-icon icon-neutral" aria-hidden="true"></i> Intervalos sem marcação suficiente</span>
                         <strong class="kpi-value" id="kpi-missing-break">0</strong>
-                        <span class="kpi-hint">Não presume intervalo zerado</span>
+                        <span class="kpi-hint">Sem os já conferidos como não necessários</span>
                     </button>
                     <button type="button" class="kpi" data-shortcut="done">
                         <span class="kpi-label"><i class="fas fa-circle-check kpi-icon icon-done" aria-hidden="true"></i> Tratativas concluídas</span>
@@ -142,16 +143,44 @@
                     </button>
                 </section>
 
-                <section class="kpi-pair" aria-label="Horas da competência">
-                    <button type="button" class="kpi" data-go-tab="banco-de-horas">
-                        <span class="kpi-label"><i class="fas fa-piggy-bank kpi-icon icon-neutral" aria-hidden="true"></i> Banco de Horas</span>
-                        <strong class="kpi-value" id="kpi-bank-hours">—</strong>
-                        <span class="kpi-hint">Saldo líquido acumulado até a extração do relatório</span>
-                    </button>
+                <section class="kpi-grid kpi-four" aria-label="Horas extras e afastamentos da competência">
                     <button type="button" class="kpi" data-go-tab="horas-extras">
-                        <span class="kpi-label"><i class="fas fa-business-time kpi-icon icon-neutral" aria-hidden="true"></i> Horas Extras</span>
+                        <span class="kpi-label"><i class="fas fa-business-time kpi-icon icon-neutral" aria-hidden="true"></i> Horas extras totais</span>
                         <strong class="kpi-value" id="kpi-overtime">00:00</strong>
-                        <span class="kpi-hint">Total da competência, conforme o Sumarizado</span>
+                        <span class="kpi-hint">Soma da competência, conforme o Sumarizado</span>
+                    </button>
+                    <button type="button" class="kpi" data-go-tab="ranking-atestados">
+                        <span class="kpi-label"><i class="fas fa-notes-medical kpi-icon icon-neutral" aria-hidden="true"></i> Atestados no mês</span>
+                        <strong class="kpi-value" id="kpi-medical">—</strong>
+                        <span class="kpi-hint">Atestados e declarações na competência</span>
+                    </button>
+                    <button type="button" class="kpi" data-go-tab="afastamentos">
+                        <span class="kpi-label"><i class="fas fa-user-clock kpi-icon icon-neutral" aria-hidden="true"></i> Afastamentos no mês</span>
+                        <strong class="kpi-value" id="kpi-leaves">—</strong>
+                        <span class="kpi-hint">Todos os motivos · clique para ver a lista</span>
+                    </button>
+                    <div class="kpi">
+                        <span class="kpi-label"><i class="fas fa-calendar-xmark kpi-icon icon-neutral" aria-hidden="true"></i> Dias afastados</span>
+                        <strong class="kpi-value" id="kpi-leave-days">—</strong>
+                        <span class="kpi-hint">Dias de cada colaborador na competência</span>
+                    </div>
+                </section>
+
+                <section class="kpi-trio" aria-label="Banco de horas das obras">
+                    <button type="button" class="kpi" data-go-tab="banco-de-horas">
+                        <span class="kpi-label"><i class="fas fa-arrow-trend-up kpi-icon icon-done" aria-hidden="true"></i> Banco de horas positivo</span>
+                        <strong class="kpi-value" id="kpi-bank-positive">—</strong>
+                        <span class="kpi-hint">Soma dos saldos positivos da extração</span>
+                    </button>
+                    <button type="button" class="kpi" data-go-tab="banco-de-horas">
+                        <span class="kpi-label"><i class="fas fa-arrow-trend-down kpi-icon icon-alert" aria-hidden="true"></i> Banco de horas negativo</span>
+                        <strong class="kpi-value" id="kpi-bank-negative">—</strong>
+                        <span class="kpi-hint">Soma dos saldos negativos da extração</span>
+                    </button>
+                    <button type="button" class="kpi" data-go-tab="banco-de-horas">
+                        <span class="kpi-label"><i class="fas fa-scale-balanced kpi-icon icon-neutral" aria-hidden="true"></i> Banco de horas total</span>
+                        <strong class="kpi-value" id="kpi-bank-hours">—</strong>
+                        <span class="kpi-hint">Resultado líquido dos saldos positivos e negativos</span>
                     </button>
                 </section>
 
@@ -214,6 +243,13 @@
                             <option>Baixa</option>
                         </select>
                         <select id="filter-treatment" aria-label="Tratativa"></select>
+                        <select id="occurrence-sort" aria-label="Ordenar ocorrências">
+                            <option value="dateDesc">Data mais recente</option>
+                            <option value="date">Data mais antiga</option>
+                            <option value="name">Ordenar por colaborador</option>
+                            <option value="type">Ordenar por tipo de ocorrência</option>
+                            <option value="priority">Ordenar por prioridade</option>
+                        </select>
                     </div>
                     <div class="table-wrapper">
                         <table id="occurrences-table">
@@ -242,7 +278,8 @@
                     <summary>Como interpretar os alertas</summary>
                     <div class="help-text">
                         <p><strong>Tratativa obrigatória somente em três situações:</strong> batidas ímpares (registrar a observação do ajuste mensal), falta ou ausência integral (confirmar se a falta procede) e intervalo sem marcações suficientes (verificar e lançar quando necessário).</p>
-                        <p><strong>Intervalo:</strong> é calculado pelas colunas Batida 2 e Batida 3. Se uma delas estiver ausente, o alerta exibe todas as batidas disponíveis, identificadas por posição. Se não houver nenhuma batida, não é criado alerta de intervalo; a falta depende do relatório de ausências.</p>
+                        <p><strong>Intervalo:</strong> só é cobrado no dia em que a escala prevê intervalo (como em "08:00 às 12:00 e 13:00 às 17:00"), e nunca no dia de descanso (DSR) dela. É calculado pelas colunas Batida 2 e Batida 3; se uma delas estiver ausente, o alerta exibe todas as batidas disponíveis, identificadas por posição. Com a escala em branco ou NaN:NaN, todo dia com batida pede a conferência manual, com prioridade média. Se não houver nenhuma batida, não é criado alerta de intervalo; a falta depende do relatório de ausências.</p>
+                        <p><strong>Serviços/Obras:</strong> os colaboradores desse departamento ficam fora da auditoria, porque a jornada deles é acompanhada pelo Banco de Horas Obras.</p>
                         <p><strong>Interjornada:</strong> vem do relatório de intervalos. Entram só as linhas com "Tipo de intervalo" igual a Interjornada e o "Tempo de Infração" preenchido, mesmo que o dia não esteja no Sumarizado.</p>
                         <p><strong>Horas extras, intrajornada inferior a 1h e interjornada inferior a 11h:</strong> aparecem como alertas informativos, sem exigir tratativa.</p>
                         <p><strong>Ajuste mensal:</strong> cada matrícula aceita um único "Ajuste realizado" de batida ímpar por mês do calendário, mesmo que o outro dia do mês esteja em outra competência.</p>
@@ -304,7 +341,7 @@
                             <button type="button" class="button" id="bank-export"><i class="fas fa-file-excel"></i> Excel</button>
                         </div>
                     </div>
-                    <p class="section-hint">O saldo vem só da coluna SALDO do relatório e é o acumulado até a data de extração dele; nome, matrícula e localização servem para identificar e organizar os colaboradores. As observações ficam salvas no portal.</p>
+                    <p class="section-hint">O saldo vem só da coluna SALDO do relatório e é o acumulado até a data de extração dele; nome, matrícula e localização servem para identificar e organizar os colaboradores. A localização vem da coluna Localização, que o relatório precisa ter (a Filial não é usada no lugar dela). As observações ficam salvas no portal.</p>
                     <div class="upload-slot bank-upload">
                         <h3>Relatório do banco de horas</h3>
                         {% if permissions.change %}
@@ -427,6 +464,7 @@
                             <select id="intra-sort">
                                 <option value="count">Mais ocorrências</option>
                                 <option value="minutes">Maior tempo insuficiente</option>
+                                <option value="id">Matrícula</option>
                                 <option value="location">Localização</option>
                                 <option value="name">Colaborador</option>
                             </select>
@@ -504,23 +542,30 @@
             <div class="tab-panel" data-panel="ranking-atestados" hidden>
                 <section class="card">
                     <h2>Ranking de Atestados</h2>
-                    <p class="section-hint">Atestados médicos e declarações médicas ou odontológicas de cada colaborador, do relatório de afastamentos. Os dias de afastamento contam só os que caem dentro de cada competência.</p>
+                    <p class="section-hint">Só os atestados e as declarações do relatório de afastamentos; os outros motivos de afastamento não entram neste ranking. As linhas do mesmo afastamento contam uma vez, os dias de afastamento contam só os que caem dentro de cada competência, uma vez por colaborador, e as linhas de totalização, sem matrícula, ficam de fora.</p>
                     <div class="controls">
                         <div class="field">
                             <label for="atestados-scope">Competência</label>
                             <select id="atestados-scope"></select>
                         </div>
                         <div class="field">
+                            <label for="atestados-location">Localização</label>
+                            <select id="atestados-location"></select>
+                        </div>
+                        <div class="field">
                             <label for="atestados-sort">Ordenar por</label>
                             <select id="atestados-sort">
                                 <option value="count">Mais atestados e declarações</option>
                                 <option value="days">Mais dias de afastamento</option>
+                                <option value="id">Matrícula</option>
                                 <option value="name">Colaborador</option>
+                                <option value="location">Localização</option>
+                                <option value="reason">Tipo de afastamento</option>
                             </select>
                         </div>
                         <div class="field">
                             <label for="atestados-search">Buscar</label>
-                            <input type="search" id="atestados-search" placeholder="Nome ou matrícula">
+                            <input type="search" id="atestados-search" placeholder="Nome, matrícula, localização ou motivo">
                         </div>
                     </div>
                     <div class="table-wrapper">
@@ -529,8 +574,10 @@
                                 <tr>
                                     <th>Colaborador</th>
                                     <th>Matrícula</th>
+                                    <th>Localização</th>
                                     <th>Atestados e declarações</th>
                                     <th>Dias de afastamento</th>
+                                    <th>Tipo de afastamento</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -551,6 +598,7 @@
                                 <tr>
                                     <th>Colaborador</th>
                                     <th>Matrícula</th>
+                                    <th>Localização</th>
                                     <th>Ocorrências históricas</th>
                                     <th>Datas registradas</th>
                                     <th>Ajustes realizados</th>
@@ -592,7 +640,7 @@
                 <div class="chart-grid">
                     <section class="card chart-card chart-wide">
                         <h2>Localização × ocorrência</h2>
-                        <p class="section-hint">As células mais escuras concentram mais registros. Clique numa célula para ver as ocorrências.</p>
+                        <p class="section-hint">As células mais escuras concentram mais registros. Clique numa célula para ver as ocorrências. A coluna Atestados vem do relatório de afastamentos e entra no total da localização.</p>
                         <div id="chart-heatmap" class="table-wrapper"></div>
                         <div id="chart-heatmap-scale" class="heat-scale"></div>
                     </section>
@@ -626,103 +674,99 @@
                 <p class="chart-note">Os gráficos refletem os dados e as tratativas da competência selecionada. Os números são contagens de ocorrências, não necessariamente de colaboradores únicos.</p>
             </div>
 
-            <div class="tab-panel" data-panel="comparativo-horas" hidden>
+            <div class="tab-panel" data-panel="afastamentos" hidden>
                 <section class="card">
-                    <h2>Comparativo de Horas</h2>
-                    <p class="section-hint">Compare duas competências lado a lado. Horas extras e ocorrências vêm do que está nos relatórios de cada competência. O banco de horas é o saldo acumulado até a data de extração de cada relatório, e a diferença pode refletir mudanças ocorridas entre as extrações. Os dias de atestado somam os dias de cada colaborador com atestado médico ou declaração médica ou odontológica, do relatório de afastamentos.</p>
-                    <div class="controls">
-                        <div class="field">
-                            <label for="compare-hours-first">Primeira competência</label>
-                            <select id="compare-hours-first"></select>
-                        </div>
-                        <div class="field">
-                            <label for="compare-hours-second">Segunda competência</label>
-                            <select id="compare-hours-second"></select>
-                        </div>
+                    <div class="card-header">
+                        <h2>Todos os afastamentos do mês</h2>
+                        <button type="button" class="button" id="leaves-export"><i class="fas fa-file-excel"></i> Excel</button>
+                    </div>
+                    <p class="section-hint">Os afastamentos da competência aberta, de todos os motivos, e não só os atestados e as declarações. As linhas do mesmo afastamento contam uma vez.</p>
+                    <div class="filters">
+                        <input type="search" id="leaves-search" placeholder="Pesquise colaborador, matrícula, localização, tipo ou data..." aria-label="Pesquisar afastamentos">
+                        <select id="leaves-type" aria-label="Tipo de afastamento"></select>
+                        <select id="leaves-location" aria-label="Localização"></select>
+                        <select id="leaves-sort" aria-label="Ordenar afastamentos">
+                            <option value="name">Ordenar por colaborador</option>
+                            <option value="location">Ordenar por localização</option>
+                            <option value="type">Ordenar por tipo de afastamento</option>
+                            <option value="date">Ordenar por data</option>
+                        </select>
                     </div>
                     <div class="table-wrapper">
-                        <table id="compare-hours-table">
+                        <table id="leaves-table">
                             <thead>
                                 <tr>
-                                    <th>Indicador</th>
-                                    <th id="compare-hours-first-title">Primeira competência</th>
-                                    <th id="compare-hours-second-title">Segunda competência</th>
-                                    <th>Diferença</th>
-                                    <th>Variação</th>
+                                    <th>Matrícula</th>
+                                    <th>Colaborador</th>
+                                    <th>Localização</th>
+                                    <th>Tipo de afastamento</th>
+                                    <th>Data(s) do afastamento</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
                         </table>
                     </div>
-                    <div id="compare-hours-empty" class="empty" hidden></div>
+                    <div id="leaves-empty" class="empty" hidden></div>
+                    <div id="leaves-pagination" class="pagination-container" aria-label="Paginação dos afastamentos"></div>
                 </section>
+            </div>
 
+            <div class="tab-panel" data-panel="comparativo-ocorrencias" hidden>
                 <section class="card">
-                    <h2>Evolução por competência</h2>
-                    <p class="section-hint">Cada indicador no seu gráfico, com a sua escala, da competência mais antiga à mais recente. A competência sem o relatório do banco de horas ou de afastamentos fica sem ponto nesse indicador.</p>
+                    <h2>Comparativo de Ocorrências</h2>
+                    <p class="section-hint">A evolução de cada tipo de ocorrência e do banco de horas pelas competências escolhidas, uma linha por indicador. O banco de horas entra no eixo em horas; passe o mouse num ponto para ver o valor exato. As faltas a confirmar, os intervalos sem marcações e os afastamentos informados ficam de fora. O banco de horas é o saldo acumulado até a extração de cada relatório; a competência sem o relatório do banco ou de afastamentos fica sem ponto nesses indicadores.</p>
+                    <fieldset class="competency-checks">
+                        <legend>Competências para comparar</legend>
+                        <div id="sector-competencies" class="check-list"></div>
+                    </fieldset>
+                    <div class="controls">
+                        <div class="field">
+                            <label for="sector-indicator">Indicador</label>
+                            <select id="sector-indicator"></select>
+                        </div>
+                    </div>
                     <div id="evolution-charts" class="evolution-grid"></div>
                     <div id="evolution-empty" class="empty" hidden></div>
                 </section>
             </div>
 
-            <div class="tab-panel" data-panel="comparativo-rankings" hidden>
+            <div class="tab-panel" data-panel="comparativo-colaborador" hidden>
                 <section class="card">
-                    <h2>Comparativo dos Rankings</h2>
-                    <p class="section-hint">Compare, por colaborador, a quantidade de ocorrências e o tempo insuficiente entre duas competências. O filtro de localização vale para os dois rankings.</p>
+                    <h2>Comparativo por Colaborador</h2>
+                    <p class="section-hint">O indicador de cada colaborador nas competências escolhidas, uma coluna por competência. Entram só os colaboradores com algum registro nelas.</p>
+                    <fieldset class="competency-checks">
+                        <legend>Competências para comparar</legend>
+                        <div id="employee-competencies" class="check-list"></div>
+                    </fieldset>
                     <div class="controls">
                         <div class="field">
-                            <label for="compare-rankings-first">Primeira competência</label>
-                            <select id="compare-rankings-first"></select>
+                            <label for="employee-indicator">Indicador</label>
+                            <select id="employee-indicator">
+                                <option value="occurrences">Total de ocorrências</option>
+                                <option value="intra">Intrajornada · quantidade de ocorrências</option>
+                                <option value="inter">Interjornada · quantidade de ocorrências</option>
+                                <option value="extra">Horas extras</option>
+                                <option value="bank">Banco de horas</option>
+                                <option value="medical">Atestados e declarações</option>
+                            </select>
                         </div>
                         <div class="field">
-                            <label for="compare-rankings-second">Segunda competência</label>
-                            <select id="compare-rankings-second"></select>
+                            <label for="employee-filter">Colaborador</label>
+                            <select id="employee-filter"></select>
                         </div>
                         <div class="field">
-                            <label for="compare-rankings-location">Localização</label>
-                            <select id="compare-rankings-location"></select>
+                            <label for="employee-location">Localização</label>
+                            <select id="employee-location"></select>
                         </div>
                     </div>
-                    <h3 class="compare-title">Intrajornada inferior a 1h</h3>
                     <div class="table-wrapper">
-                        <table id="compare-intra-table">
-                            <thead>
-                                <tr>
-                                    <th>Colaborador</th>
-                                    <th>Matrícula</th>
-                                    <th>Localização</th>
-                                    <th>Ocorrências · 1ª</th>
-                                    <th>Ocorrências · 2ª</th>
-                                    <th>Diferença</th>
-                                    <th>Tempo insuficiente · 1ª</th>
-                                    <th>Tempo insuficiente · 2ª</th>
-                                </tr>
-                            </thead>
+                        <table id="compare-employees-table">
+                            <thead></thead>
                             <tbody></tbody>
                         </table>
                     </div>
-                    <div id="compare-intra-empty" class="empty" hidden></div>
-                    <div id="compare-intra-pagination" class="pagination-container" aria-label="Paginação do comparativo de intrajornada"></div>
-                    <h3 class="compare-title">Interjornada inferior a 11h</h3>
-                    <div class="table-wrapper">
-                        <table id="compare-inter-table">
-                            <thead>
-                                <tr>
-                                    <th>Colaborador</th>
-                                    <th>Matrícula</th>
-                                    <th>Localização</th>
-                                    <th>Ocorrências · 1ª</th>
-                                    <th>Ocorrências · 2ª</th>
-                                    <th>Diferença</th>
-                                    <th>Tempo de infração · 1ª</th>
-                                    <th>Tempo de infração · 2ª</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                    <div id="compare-inter-empty" class="empty" hidden></div>
-                    <div id="compare-inter-pagination" class="pagination-container" aria-label="Paginação do comparativo de interjornada"></div>
+                    <div id="compare-employees-empty" class="empty" hidden></div>
+                    <div id="compare-employees-pagination" class="pagination-container" aria-label="Paginação do comparativo por colaborador"></div>
                 </section>
             </div>
 
@@ -755,7 +799,7 @@
             <div class="tab-panel" data-panel="importar" hidden>
                 <section class="card">
                     <h2>Importar Relatórios</h2>
-                    <p class="section-hint" id="reports-hint">Importe os relatórios originais do Ahgora em .xlsx ou .csv para a competência aberta. As ocorrências são montadas a partir do Sumarizado; as batidas ímpares e as ausências complementam cada dia, a interjornada vem do relatório de intervalos e os afastamentos dão o contexto das ocorrências e o ranking de atestados.</p>
+                    <p class="section-hint" id="reports-hint">Importe os relatórios originais do Ahgora em .xlsx ou .csv para a competência aberta. As ocorrências são montadas a partir do Sumarizado; as batidas ímpares e as ausências complementam cada dia, a interjornada vem do relatório de intervalos e os afastamentos dão o contexto das ocorrências, a lista dos afastamentos do mês e o ranking de atestados. O departamento Serviços/Obras fica fora da auditoria.</p>
                     <div class="upload-grid">
                         <div class="upload-slot">
                             <h3>1. Batidas ímpares</h3>
@@ -782,20 +826,20 @@
                             <p class="report-state" data-report-state="S"></p>
                         </div>
                         <div class="upload-slot">
-                            <h3>4. Afastamentos</h3>
-                            <p class="muted">Atestados, declarações e suspensões, com a Data início e a Data fim. Só informativo: não muda a classificação das ocorrências.</p>
-                            {% if permissions.change %}
-                            <input type="file" accept=".xlsx,.csv" data-report-input="L" aria-label="Selecionar o relatório de afastamentos">
-                            {% endif %}
-                            <p class="report-state" data-report-state="L"></p>
-                        </div>
-                        <div class="upload-slot">
-                            <h3>5. Interjornada</h3>
+                            <h3>4. Interjornada</h3>
                             <p class="muted">Relatório de intervalos. A análise considera somente “Tipo de intervalo = Interjornada” e o “Tempo de Infração”.</p>
                             {% if permissions.change %}
                             <input type="file" accept=".xlsx,.csv" data-report-input="N" aria-label="Selecionar o relatório de interjornada">
                             {% endif %}
                             <p class="report-state" data-report-state="N"></p>
+                        </div>
+                        <div class="upload-slot">
+                            <h3>5. Afastamentos</h3>
+                            <p class="muted">Atestados, declarações, suspensões e demais afastamentos, com a Data início e a Data fim. Usado apenas como informação complementar, sem substituir faltas ou batidas ímpares.</p>
+                            {% if permissions.change %}
+                            <input type="file" accept=".xlsx,.csv" data-report-input="L" aria-label="Selecionar o relatório de afastamentos">
+                            {% endif %}
+                            <p class="report-state" data-report-state="L"></p>
                         </div>
                     </div>
                     {% if permissions.change %}

@@ -12,6 +12,7 @@ const {
     treatmentsUrl: TRATATIVAS_API_URL,
     recurrenceUrl: RECORRENCIA_API_URL,
     evolutionUrl: EVOLUCAO_API_URL,
+    employeeComparisonUrl: COMPARATIVO_POR_COLABORADOR_API_URL,
 } = document.getElementById('content').dataset;
 
 const ITENS_POR_PAGINA = 50;
@@ -19,8 +20,8 @@ const LIMITE_PRIORITARIOS = 8;
 const NIVEIS_DE_CALOR = 6;
 const ABAS = [
     'visao-geral', 'ocorrencias', 'intervalos', 'banco-de-horas', 'horas-extras', 'ranking-intrajornada',
-    'ranking-interjornada', 'ranking-atestados', 'recorrencia', 'graficos', 'comparativo-horas', 'comparativo-rankings',
-    'competencias', 'importar',
+    'ranking-interjornada', 'ranking-atestados', 'graficos', 'comparativo-ocorrencias', 'comparativo-colaborador',
+    'recorrencia', 'competencias', 'importar', 'afastamentos',
 ];
 const BANCO_DE_HORAS = 'B';
 const SABADO = 6;
@@ -34,8 +35,11 @@ const INTERJORNADA = 'N';
 const HORAS_EXTRAS = 'E';
 const HORAS_EXTRAS_ACIMA_DE_2H = 'H';
 const TIPOS_DE_INTERVALO = [INTERVALO_CURTO, INTERJORNADA, SEM_MARCACOES];
+const AFASTAMENTO_INFORMADO = 'A';
 const TRATATIVAS_DESFAVORAVEIS = ['F', 'S'];
 const NAO_PROCEDE = 'N';
+const NAO_NECESSARIO = 'C';
+const ORDEM_DE_PRIORIDADE = { Alta: 0, 'Média': 1, Baixa: 2 };
 
 const CONFERENCIA = {
     [INTERVALO_CURTO]: 'Calculado pelas batidas',
@@ -65,7 +69,7 @@ let enviando = false;
 let temporizadorPeriodo = null;
 const paginas = {
     ocorrencias: 1, intervalos: 1, banco: 1, extras: 1, intra: 1, inter: 1, atestados: 1, recorrencia: 1,
-    comparaIntra: 1, comparaInter: 1,
+    afastamentos: 1, comparaColaboradores: 1,
 };
 
 // Os relatórios escolhidos que esperam a confirmação, e o erro de cada um que
@@ -94,13 +98,12 @@ const RANKINGS = {
         linhas: null,
         pedido: 0,
         extrair: (dados) => dados.medical_leaves,
-        vazio: 'Nenhum atestado ou declaração médica ou odontológica para os filtros selecionados. '
-            + 'Confira se o relatório de afastamentos foi importado na competência.',
+        vazio: 'Nenhum atestado ou declaração para os filtros selecionados. '
+            + 'Confira se o relatório de afastamentos foi importado e se cobre as datas da competência.',
         montarLinha: linhaDoRankingDeAtestados,
     },
 };
-const pedidosDeComparativo = { horas: 0, rankings: 0 };
-let rankingsComparados = null;
+const pedidosDeComparativo = { ocorrencias: 0, colaboradores: 0 };
 
 function escaparHtml(texto) {
     return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
@@ -230,6 +233,12 @@ function concluida(ocorrencia) {
     return tipo(ocorrencia.type).actionable && Boolean(ocorrencia.treatment);
 }
 
+// A prioridade vem do servidor em cada ocorrência: o mesmo tipo pode variar
+// (o intervalo sem marcações da escala não identificada é média)
+function prioridade(ocorrencia) {
+    return ocorrencia.priority || tipo(ocorrencia.type).priority;
+}
+
 function textoTratativa(ocorrencia) {
     return ocorrencia.treatment ? catalogo.treatments[ocorrencia.treatment] : tipo(ocorrencia.type).pending_label;
 }
@@ -270,8 +279,11 @@ function opcoesDeLocalizacao(lista) {
 // estável, e esse continua sendo o desempate
 const ORDENACOES = {
     date: (a, b) => a.day.localeCompare(b.day),
+    dateDesc: (a, b) => b.day.localeCompare(a.day),
     name: (a, b) => comparar(a.employee_name, b.employee_name),
     location: (a, b) => comparar(a.location, b.location),
+    type: (a, b) => comparar(tipo(a.type).label, tipo(b.type).label),
+    priority: (a, b) => ORDEM_DE_PRIORIDADE[prioridade(a)] - ORDEM_DE_PRIORIDADE[prioridade(b)],
     largest: (a, b) => (b.minutes || 0) - (a.minutes || 0),
     smallest: (a, b) => (a.minutes || 0) - (b.minutes || 0),
 };
@@ -353,12 +365,6 @@ function preencherSeletoresDeCompetencia() {
             [['current', 'Competência aberta'], ['all', 'Todas as competências · total'], ...salvas],
             'current',
         );
-    });
-    // Os comparativos partem da competência anterior à mais recente contra a mais recente
-    const padrao = (indice) => (salvas[indice] || salvas[0] || [''])[0];
-    ['compare-hours', 'compare-rankings'].forEach((prefixo) => {
-        preencherOpcoes(document.getElementById(`${prefixo}-first`), salvas, padrao(1));
-        preencherOpcoes(document.getElementById(`${prefixo}-second`), salvas, padrao(0));
     });
 }
 
@@ -546,7 +552,7 @@ function renderizarIndicadores() {
     const valores = {
         'kpi-pending': pendentes,
         'kpi-absences': contar(ocorrencias, (o) => o.type === FALTA && pendente(o)),
-        'kpi-missing-break': contar(ocorrencias, (o) => o.type === SEM_MARCACOES),
+        'kpi-missing-break': contar(ocorrencias, (o) => o.type === SEM_MARCACOES && o.treatment !== NAO_NECESSARIO),
         'kpi-done': concluidas,
         'kpi-rows': competencia ? competencia.analysed_rows : 0,
         'kpi-total': ocorrencias.length,
@@ -559,11 +565,17 @@ function renderizarIndicadores() {
         document.getElementById(id).textContent = numero(valor);
     });
 
+    // Sem o relatório do banco de horas ou de afastamentos, o indicador fica em branco
     const saldos = saldosDoBanco();
-    document.getElementById('kpi-bank-hours').textContent = saldos.length
-        ? formatarHoras(saldos.reduce((total, saldo) => total + saldo.balance, 0))
-        : '—';
+    const totais = totaisDoBanco(saldos);
+    [['kpi-bank-positive', totais.positivo], ['kpi-bank-negative', totais.negativo], ['kpi-bank-hours', totais.liquido]]
+        .forEach(([id, valor]) => { document.getElementById(id).textContent = saldos.length ? formatarHoras(valor) : '—'; });
     document.getElementById('kpi-overtime').textContent = formatarHoras(horasExtras().reduce((total, o) => total + o.minutes, 0));
+
+    const afastamentos = competencia && competencia.leaves;
+    document.getElementById('kpi-medical').textContent = afastamentos ? numero(contar(afastamentos.events, (a) => a.medical)) : '—';
+    document.getElementById('kpi-leaves').textContent = afastamentos ? numero(afastamentos.events.length) : '—';
+    document.getElementById('kpi-leave-days').textContent = afastamentos ? numero(afastamentos.days) : '—';
 
     const medidor = document.getElementById('review-meter');
     medidor.setAttribute('aria-valuenow', porcentagem);
@@ -586,10 +598,9 @@ function renderizarIndicadores() {
 }
 
 function renderizarPrioritarios() {
-    const prioridade = { Alta: 0, 'Média': 1, Baixa: 2 };
     const casos = ocorrencias
         .filter(pendente)
-        .sort((a, b) => prioridade[tipo(a.type).priority] - prioridade[tipo(b.type).priority] || a.day.localeCompare(b.day))
+        .sort((a, b) => ORDENACOES.priority(a, b) || a.day.localeCompare(b.day))
         .slice(0, LIMITE_PRIORITARIOS);
 
     document.querySelector('#priority-table tbody').innerHTML = casos.map((ocorrencia) => `
@@ -706,6 +717,13 @@ function atualizarFiltros() {
     preencherSelect('filter-location', 'Todas as localizações', opcoesDeLocalizacao(ocorrencias));
     preencherSelect('overtime-location', 'Todas as localizações', opcoesDeLocalizacao(horasExtras()));
     preencherSelect('bank-location', 'Todas as localizações', opcoesDeLocalizacao(saldosDoBanco()));
+    const afastamentos = afastamentosDoMes();
+    preencherSelect(
+        'leaves-type',
+        'Todos os tipos de afastamento',
+        [...new Set(afastamentos.map((afastamento) => afastamento.reason))].sort(comparar).map((motivo) => [motivo, motivo]),
+    );
+    preencherSelect('leaves-location', 'Todas as localizações', opcoesDeLocalizacao(afastamentos));
 }
 
 // Os filtros que não dependem dos dados da competência
@@ -725,14 +743,14 @@ function ocorrenciasFiltradas() {
     const colaborador = document.getElementById('filter-employee').value;
     const tipoFiltro = document.getElementById('filter-type').value;
     const localizacao = document.getElementById('filter-location').value;
-    const prioridade = document.getElementById('filter-priority').value;
+    const prioridadeFiltro = document.getElementById('filter-priority').value;
     const tratativa = document.getElementById('filter-treatment').value;
 
-    return ocorrencias.filter((ocorrencia) => {
+    const filtradas = ocorrencias.filter((ocorrencia) => {
         if (colaborador && ocorrencia.employee_id !== colaborador) return false;
         if (tipoFiltro && ocorrencia.type !== tipoFiltro) return false;
         if (localizacao && ocorrencia.location !== localizacao) return false;
-        if (prioridade && tipo(ocorrencia.type).priority !== prioridade) return false;
+        if (prioridadeFiltro && prioridade(ocorrencia) !== prioridadeFiltro) return false;
         if (tratativa === 'pendentes' && !pendente(ocorrencia)) return false;
         if (tratativa === 'concluidas' && !concluida(ocorrencia)) return false;
         if (tratativa && !['pendentes', 'concluidas'].includes(tratativa)
@@ -743,6 +761,7 @@ function ocorrenciasFiltradas() {
         }
         return true;
     });
+    return ordenar(filtradas, document.getElementById('occurrence-sort').value);
 }
 
 function linhaOcorrencia(ocorrencia) {
@@ -755,7 +774,7 @@ function linhaOcorrencia(ocorrencia) {
             <td>${escaparHtml(tipoOcorrencia.label)}</td>
             <td class="evidence">${escaparHtml(ocorrencia.evidence)}</td>
             <td>${escaparHtml(CONFERENCIA[ocorrencia.type] || 'Conferência necessária')}</td>
-            <td>${badgePrioridade(tipoOcorrencia.priority)}</td>
+            <td>${badgePrioridade(prioridade(ocorrencia))}</td>
             <td>${badgeTratativa(ocorrencia)}</td>
             <td>${botaoAbrir(ocorrencia)}</td>
         </tr>`;
@@ -842,6 +861,13 @@ function saldosDoBanco() {
     return competencia ? competencia.bank_hours : [];
 }
 
+function totaisDoBanco(saldos) {
+    const somar = (lista) => lista.reduce((total, saldo) => total + saldo.balance, 0);
+    const positivo = somar(saldos.filter((saldo) => saldo.balance > 0));
+    const negativo = somar(saldos.filter((saldo) => saldo.balance < 0));
+    return { positivo, negativo, liquido: positivo + negativo };
+}
+
 const ORDENACOES_DO_BANCO = {
     negative: (a, b) => a.balance - b.balance,
     positive: (a, b) => b.balance - a.balance,
@@ -867,16 +893,22 @@ function autoriaDaObservacao(saldo) {
 
 function linhaDoBanco(saldo) {
     const observacao = permissoes.change
-        ? `<textarea class="bank-note" data-bank-note="${escaparHtml(saldo.employee_id)}" rows="2"
-               aria-label="${escaparHtml(`Observações para ${saldo.employee_name}`)}"
-               placeholder="Justificativa solicitada, retorno do supervisor...">${escaparHtml(saldo.note)}</textarea>`
+        ? `<div class="bank-note-editor">
+               <textarea class="bank-note" data-bank-note="${escaparHtml(saldo.employee_id)}" rows="2"
+                   aria-label="${escaparHtml(`Observações para ${saldo.employee_name}`)}"
+                   placeholder="Justificativa solicitada, retorno do supervisor...">${escaparHtml(saldo.note)}</textarea>
+               <button type="button" class="button small" data-save-bank-note>Salvar</button>
+           </div>`
         : `<span class="note-text">${escaparHtml(saldo.note || '—')}</span>`;
+    let classe = 'neutral';
+    if (saldo.balance < 0) classe = 'high';
+    else if (saldo.balance > 0) classe = 'positive';
     return `
         <tr>
             <td class="person"><strong>${escaparHtml(saldo.employee_name)}</strong></td>
             <td>${escaparHtml(saldo.employee_id)}</td>
             <td>${escaparHtml(saldo.location)}</td>
-            <td><span class="badge ${saldo.balance < 0 ? 'high' : 'neutral'}">${formatarHoras(saldo.balance)}</span></td>
+            <td><span class="badge ${classe}">${formatarHoras(saldo.balance)}</span></td>
             <td class="bank-note-cell">${observacao}<div class="note-author">${escaparHtml(autoriaDaObservacao(saldo))}</div></td>
         </tr>`;
 }
@@ -884,10 +916,10 @@ function linhaDoBanco(saldo) {
 function renderizarBancoDeHoras() {
     // Os totais seguem só a localização; a busca filtra a tabela
     const saldos = saldosDaLocalizacao();
-    const somar = (lista) => lista.reduce((total, saldo) => total + saldo.balance, 0);
-    document.getElementById('bank-net').textContent = formatarHoras(somar(saldos));
-    document.getElementById('bank-positive').textContent = formatarHoras(somar(saldos.filter((saldo) => saldo.balance > 0)));
-    document.getElementById('bank-negative').textContent = formatarHoras(somar(saldos.filter((saldo) => saldo.balance < 0)));
+    const totais = totaisDoBanco(saldos);
+    document.getElementById('bank-net').textContent = formatarHoras(totais.liquido);
+    document.getElementById('bank-positive').textContent = formatarHoras(totais.positivo);
+    document.getElementById('bank-negative').textContent = formatarHoras(totais.negativo);
     document.getElementById('bank-people').textContent = numero(saldos.length);
 
     const lista = saldosFiltrados();
@@ -902,12 +934,18 @@ function renderizarBancoDeHoras() {
     document.getElementById('bank-export').disabled = lista.length === 0;
 }
 
-// Salva ao sair do campo. A tabela não é redesenhada: quem já está digitando
-// na próxima observação não perde o que escreveu
+// Salva ao sair do campo ou no botão Salvar; o que já está salvo não vai de
+// novo. A tabela não é redesenhada: quem já está digitando na próxima
+// observação não perde o que escreveu
 async function salvarObservacaoDoBanco(campo) {
     const aberta = competencia;
     const matricula = campo.dataset.bankNote;
-    const autoria = campo.parentElement.querySelector('.note-author');
+    const autoria = campo.closest('td').querySelector('.note-author');
+    const salvo = aberta.bank_hours.find((saldo) => saldo.employee_id === matricula);
+    if (salvo && salvo.note === campo.value.trim() && !autoria.classList.contains('error')) {
+        autoria.textContent = autoriaDaObservacao(salvo) || 'Nada a salvar.';
+        return;
+    }
     autoria.classList.remove('error');
     autoria.textContent = 'Salvando...';
     try {
@@ -975,6 +1013,8 @@ const ORDENACOES_DO_RANKING = {
     count: (a, b) => b.count - a.count || (b.minutes ?? b.days) - (a.minutes ?? a.days) || ORDENACOES.name(a, b),
     minutes: (a, b) => b.minutes - a.minutes || b.count - a.count,
     days: (a, b) => b.days - a.days || b.count - a.count || ORDENACOES.name(a, b),
+    id: (a, b) => a.employee_id.localeCompare(b.employee_id, 'pt-BR', { numeric: true }),
+    reason: (a, b) => comparar(a.reasons.join('; '), b.reasons.join('; ')),
     location: ORDENACOES.location,
     name: ORDENACOES.name,
 };
@@ -995,20 +1035,20 @@ function linhaDoRankingDeAtestados(item) {
         <tr>
             <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
             <td>${escaparHtml(item.employee_id)}</td>
+            <td>${escaparHtml(item.location)}</td>
             <td>${numero(item.count)}</td>
             <td>${numero(item.days)}</td>
+            <td class="evidence">${escaparHtml(item.reasons.join('; '))}</td>
         </tr>`;
 }
 
 function renderizarRanking(chave) {
     const ranking = RANKINGS[chave];
-    // O ranking de atestados não tem localização
-    const campoLocalizacao = document.getElementById(`${chave}-location`);
-    const localizacao = campoLocalizacao ? campoLocalizacao.value : '';
+    const localizacao = document.getElementById(`${chave}-location`).value;
     const busca = normalizar(document.getElementById(`${chave}-search`).value);
     const lista = (ranking.linhas || [])
         .filter((item) => (!localizacao || item.location === localizacao)
-            && (!busca || normalizar(`${item.employee_name} ${item.employee_id} ${item.location || ''}`).includes(busca)))
+            && (!busca || normalizar(`${item.employee_name} ${item.employee_id} ${item.location} ${(item.reasons || []).join(' ')}`).includes(busca)))
         .sort(ORDENACOES_DO_RANKING[document.getElementById(`${chave}-sort`).value]);
     renderizarTabela({
         id: chave,
@@ -1039,164 +1079,179 @@ async function carregarRanking(chave) {
     }
     if (pedido !== ranking.pedido) return;
     ranking.linhas = linhas;
-    if (document.getElementById(`${chave}-location`)) {
-        preencherSelect(`${chave}-location`, 'Todas as localizações', opcoesDeLocalizacao(linhas));
-    }
+    preencherSelect(`${chave}-location`, 'Todas as localizações', opcoesDeLocalizacao(linhas));
     renderizarRanking(chave);
 }
 
 // Comparativos
 
-function comSinal(valor, formatar) {
-    return `${valor > 0 ? '+' : ''}${formatar(valor)}`;
+// As competências marcadas em cada comparativo. Todas começam marcadas, e a
+// competência que aparece depois (uma importação nova) entra marcada; a que a
+// pessoa desmarcou continua desmarcada.
+const competenciasMarcadas = { ocorrencias: new Set(), colaboradores: new Set() };
+const competenciasConhecidas = { ocorrencias: new Set(), colaboradores: new Set() };
+
+function competenciasEmOrdem() {
+    return [...competencias].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.end_date.localeCompare(b.end_date));
 }
 
-function variacao(primeiro, segundo) {
-    if (!primeiro) return segundo === 0 ? '0%' : '—';
-    const porcentagem = (segundo - primeiro) / Math.abs(primeiro) * 100;
-    return `${porcentagem > 0 ? '+' : ''}${porcentagem.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+function competenciasEscolhidas(chave) {
+    return competenciasEmOrdem().filter((item) => competenciasMarcadas[chave].has(String(item.id)));
 }
 
-// Os indicadores das duas competências escolhidas, ou null sem competência salva
-async function buscarComparacao(prefixo) {
-    const ids = [`${prefixo}-first`, `${prefixo}-second`].map((id) => document.getElementById(id).value);
-    if (!ids[0] || !ids[1]) return null;
-    return Promise.all(ids.map((id) => requisitar(urlDeIndicadores(id))));
+function renderizarCaixasDeCompetencia(chave, id) {
+    competencias.forEach((item) => {
+        const valor = String(item.id);
+        if (!competenciasConhecidas[chave].has(valor)) {
+            competenciasConhecidas[chave].add(valor);
+            competenciasMarcadas[chave].add(valor);
+        }
+    });
+    document.getElementById(id).innerHTML = competencias.length
+        ? competenciasEmOrdem().map((item) => `
+            <label title="${escaparHtml(rotuloPeriodo(item.start_date, item.end_date))}">
+                <input type="checkbox" value="${item.id}" data-compare-check="${chave}"${competenciasMarcadas[chave].has(String(item.id)) ? ' checked' : ''}>
+                ${escaparHtml(mesDaFolha(item.end_date))}
+            </label>`).join('')
+        : '<span class="muted">Nenhuma competência salva.</span>';
 }
 
 // Os totais de cada competência vêm prontos do servidor, da mais antiga à mais
-// recente; o comparativo e o gráfico de evolução saem da mesma lista
-const INDICADORES_DE_HORAS = [
-    { rotulo: 'Horas extras', campo: 'overtime', formatar: formatarHoras },
-    { rotulo: 'Banco de horas', campo: 'bank_hours', formatar: formatarHoras },
-    { rotulo: 'Intrajornada', campo: 'short_breaks', formatar: numero },
-    { rotulo: 'Interjornada', campo: 'short_rests', formatar: numero },
-    { rotulo: 'Dias de atestado', campo: 'medical_leave_days', formatar: numero },
-];
+// recente. Cada tipo de ocorrência é um indicador, menos as tratativas de
+// conferência (faltas e intervalos sem marcações) e os afastamentos informados;
+// os atestados e o banco de horas ficam sem valor na competência sem o relatório deles.
+const TIPOS_FORA_DO_COMPARATIVO = [FALTA, SEM_MARCACOES, AFASTAMENTO_INFORMADO];
 let evolucao = null;
 
-function totaisDaCompetencia(id) {
-    return (evolucao || []).find((item) => String(item.id) === id);
+function indicadoresDaEvolucao() {
+    const informado = (valor) => valor !== null && valor !== undefined;
+    return [
+        ...catalogo.types.filter((item) => !TIPOS_FORA_DO_COMPARATIVO.includes(item.code)).map((item) => ({
+            chave: item.code,
+            rotulo: item.label,
+            formatar: numero,
+            valor: (linha) => linha.types[item.code] || 0,
+            presente: (linha) => Boolean(linha.types[item.code]),
+        })),
+        { chave: 'medical', rotulo: 'Atestados e declarações', formatar: numero, valor: (linha) => linha.medical_leaves },
+        { chave: 'bank', rotulo: 'Saldo do banco de horas', formatar: formatarHoras, valor: (linha) => linha.bank_hours },
+        { chave: 'bank-positive', rotulo: 'Banco de horas positivo', formatar: formatarHoras, valor: (linha) => linha.bank_positive },
+        { chave: 'bank-negative', rotulo: 'Banco de horas negativo', formatar: formatarHoras, valor: (linha) => linha.bank_negative },
+    ].map((indicador) => ({ presente: (linha) => informado(indicador.valor(linha)), ...indicador }));
 }
 
-// O banco de horas e os dias de atestado faltam na competência sem o relatório deles
-function linhaDoComparativoDeHoras([rotulo, primeiro, segundo, formatar]) {
-    const exibir = (valor) => (valor === null ? 'Sem relatório importado' : formatar(valor));
-    const semValor = primeiro === null || segundo === null;
-    return `
-        <tr>
-            <td><strong>${rotulo}</strong></td>
-            <td>${exibir(primeiro)}</td>
-            <td>${exibir(segundo)}</td>
-            <td>${semValor ? '—' : comSinal(segundo - primeiro, formatar)}</td>
-            <td>${semValor ? '—' : variacao(primeiro, segundo)}</td>
-        </tr>`;
+// Todos os indicadores num gráfico só, uma linha por indicador. As cores são as
+// das séries do projeto (.serie-N): cada tipo fica com a sua, na ordem do
+// catálogo, e os indicadores do banco e dos atestados vêm depois. O banco de
+// horas entra no eixo em horas, para não achatar as contagens; a dica mostra o
+// valor em HH:MM.
+const CORES_DAS_SERIES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948', '#898781', '#0d8c9c'];
+const GRAFICO = { largura: 1000, altura: 360, esquerda: 56, direita: 24, topo: 16, base: 40 };
+const MAXIMO_DE_ROTULOS = 12;
+const MARCAS_DO_EIXO = 5;
+
+function corDoIndicador(indicador, indice) {
+    const serie = tipos[indicador.chave] ? tipos[indicador.chave].serie : catalogo.types.length + indice + 1;
+    return CORES_DAS_SERIES[(serie - 1) % CORES_DAS_SERIES.length];
 }
 
-function mensagemDoComparativo() {
-    if (evolucao === null) return 'Carregando...';
-    return evolucao.length ? 'Não foi possível carregar o comparativo.' : 'Nenhuma competência salva para comparar.';
+function valorNoEixo(indicador, valor) {
+    return indicador.formatar === formatarHoras ? valor / 60 : valor;
 }
 
-// As colunas levam só o mês da folha de cada competência, como 10/2026
-function renderizarComparativoDeHoras() {
-    const [primeira, segunda] = ['first', 'second'].map((posicao) => {
-        const id = document.getElementById(`compare-hours-${posicao}`).value;
-        const totais = totaisDaCompetencia(id);
-        document.getElementById(`compare-hours-${posicao}-title`).textContent = totais ? mesDaFolha(totais.end_date) : '';
-        return totais;
-    });
-
-    const linhas = primeira && segunda
-        ? INDICADORES_DE_HORAS.map(({ rotulo, campo, formatar }) => [rotulo, primeira[campo], segunda[campo], formatar])
-        : [];
-    document.querySelector('#compare-hours-table tbody').innerHTML = linhas.map(linhaDoComparativoDeHoras).join('');
-    document.getElementById('compare-hours-table').hidden = !linhas.length;
-    const vazio = document.getElementById('compare-hours-empty');
-    vazio.hidden = Boolean(linhas.length);
-    vazio.textContent = mensagemDoComparativo();
+function passoDoEixo(faixa) {
+    const bruto = faixa / MARCAS_DO_EIXO;
+    const potencia = 10 ** Math.floor(Math.log10(bruto));
+    return [1, 2, 2.5, 5, 10].map((fator) => fator * potencia).find((passo) => passo >= bruto);
 }
 
-// Pequenos múltiplos: horas e contagens não dividem um eixo, então cada
-// indicador tem o seu gráfico, com a sua escala, e todos na mesma cor
-const GRAFICO = { largura: 320, altura: 150, esquerda: 52, direita: 14, topo: 12, base: 30 };
-const MAXIMO_DE_ROTULOS = 6;
-
-function graficoDeEvolucao({ rotulo, campo, formatar }) {
+function graficoDeEvolucao(indicadores, linhasDoGrafico) {
     const { largura, altura, esquerda, direita, topo, base } = GRAFICO;
-    const pontos = evolucao.map((item, indice) => ({ item, indice, valor: item[campo] }));
-    const valores = pontos.filter((ponto) => ponto.valor !== null).map((ponto) => ponto.valor);
-    const ultimo = [...pontos].reverse().find((ponto) => ponto.valor !== null);
-    const cabecalho = `
-        <div class="evolution-header">
-            <h3>${rotulo}</h3>
-            <span>${ultimo ? `${escaparHtml(formatar(ultimo.valor))} <span class="muted">em ${mesDaFolha(ultimo.item.end_date)}</span>` : ''}</span>
-        </div>`;
-    if (!valores.length) {
-        return `<figure class="evolution-chart">${cabecalho}<p class="muted">Sem dados nas competências salvas.</p></figure>`;
-    }
+    const series = indicadores.map((indicador, indice) => ({
+        indicador,
+        cor: corDoIndicador(indicador, indice - indicadores.filter((item) => tipos[item.chave]).length),
+        pontos: linhasDoGrafico.map((item, posicao) => {
+            const valor = indicador.valor(item);
+            return { item, posicao, valor: valor ?? null, eixo: valor === null || valor === undefined ? null : valorNoEixo(indicador, valor) };
+        }),
+    }));
+    const valores = series.flatMap((serie) => serie.pontos.filter((ponto) => ponto.eixo !== null).map((ponto) => ponto.eixo));
 
-    // A escala sempre passa pelo zero, que fica marcado
-    const minimo = Math.min(0, ...valores);
-    const maximo = Math.max(0, ...valores);
-    const faixa = maximo - minimo || 1;
+    // A escala sempre passa pelo zero, em passos redondos
+    const passo = passoDoEixo((Math.max(0, ...valores) - Math.min(0, ...valores)) || 1);
+    const minimo = Math.floor(Math.min(0, ...valores) / passo) * passo;
+    const maximo = Math.ceil(Math.max(0, ...valores) / passo) * passo || passo;
     const larguraUtil = largura - esquerda - direita;
     const alturaUtil = altura - topo - base;
-    const x = (indice) => esquerda + (pontos.length === 1 ? larguraUtil / 2 : indice * larguraUtil / (pontos.length - 1));
-    const y = (valor) => topo + (maximo - valor) / faixa * alturaUtil;
+    const quantidade = linhasDoGrafico.length;
+    const x = (posicao) => esquerda + (quantidade === 1 ? larguraUtil / 2 : posicao * larguraUtil / (quantidade - 1));
+    const y = (valor) => topo + (maximo - valor) / (maximo - minimo) * alturaUtil;
 
-    const marcas = [...new Set([maximo, 0, minimo])];
-    const grade = marcas.map((valor) => `
-        <line x1="${esquerda}" x2="${largura - direita}" y1="${y(valor)}" y2="${y(valor)}" class="${valor === 0 ? 'evolution-zero' : 'evolution-grid-line'}"/>
-        <text x="${esquerda - 6}" y="${y(valor) + 4}" text-anchor="end" class="evolution-axis">${escaparHtml(formatar(valor))}</text>`).join('');
+    const grade = [];
+    for (let marca = minimo; marca <= maximo + passo / 2; marca += passo) {
+        grade.push(`
+            <line x1="${esquerda}" x2="${largura - direita}" y1="${y(marca)}" y2="${y(marca)}" class="${marca === 0 ? 'evolution-zero' : 'evolution-grid-line'}"/>
+            <text x="${esquerda - 8}" y="${y(marca) + 4}" text-anchor="end" class="evolution-axis">${numero(marca)}</text>`);
+    }
 
     // Com muitas competências, os rótulos do eixo saltam algumas, sempre mostrando a última
-    const passo = Math.ceil(pontos.length / MAXIMO_DE_ROTULOS);
-    const eixo = pontos
-        .filter((ponto) => (pontos.length - 1 - ponto.indice) % passo === 0)
-        .map((ponto) => `<text x="${x(ponto.indice)}" y="${altura - 10}" text-anchor="middle" class="evolution-axis">${mesDaFolha(ponto.item.end_date)}</text>`)
+    const salto = Math.ceil(quantidade / MAXIMO_DE_ROTULOS);
+    const eixo = linhasDoGrafico
+        .map((item, posicao) => ({ item, posicao }))
+        .filter(({ posicao }) => (quantidade - 1 - posicao) % salto === 0)
+        .map(({ item, posicao }) => `<text x="${x(posicao)}" y="${altura - 12}" text-anchor="middle" class="evolution-axis">${mesDaFolha(item.end_date)}</text>`)
         .join('');
 
-    // A competência sem o relatório interrompe a linha
-    const trechos = [];
-    pontos.forEach((ponto) => {
-        if (ponto.valor === null) trechos.push([]);
-        else {
-            if (!trechos.length) trechos.push([]);
-            trechos[trechos.length - 1].push(`${x(ponto.indice)},${y(ponto.valor)}`);
-        }
-    });
-    const linhas = trechos.filter((trecho) => trecho.length > 1)
-        .map((trecho) => `<polyline points="${trecho.join(' ')}" class="evolution-line"/>`).join('');
-
-    const marcadores = pontos.filter((ponto) => ponto.valor !== null).map((ponto) => {
-        const periodoDoPonto = rotuloPeriodo(ponto.item.start_date, ponto.item.end_date);
-        return `
-            <g class="evolution-point" tabindex="0" role="img"
-                data-tooltip-value="${escaparHtml(formatar(ponto.valor))}"
-                data-tooltip-label="${escaparHtml(`${rotulo} · ${periodoDoPonto}`)}"
-                aria-label="${escaparHtml(`${rotulo} em ${periodoDoPonto}: ${formatar(ponto.valor)}`)}">
-                <circle cx="${x(ponto.indice)}" cy="${y(ponto.valor)}" r="12" class="evolution-hit"/>
-                <circle cx="${x(ponto.indice)}" cy="${y(ponto.valor)}" r="4" class="evolution-dot"/>
-            </g>`;
+    const desenhos = series.map(({ indicador, cor, pontos }) => {
+        // A competência sem o relatório interrompe a linha
+        const trechos = [];
+        pontos.forEach((ponto) => {
+            if (ponto.eixo === null) trechos.push([]);
+            else {
+                if (!trechos.length) trechos.push([]);
+                trechos[trechos.length - 1].push(`${x(ponto.posicao)},${y(ponto.eixo)}`);
+            }
+        });
+        const linhas = trechos.filter((trecho) => trecho.length > 1)
+            .map((trecho) => `<polyline points="${trecho.join(' ')}" class="evolution-line" style="stroke: ${cor}"/>`).join('');
+        const marcadores = pontos.filter((ponto) => ponto.eixo !== null).map((ponto) => {
+            const periodoDoPonto = rotuloPeriodo(ponto.item.start_date, ponto.item.end_date);
+            return `
+                <g class="evolution-point" tabindex="0" role="img"
+                    data-tooltip-value="${escaparHtml(indicador.formatar(ponto.valor))}"
+                    data-tooltip-label="${escaparHtml(`${indicador.rotulo} · ${periodoDoPonto}`)}"
+                    aria-label="${escaparHtml(`${indicador.rotulo} em ${periodoDoPonto}: ${indicador.formatar(ponto.valor)}`)}">
+                    <circle cx="${x(ponto.posicao)}" cy="${y(ponto.eixo)}" r="12" class="evolution-hit"/>
+                    <circle cx="${x(ponto.posicao)}" cy="${y(ponto.eixo)}" r="5" class="evolution-dot" style="fill: ${cor}"/>
+                </g>`;
+        }).join('');
+        return linhas + marcadores;
     }).join('');
 
+    const legenda = series.map(({ indicador, cor }) => `
+        <span class="legend-item">
+            <i class="legend-swatch" style="background-color: ${cor}" aria-hidden="true"></i>${escaparHtml(indicador.rotulo)}${indicador.formatar === formatarHoras ? ' (em horas)' : ''}
+        </span>`).join('');
+
     return `
-        <figure class="evolution-chart">
-            ${cabecalho}
-            <svg viewBox="0 0 ${largura} ${altura}" aria-label="${escaparHtml(`Evolução de ${rotulo.toLowerCase()} por competência`)}">
-                ${grade}${eixo}${linhas}${marcadores}
+        <figure class="evolution-chart evolution-single">
+            <svg viewBox="0 0 ${largura} ${altura}" aria-label="Evolução mensal por tipo de ocorrência e banco de horas">
+                ${grade.join('')}${eixo}${desenhos}
             </svg>
+            <div class="chart-legend">${legenda}</div>
         </figure>`;
 }
 
 // A mesma informação dos gráficos, em tabela
-function tabelaDeEvolucao() {
-    const cabecalho = INDICADORES_DE_HORAS.map(({ rotulo }) => `<th>${rotulo}</th>`).join('');
-    const linhas = evolucao.map((item) => `
+function tabelaDeEvolucao(indicadores, linhasDaTabela) {
+    const cabecalho = indicadores.map(({ rotulo }) => `<th>${escaparHtml(rotulo)}</th>`).join('');
+    const linhas = linhasDaTabela.map((item) => `
         <tr>
             <td>${escaparHtml(rotuloPeriodo(item.start_date, item.end_date))}</td>
-            ${INDICADORES_DE_HORAS.map(({ campo, formatar }) => `<td>${item[campo] === null ? '—' : escaparHtml(formatar(item[campo]))}</td>`).join('')}
+            ${indicadores.map(({ formatar, valor }) => {
+                const conteudo = valor(item);
+                return `<td>${conteudo === null || conteudo === undefined ? '—' : escaparHtml(formatar(conteudo))}</td>`;
+            }).join('')}
         </tr>`).join('');
     return `
         <details class="evolution-table">
@@ -1208,19 +1263,33 @@ function tabelaDeEvolucao() {
 }
 
 function renderizarEvolucao() {
+    renderizarCaixasDeCompetencia('ocorrencias', 'sector-competencies');
     const graficos = document.getElementById('evolution-charts');
     const vazio = document.getElementById('evolution-empty');
-    const temDados = Boolean(evolucao && evolucao.length);
-    graficos.innerHTML = temDados ? INDICADORES_DE_HORAS.map(graficoDeEvolucao).join('') + tabelaDeEvolucao() : '';
+    const marcadas = new Set(competenciasEscolhidas('ocorrencias').map((item) => item.id));
+    const linhas = (evolucao || []).filter((item) => marcadas.has(item.id));
+
+    // O filtro oferece só os indicadores com algum dado nas competências escolhidas
+    const disponiveis = indicadoresDaEvolucao().filter((indicador) => linhas.some(indicador.presente));
+    preencherSelect('sector-indicator', 'Todos os indicadores', disponiveis.map((indicador) => [indicador.chave, indicador.rotulo]));
+    const escolhido = document.getElementById('sector-indicator').value;
+    const visiveis = disponiveis.filter((indicador) => !escolhido || indicador.chave === escolhido);
+
+    const temDados = Boolean(linhas.length && visiveis.length);
+    graficos.innerHTML = temDados
+        ? graficoDeEvolucao(visiveis, linhas) + tabelaDeEvolucao(visiveis, linhas)
+        : '';
     graficos.hidden = !temDados;
     vazio.hidden = temDados;
-    vazio.textContent = evolucao === null ? 'Carregando...' : 'Nenhuma competência salva ainda.';
+    if (evolucao === null) vazio.textContent = 'Carregando...';
+    else if (!evolucao.length) vazio.textContent = 'Nenhuma competência salva ainda.';
+    else if (!linhas.length) vazio.textContent = 'Marque pelo menos uma competência para comparar.';
+    else vazio.textContent = 'Não há ocorrências nem banco de horas nas competências escolhidas.';
 }
 
-async function carregarComparativoDeHoras() {
-    const pedido = ++pedidosDeComparativo.horas;
+async function carregarComparativoDeOcorrencias() {
+    const pedido = ++pedidosDeComparativo.ocorrencias;
     evolucao = null;
-    renderizarComparativoDeHoras();
     renderizarEvolucao();
 
     let dados = [];
@@ -1229,82 +1298,96 @@ async function carregarComparativoDeHoras() {
     } catch (erro) {
         mostrarErro(erro.message);
     }
-    if (pedido !== pedidosDeComparativo.horas) return;
+    if (pedido !== pedidosDeComparativo.ocorrencias) return;
     evolucao = dados;
-    renderizarComparativoDeHoras();
     renderizarEvolucao();
 }
 
-// Um colaborador por linha, com a quantidade e o tempo de cada competência. A
-// localização filtra o ranking de cada competência antes de juntar os dois.
-function juntarRankings(primeira, segunda, tipoOcorrencia, localizacao) {
-    const colaboradores = new Map();
-    [primeira, segunda].forEach((dados, indice) => {
-        dados.rankings[tipoOcorrencia]
-            .filter((item) => !localizacao || item.location === localizacao)
-            .forEach((item) => {
-                if (!colaboradores.has(item.employee_id)) {
-                    colaboradores.set(item.employee_id, { ...item, contagens: [0, 0], minutos: [0, 0] });
-                }
-                const linha = colaboradores.get(item.employee_id);
-                linha.contagens[indice] = item.count;
-                linha.minutos[indice] = item.minutes;
-            });
-    });
-    return [...colaboradores.values()].sort((a, b) => Math.max(...b.contagens) - Math.max(...a.contagens)
-        || comparar(a.employee_name, b.employee_name));
+// O comparativo por colaborador vem do servidor, já com só quem tem registro
+// nas competências escolhidas; o colaborador e a localização filtram aqui
+let comparativoPorColaborador = null;
+
+function valorDoComparativo(valor, indicador) {
+    // O banco de horas sem valor é a competência sem o relatório dele, ou sem o colaborador nele
+    if (valor === undefined && indicador === 'bank') return '—';
+    return ['extra', 'bank'].includes(indicador) ? formatarHoras(valor || 0) : numero(valor || 0);
 }
 
-function linhaDoComparativoDeRankings(item) {
+function linhaDoComparativoPorColaborador(item) {
+    const { indicador, competencias: colunas } = comparativoPorColaborador;
+    const valores = colunas.map((coluna) => {
+        const dias = item.days[coluna.id];
+        return `<td>${valorDoComparativo(item.values[coluna.id], indicador)}${dias ? `<div class="muted">${numero(dias)} ${dias === 1 ? 'dia' : 'dias'}</div>` : ''}</td>`;
+    }).join('');
     return `
         <tr>
             <td class="person"><strong>${escaparHtml(item.employee_name)}</strong></td>
             <td>${escaparHtml(item.employee_id)}</td>
             <td>${escaparHtml(item.location)}</td>
-            <td>${numero(item.contagens[0])}</td>
-            <td>${numero(item.contagens[1])}</td>
-            <td>${comSinal(item.contagens[1] - item.contagens[0], numero)}</td>
-            <td>${formatarHoras(item.minutos[0])}</td>
-            <td>${formatarHoras(item.minutos[1])}</td>
+            <td class="evidence">${escaparHtml(item.types.join('; ') || '—')}</td>
+            ${valores}
         </tr>`;
 }
 
-function renderizarComparativoDeRankings() {
-    const localizacao = document.getElementById('compare-rankings-location').value;
-    let mensagem = 'Nenhum registro para as competências e a localização selecionadas.';
-    if (rankingsComparados === null) mensagem = 'Carregando...';
-    else if (!competencias.length) mensagem = 'Nenhuma competência salva para comparar.';
+function renderizarComparativoPorColaborador() {
+    const dados = comparativoPorColaborador;
+    const colaborador = document.getElementById('employee-filter').value;
+    const localizacao = document.getElementById('employee-location').value;
+    const colunas = dados ? dados.competencias : [];
+    document.querySelector('#compare-employees-table thead').innerHTML = `
+        <tr>
+            <th>Colaborador</th>
+            <th>Matrícula</th>
+            <th>Localização</th>
+            <th>Tipo de ocorrência</th>
+            ${colunas.map((coluna) => `<th title="${escaparHtml(rotuloPeriodo(coluna.start_date, coluna.end_date))}">${mesDaFolha(coluna.end_date)}</th>`).join('')}
+        </tr>`;
 
-    [['compare-intra', 'comparaIntra', INTERVALO_CURTO], ['compare-inter', 'comparaInter', INTERJORNADA]].forEach(([id, chave, tipoOcorrencia]) => {
-        renderizarTabela({
-            id,
-            chave,
-            linhas: rankingsComparados && rankingsComparados.length ? juntarRankings(...rankingsComparados, tipoOcorrencia, localizacao) : [],
-            montarLinha: linhaDoComparativoDeRankings,
-            mensagemVazia: mensagem,
-            renderizar: renderizarComparativoDeRankings,
-        });
+    const linhas = (dados ? dados.employees : [])
+        .filter((item) => (!colaborador || item.employee_id === colaborador) && (!localizacao || item.location === localizacao));
+    let mensagem = 'Nenhum colaborador encontrado para os filtros selecionados.';
+    if (dados === null) mensagem = 'Carregando...';
+    else if (!competencias.length) mensagem = 'Nenhuma competência salva para comparar.';
+    else if (!colunas.length) mensagem = 'Marque pelo menos uma competência para comparar.';
+
+    renderizarTabela({
+        id: 'compare-employees',
+        chave: 'comparaColaboradores',
+        linhas,
+        montarLinha: linhaDoComparativoPorColaborador,
+        mensagemVazia: mensagem,
+        renderizar: renderizarComparativoPorColaborador,
     });
 }
 
-async function carregarComparativoDeRankings() {
-    const pedido = ++pedidosDeComparativo.rankings;
-    rankingsComparados = null;
-    paginas.comparaIntra = 1;
-    paginas.comparaInter = 1;
-    renderizarComparativoDeRankings();
+async function carregarComparativoPorColaborador() {
+    renderizarCaixasDeCompetencia('colaboradores', 'employee-competencies');
+    const pedido = ++pedidosDeComparativo.colaboradores;
+    const escolhidas = competenciasEscolhidas('colaboradores');
+    const indicador = document.getElementById('employee-indicator').value;
+    comparativoPorColaborador = null;
+    paginas.comparaColaboradores = 1;
+    renderizarComparativoPorColaborador();
 
-    let dados = null;
-    try {
-        dados = await buscarComparacao('compare-rankings');
-    } catch (erro) {
-        mostrarErro(erro.message);
+    const dados = { indicador, competencias: escolhidas, employees: [] };
+    if (escolhidas.length) {
+        const parametros = new URLSearchParams({ indicator: indicador });
+        escolhidas.forEach((item) => parametros.append('competencies', item.id));
+        try {
+            dados.employees = (await requisitar(`${COMPARATIVO_POR_COLABORADOR_API_URL}?${parametros}`)).employees;
+        } catch (erro) {
+            mostrarErro(erro.message);
+        }
     }
-    if (pedido !== pedidosDeComparativo.rankings) return;
-    rankingsComparados = dados || [];
-    const todos = rankingsComparados.flatMap((item) => [...item.rankings[INTERVALO_CURTO], ...item.rankings[INTERJORNADA]]);
-    preencherSelect('compare-rankings-location', 'Todas as localizações', opcoesDeLocalizacao(todos));
-    renderizarComparativoDeRankings();
+    if (pedido !== pedidosDeComparativo.colaboradores) return;
+    comparativoPorColaborador = dados;
+    preencherSelect(
+        'employee-filter',
+        'Todos os colaboradores',
+        dados.employees.map((item) => [item.employee_id, `${item.employee_name} · ${item.employee_id}`]),
+    );
+    preencherSelect('employee-location', 'Todas as localizações', opcoesDeLocalizacao(dados.employees));
+    renderizarComparativoPorColaborador();
 }
 
 // Os indicadores vêm do servidor: carregam quando a aba abre e de novo quando
@@ -1313,8 +1396,8 @@ const INDICADORES_DAS_ABAS = {
     'ranking-intrajornada': () => carregarRanking('intra'),
     'ranking-interjornada': () => carregarRanking('inter'),
     'ranking-atestados': () => carregarRanking('atestados'),
-    'comparativo-horas': carregarComparativoDeHoras,
-    'comparativo-rankings': carregarComparativoDeRankings,
+    'comparativo-ocorrencias': carregarComparativoDeOcorrencias,
+    'comparativo-colaborador': carregarComparativoPorColaborador,
 };
 
 function abaAtual() {
@@ -1432,10 +1515,28 @@ function nivelDeCalor(valor, maximo) {
     return Math.max(1, Math.ceil(valor / maximo * NIVEIS_DE_CALOR));
 }
 
-// A matriz também é a tabela do gráfico de localizações: todo número aparece nela
-function renderizarMapaDeCalor(localizacoes) {
+// Os atestados e as declarações de cada localização, do relatório de afastamentos
+function atestadosPorLocalizacao() {
+    const contagem = new Map();
+    afastamentosDoMes().filter((afastamento) => afastamento.medical).forEach((afastamento) => {
+        contagem.set(afastamento.location, (contagem.get(afastamento.location) || 0) + 1);
+    });
+    return contagem;
+}
+
+// A matriz também é a tabela do gráfico de localizações: todo número aparece
+// nela. A última coluna são os atestados, que entram no total da localização.
+function renderizarMapaDeCalor(localizacoesComOcorrencias) {
     const container = document.getElementById('chart-heatmap');
     const escala = document.getElementById('chart-heatmap-scale');
+    const atestados = atestadosPorLocalizacao();
+    const localizacoes = [
+        ...localizacoesComOcorrencias.map((localizacao) => ({ ...localizacao, atestados: atestados.get(localizacao.nome) || 0 })),
+        ...[...atestados.entries()]
+            .filter(([nome]) => !localizacoesComOcorrencias.some((localizacao) => localizacao.nome === nome))
+            .map(([nome, total]) => ({ nome, total: 0, tipos: {}, atestados: total })),
+    ].map((localizacao) => ({ ...localizacao, total: localizacao.total + localizacao.atestados }))
+        .sort((a, b) => b.total - a.total || comparar(a.nome, b.nome));
     const presentes = catalogo.types.filter((item) => localizacoes.some((localizacao) => localizacao.tipos[item.code]));
     if (!localizacoes.length) {
         container.innerHTML = vazioDoGrafico();
@@ -1443,11 +1544,14 @@ function renderizarMapaDeCalor(localizacoes) {
         return;
     }
 
-    const maximo = Math.max(...localizacoes.flatMap((localizacao) => presentes.map((item) => localizacao.tipos[item.code] || 0)));
+    const maximo = Math.max(...localizacoes.flatMap((localizacao) => [
+        localizacao.atestados, ...presentes.map((item) => localizacao.tipos[item.code] || 0),
+    ]));
+    const vazia = '<td><span class="heat-empty" aria-label="Nenhuma">—</span></td>';
     const linhas = localizacoes.map((localizacao) => {
         const celulas = presentes.map((item) => {
             const valor = localizacao.tipos[item.code] || 0;
-            if (!valor) return '<td><span class="heat-empty" aria-label="Nenhuma">—</span></td>';
+            if (!valor) return vazia;
             return `
                 <td>
                     <button type="button" class="heat-cell heat-${nivelDeCalor(valor, maximo)}"
@@ -1456,10 +1560,16 @@ function renderizarMapaDeCalor(localizacoes) {
                         aria-label="${escaparHtml(`${localizacao.nome}, ${item.label}: ${valor}`)}">${numero(valor)}</button>
                 </td>`;
         }).join('');
+        const celulaDeAtestados = !atestados.size ? '' : (localizacao.atestados ? `
+                <td>
+                    <span class="heat-cell heat-static heat-${nivelDeCalor(localizacao.atestados, maximo)}" tabindex="0"
+                        data-tooltip-value="${numero(localizacao.atestados)}" data-tooltip-label="${escaparHtml(`Atestados · ${localizacao.nome}`)}"
+                        aria-label="${escaparHtml(`${localizacao.nome}, atestados: ${localizacao.atestados}`)}">${numero(localizacao.atestados)}</span>
+                </td>` : vazia);
         return `
             <tr>
                 <th scope="row">${escaparHtml(localizacao.nome)}</th>
-                ${celulas}
+                ${celulas}${celulaDeAtestados}
                 <td class="heat-total">${numero(localizacao.total)}</td>
             </tr>`;
     }).join('');
@@ -1470,6 +1580,7 @@ function renderizarMapaDeCalor(localizacoes) {
                 <tr>
                     <th scope="col">Localização</th>
                     ${presentes.map((item) => `<th scope="col">${escaparHtml(item.label)}</th>`).join('')}
+                    ${atestados.size ? '<th scope="col">Atestados</th>' : ''}
                     <th scope="col">Total</th>
                 </tr>
             </thead>
@@ -1541,6 +1652,67 @@ function configurarDicas() {
     document.addEventListener('scroll', () => { dica.hidden = true; }, { passive: true, capture: true });
 }
 
+// Afastamentos do mês
+
+function afastamentosDoMes() {
+    return competencia && competencia.leaves ? competencia.leaves.events : [];
+}
+
+// O afastamento sem Data fim segue em aberto
+function periodoDoAfastamento([inicio, fim]) {
+    if (!fim) return `${dataBr(inicio)} em diante`;
+    return inicio === fim ? dataBr(inicio) : `${dataBr(inicio)} a ${dataBr(fim)}`;
+}
+
+function datasDoAfastamento(afastamento) {
+    return afastamento.periods.map(periodoDoAfastamento).join(', ');
+}
+
+const ORDENACOES_DE_AFASTAMENTOS = {
+    name: (a, b) => ORDENACOES.name(a, b) || comparar(a.reason, b.reason),
+    location: ORDENACOES.location,
+    type: (a, b) => comparar(a.reason, b.reason),
+    date: (a, b) => a.periods[0][0].localeCompare(b.periods[0][0]),
+};
+
+function afastamentosFiltrados() {
+    const busca = normalizar(document.getElementById('leaves-search').value);
+    const motivo = document.getElementById('leaves-type').value;
+    const localizacao = document.getElementById('leaves-location').value;
+    return afastamentosDoMes()
+        .filter((afastamento) => (!motivo || afastamento.reason === motivo)
+            && (!localizacao || afastamento.location === localizacao)
+            && (!busca || normalizar([
+                afastamento.employee_name, afastamento.employee_id, afastamento.location, afastamento.reason,
+                datasDoAfastamento(afastamento),
+            ].join(' ')).includes(busca)))
+        .sort(ORDENACOES_DE_AFASTAMENTOS[document.getElementById('leaves-sort').value]);
+}
+
+function renderizarAfastamentos() {
+    const lista = afastamentosFiltrados();
+    let mensagem = 'Nenhum afastamento para os filtros selecionados.';
+    if (!competencia) mensagem = 'Importe os relatórios para iniciar a conferência.';
+    else if (!competencia.leaves) mensagem = 'Relatório de afastamentos não importado nesta competência.';
+    else if (!competencia.leaves.events.length) mensagem = 'Nenhum afastamento localizado nesta competência.';
+    renderizarTabela({
+        id: 'leaves',
+        chave: 'afastamentos',
+        linhas: lista,
+        montarLinha: (afastamento) => `
+            <tr>
+                <td>${escaparHtml(afastamento.employee_id)}</td>
+                <td class="person"><strong>${escaparHtml(afastamento.employee_name)}</strong></td>
+                <td>${escaparHtml(afastamento.location)}</td>
+                <td>${escaparHtml(afastamento.reason)}</td>
+                <td class="evidence">${escaparHtml(datasDoAfastamento(afastamento))}</td>
+            </tr>`,
+        mensagemVazia: mensagem,
+        renderizar: renderizarAfastamentos,
+    });
+    document.getElementById('leaves-export').disabled = lista.length === 0;
+}
+
 // Recorrência
 
 function renderizarRecorrencia() {
@@ -1557,6 +1729,7 @@ function renderizarRecorrencia() {
                 <tr>
                     <td><strong>${escaparHtml(colaborador.employee_name)}</strong></td>
                     <td>${escaparHtml(colaborador.employee_id)}</td>
+                    <td>${escaparHtml(colaborador.location)}</td>
                     <td><span class="badge ${classe}">${numero(colaborador.count)}</span></td>
                     <td class="evidence">${colaborador.days.map(dataBr).join(', ')}</td>
                     <td>${numero(colaborador.adjustments)}</td>
@@ -1671,12 +1844,11 @@ function renderizarContextoDeAfastamento(afastamentos) {
     } else if (!afastamentos.length) {
         contexto.innerHTML = '<p>Nenhum afastamento localizado no relatório importado para esta data.</p>';
     } else {
-        contexto.innerHTML = `<ul>${afastamentos.map((afastamento) => {
-            const periodoDoAfastamento = afastamento.start === afastamento.end
-                ? dataBr(afastamento.start)
-                : `${dataBr(afastamento.start)} a ${dataBr(afastamento.end)}`;
-            return `<li><strong>${escaparHtml(afastamento.reason)}</strong> <span class="muted">· ${periodoDoAfastamento}</span></li>`;
-        }).join('')}</ul>`;
+        contexto.innerHTML = `<ul>${afastamentos.map((afastamento) => `
+            <li>
+                <strong>${escaparHtml(afastamento.reason)}</strong>
+                <span class="muted">· ${periodoDoAfastamento([afastamento.start, afastamento.end])}</span>
+            </li>`).join('')}</ul>`;
     }
 }
 
@@ -1806,7 +1978,7 @@ function exportarOcorrencias() {
         return [
             dataBr(periodo.start_date), dataBr(periodo.end_date), dataBr(ocorrencia.day), ocorrencia.employee_id,
             ocorrencia.employee_name, ocorrencia.location, tipoOcorrencia.label, ocorrencia.evidence,
-            tipoOcorrencia.priority, tipoOcorrencia.actionable ? textoTratativa(ocorrencia) : 'Informativo',
+            prioridade(ocorrencia), tipoOcorrencia.actionable ? textoTratativa(ocorrencia) : 'Informativo',
             ocorrencia.note, ocorrencia.responsible, dataHoraBr(ocorrencia.treated_at), ocorrencia.scale,
         ];
     });
@@ -1840,6 +2012,21 @@ function exportarHorasExtras() {
         ['Competência', 'Data', 'Colaborador', 'Matrícula', 'Localização', 'Tipo de alerta', 'Horas extras', 'Escala'],
         linhas,
         [24, 11, 30, 11, 22, 24, 12, 30],
+    );
+}
+
+function exportarAfastamentos() {
+    const competenciaExportada = rotuloPeriodo(periodo.start_date, periodo.end_date);
+    const linhas = afastamentosFiltrados().map((afastamento) => [
+        competenciaExportada, afastamento.employee_id, afastamento.employee_name, afastamento.location,
+        afastamento.reason, datasDoAfastamento(afastamento),
+    ]);
+    exportarPlanilha(
+        'afastamentos',
+        'Afastamentos',
+        ['Competência', 'Matrícula', 'Colaborador', 'Localização', 'Tipo de afastamento', 'Data(s) do afastamento'],
+        linhas,
+        [24, 11, 30, 22, 30, 30],
     );
 }
 
@@ -1930,6 +2117,7 @@ function renderizarTudo() {
     renderizarIntervalos();
     renderizarBancoDeHoras();
     renderizarHorasExtras();
+    renderizarAfastamentos();
     renderizarGraficos();
     renderizarCompetencias();
     const aba = abaAtual();
@@ -1978,7 +2166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderizarOcorrencias();
     };
     document.getElementById('occurrence-search').addEventListener('input', aoFiltrarOcorrencias);
-    ['filter-employee', 'filter-type', 'filter-location', 'filter-priority', 'filter-treatment'].forEach((id) => {
+    ['filter-employee', 'filter-type', 'filter-location', 'filter-priority', 'filter-treatment', 'occurrence-sort'].forEach((id) => {
         document.getElementById(id).addEventListener('change', aoFiltrarOcorrencias);
     });
     document.getElementById('clear-filters').addEventListener('click', () => {
@@ -2008,6 +2196,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('bank-table').addEventListener('change', (evento) => {
         if (evento.target.matches('[data-bank-note]')) salvarObservacaoDoBanco(evento.target);
     });
+    document.getElementById('bank-table').addEventListener('click', (evento) => {
+        const botao = evento.target.closest('[data-save-bank-note]');
+        if (botao) salvarObservacaoDoBanco(botao.parentElement.querySelector('[data-bank-note]'));
+    });
+
+    const aoFiltrarAfastamentos = () => {
+        paginas.afastamentos = 1;
+        renderizarAfastamentos();
+    };
+    document.getElementById('leaves-search').addEventListener('input', aoFiltrarAfastamentos);
+    ['leaves-type', 'leaves-location', 'leaves-sort'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', aoFiltrarAfastamentos);
+    });
+    document.getElementById('leaves-export').addEventListener('click', exportarAfastamentos);
 
     const aoFiltrarHorasExtras = () => {
         paginas.extras = 1;
@@ -2032,17 +2234,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Os totais de todas as competências já estão carregados: trocar a escolha só redesenha a tabela
-    ['compare-hours-first', 'compare-hours-second'].forEach((id) => {
-        document.getElementById(id).addEventListener('change', renderizarComparativoDeHoras);
+    // Os totais de todas as competências já estão carregados: marcar outra
+    // competência ou escolher o indicador só redesenha os gráficos
+    document.getElementById('sector-indicator').addEventListener('change', renderizarEvolucao);
+    document.addEventListener('change', (evento) => {
+        const caixa = evento.target.closest('[data-compare-check]');
+        if (!caixa) return;
+        const chave = caixa.dataset.compareCheck;
+        if (caixa.checked) competenciasMarcadas[chave].add(caixa.value);
+        else competenciasMarcadas[chave].delete(caixa.value);
+        if (chave === 'ocorrencias') renderizarEvolucao();
+        else carregarComparativoPorColaborador();
     });
-    ['compare-rankings-first', 'compare-rankings-second'].forEach((id) => {
-        document.getElementById(id).addEventListener('change', carregarComparativoDeRankings);
-    });
-    document.getElementById('compare-rankings-location').addEventListener('change', () => {
-        paginas.comparaIntra = 1;
-        paginas.comparaInter = 1;
-        renderizarComparativoDeRankings();
+    document.getElementById('employee-indicator').addEventListener('change', carregarComparativoPorColaborador);
+    ['employee-filter', 'employee-location'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', () => {
+            paginas.comparaColaboradores = 1;
+            renderizarComparativoPorColaborador();
+        });
     });
 
     const botaoFinalizar = document.getElementById('finish-review');

@@ -102,15 +102,22 @@ def project_bank_hours(rows):
         raise ValidationError('A planilha está vazia.')
     titles = {position: normalize(title) for position, title in sorted(header.items()) if title.strip()}
 
-    # Nome, matrícula e localização aceitam um cabeçalho mais longo, como "Nome
-    # do colaborador", quando nenhum tem o nome exato
+    # Nome e matrícula aceitam um cabeçalho mais longo, como "Nome do
+    # colaborador", quando nenhum tem o nome exato
     def find(name):
         exact = [position for position, title in titles.items() if title == name]
         return (exact or [position for position, title in titles.items() if name in title] or [None])[0]
 
     compact = {position: re.sub(r'[^a-z0-9]', '', title) for position, title in titles.items()}
     balance = next((position for name in BANK_HOURS_BALANCE for position, title in compact.items() if title == name), None)
-    columns = {'Matrícula': find('matricula'), 'Nome': find('nome'), 'Localização': find('localizacao'), 'Saldo': balance}
+    # A localização vem só da coluna Localização: a Filial não a substitui
+    location = next((position for position, title in compact.items() if title == 'localizacao'), None)
+    if location is None:
+        raise ValidationError(
+            'A planilha do banco de horas precisa ter a coluna Localização. '
+            'A coluna Filial não é usada no lugar dela.'
+        )
+    columns = {'Matrícula': find('matricula'), 'Nome': find('nome'), 'Localização': location, 'Saldo': balance}
 
     records = select_columns(
         rows,
