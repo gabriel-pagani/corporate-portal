@@ -25,11 +25,12 @@ from app.utils.notifications.delivery import (
     visible_notifications, unread_notifications, serialize_notification,
 )
 from app.utils.library import (
-    ALLOWED_EXTENSIONS, MAX_FILE_SIZE, library_permissions, recipient_choices, serialize_document, serialize_folder,
+    ALLOWED_EXTENSIONS, MAX_FILE_SIZE, PREVIEW_CONTENT_TYPES, TEXT_PREVIEW_BYTES, file_extension,
+    library_permissions, preview_kind, preview_text, recipient_choices, serialize_document, serialize_folder,
     visible_documents, visible_folders,
 )
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, permission_required
@@ -37,10 +38,13 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import F, ProtectedError
+from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.csp import csp_override
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_http_methods
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
+from django.utils.csp import CSP
 from axes.handlers.proxy import AxesProxyHandler
 from django_otp import login as otp_login, match_token
 
@@ -765,6 +769,36 @@ def library_download_view(request, document_id):
         raise Http404('Arquivo não encontrado.')
     LibraryDocument.objects.filter(pk=document.pk).update(downloads=F('downloads') + 1)
     return FileResponse(file, as_attachment=True, filename=document.file_name)
+
+
+# A prévia do PDF vai num iframe da própria biblioteca, e só ela pode ser
+# embutida: o resto do portal segue sem poder ir para dentro de um frame
+@login_required
+@require_http_methods(['GET'])
+@xframe_options_sameorigin
+@csp_override({'frame-ancestors': [CSP.SELF]})
+def library_preview_view(request, document_id):
+    document = get_object_or_404(visible_documents(request.user), id=document_id)
+    kind = preview_kind(document.file_name)
+    if kind is None:
+        raise Http404('Este arquivo não tem prévia.')
+    try:
+        file = document.file.open('rb')
+    except FileNotFoundError:
+        raise Http404('Arquivo não encontrado.')
+
+    if kind == 'text':
+        with file:
+            text = preview_text(file.read(TEXT_PREVIEW_BYTES))
+        response = HttpResponse(text, content_type='text/plain; charset=utf-8')
+    else:
+        response = FileResponse(
+            file, filename=document.file_name, content_type=PREVIEW_CONTENT_TYPES[file_extension(document.file_name)],
+        )
+    # O navegador mostra o arquivo como o tipo acima, sem tentar adivinhar outro
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Cache-Control'] = 'private, max-age=3600'
+    return response
 
 
 @require_POST

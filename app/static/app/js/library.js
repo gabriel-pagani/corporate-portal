@@ -181,6 +181,51 @@ function textoDestinatarios(documento) {
     return documento.recipients.length ? documento.recipients.join(', ') : 'Todos';
 }
 
+// A prévia não recebe cliques (o PDF não rola dentro do card): o clique é do
+// link em volta, que abre o arquivo inteiro em outra aba
+function previaDocumento(documento) {
+    // Sem prévia o espaço fica com o ícone do tipo, para os cards não saírem do alinhamento
+    if (!documento.preview) {
+        return `
+        <div class="document-preview empty">
+            <i class="fas ${documento.icon}" aria-hidden="true"></i>
+            <span>Sem prévia para este tipo de arquivo</span>
+        </div>`;
+    }
+    const url = escaparHtml(documento.preview_url);
+    const conteudos = {
+        image: `<img src="${url}" alt="" loading="lazy">`,
+        pdf: `<iframe src="${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH" title="Prévia de ${escaparHtml(documento.title)}" loading="lazy" tabindex="-1"></iframe>`,
+        text: `<pre data-preview-text="${url}"></pre>`,
+    };
+    return `
+        <a class="document-preview" href="${url}" target="_blank" rel="noopener" title="Abrir a prévia em outra aba">
+            ${conteudos[documento.preview]}
+        </a>`;
+}
+
+// O texto da prévia é buscado uma vez só, quando o card aparece: a grade é
+// refeita a cada letra da pesquisa
+const textosDePrevia = new Map();
+
+const observadorDePrevias = new IntersectionObserver((entradas) => {
+    entradas.filter((entrada) => entrada.isIntersecting).forEach(({ target: bloco }) => {
+        observadorDePrevias.unobserve(bloco);
+        const url = bloco.dataset.previewText;
+        if (!textosDePrevia.has(url)) {
+            textosDePrevia.set(url, fetch(url).then((resposta) => (resposta.ok ? resposta.text() : '')).catch(() => ''));
+        }
+        textosDePrevia.get(url).then((texto) => {
+            bloco.textContent = texto;
+        });
+    });
+}, { rootMargin: '200px' });
+
+function carregarPreviasDeTexto() {
+    observadorDePrevias.disconnect();
+    document.querySelectorAll('#library-grid [data-preview-text]').forEach((bloco) => observadorDePrevias.observe(bloco));
+}
+
 function cardDocumento(documento, indice, mostrarPasta) {
     const extensao = documento.extension ? documento.extension.toUpperCase() : 'Arquivo';
     const detalhes = [];
@@ -212,6 +257,7 @@ function cardDocumento(documento, indice, mostrarPasta) {
                     <p class="document-meta">${escaparHtml(extensao)} · ${formatarTamanho(documento.size)} · Atualizado em ${documento.updated_at}</p>
                 </div>
             </div>
+            ${previaDocumento(documento)}
             ${documento.description ? `<p class="document-description">${escaparHtml(documento.description)}</p>` : ''}
             ${detalhes.length ? `<div class="document-details">${detalhes.join('')}</div>` : ''}
             <div class="document-actions">${acoes}</div>
@@ -275,6 +321,7 @@ function renderizar() {
     renderizarSidebar();
     renderizarCaminho(termo);
     renderizarConteudo(termo);
+    carregarPreviasDeTexto();
     renderizarAcoes(termo);
 }
 

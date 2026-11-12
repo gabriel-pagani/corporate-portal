@@ -224,8 +224,9 @@ API_TOKEN = os.getenv('API_TOKEN')
 # Webhook do n8n que abre a solicitação de toners no RM (autentica com RM_USER e RM_PASSWORD)
 TONER_REQUEST_WEBHOOK_URL = os.getenv('TONER_REQUEST_WEBHOOK_URL')
 
-# Os dashboards são embutidos em iframe; nada além deles vem de fora.
-FRAME_SOURCES = [url for url in (METABASE_SITE_URL, 'https://app.powerbi.com') if url]
+# Os dashboards são embutidos em iframe; nada além deles vem de fora. Do próprio
+# portal só a prévia da biblioteca aceita ser embutida.
+FRAME_SOURCES = [CSP.SELF] + [url for url in (METABASE_SITE_URL, 'https://app.powerbi.com') if url]
 
 CDN = 'https://cdnjs.cloudflare.com'
 

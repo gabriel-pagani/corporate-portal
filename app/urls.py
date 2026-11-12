@@ -5,7 +5,7 @@ from app.views import (
     login_view, logout_view, customers_vendors_api, toners_view, toners_api, toner_api,
     toner_movements_api, toner_requests_api, notifications_view, notifications_api, notification_read_api,
     notifications_read_all_api, contact_update_api, customers_vendors_view, login_token_view, otp_setup_view,
-    tickets_view, home_layout_api, library_view, library_download_view, library_folders_api, library_folder_api,
+    tickets_view, home_layout_api, library_view, library_download_view, library_preview_view, library_folders_api, library_folder_api,
     library_documents_api, library_document_api,
 )
 
@@ -27,6 +27,7 @@ urlpatterns = [
     path('tickets/', tickets_view, name='tickets'),
     path('library/', library_view, name='library'),
     path('library/documents/<int:document_id>/download/', library_download_view, name='library-download'),
+    path('library/documents/<int:document_id>/preview/', library_preview_view, name='library-preview'),
 
     # API
     path('api/home/layout/', home_layout_api, name='home-layout-api'),

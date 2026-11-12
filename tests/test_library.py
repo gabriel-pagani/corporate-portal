@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from app.models import LibraryDocument, LibraryFolder, ServiceAccess, User
-from app.utils.library import MAX_FILE_SIZE
+from app.utils.library import MAX_FILE_SIZE, TEXT_PREVIEW_BYTES
 
 
 DOCUMENT_PERMISSIONS = ('add_librarydocument', 'change_librarydocument', 'delete_librarydocument')
@@ -304,11 +304,133 @@ def test_document_refuses_large_files(client, manager, folder):
 @pytest.mark.django_db
 def test_document_refuses_files_outside_the_allowed_types(client, manager, folder):
     response = client.post(reverse('app:library-documents-api'), {
-        'title': 'Programa', 'folder': folder.id, 'file': SimpleUploadedFile('instalar.exe', b'MZ'),
+        'title': 'Programa', 'folder': folder.id, 'file': SimpleUploadedFile('instalar.bat', b'echo'),
     })
 
     assert response.status_code == 400
     assert response.json()['detail'] == 'Este tipo de arquivo não é aceito na biblioteca.'
+
+
+@pytest.mark.django_db
+def test_document_accepts_executables(client, manager, folder):
+    response = client.post(reverse('app:library-documents-api'), {
+        'title': 'Instalador', 'folder': folder.id, 'file': SimpleUploadedFile('Instalar.EXE', b'MZ'),
+    })
+
+    assert response.status_code == 201
+    assert LibraryDocument.objects.get().file_name == 'Instalar.EXE'
+    document = response.json()['document']
+    assert document['extension'] == 'exe'
+    assert document['icon'] == 'fa-gears'
+    # O executável só sai pelo download: o navegador nunca o abre dentro do portal
+    assert document['preview'] is None
+    assert document['preview_url'] is None
+    assert '.exe' in client.get(reverse('app:library')).content.decode()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('name, kind', [
+    ('foto.PNG', 'image'), ('manual.pdf', 'pdf'), ('dados.csv', 'text'), ('planilha.xlsx', None), ('video.mp4', None),
+])
+def test_documents_say_which_preview_they_have(client, folder, name, kind):
+    document = make_document(folder, name=name)
+    client.force_login(make_user())
+
+    data = page_data(client, 'library-documents')[0]
+
+    assert data['preview'] == kind
+    if kind:
+        assert data['preview_url'].startswith(reverse('app:library-preview', args=[document.id]) + '?v=')
+    else:
+        assert data['preview_url'] is None
+
+
+@pytest.mark.django_db
+def test_preview_shows_the_file_inline_without_counting_a_download(client, folder):
+    document = make_document(folder, content=b'%PDF-teste', name='Manual.pdf')
+    client.force_login(make_user())
+
+    response = client.get(reverse('app:library-preview', args=[document.id]))
+
+    assert response.status_code == 200
+    assert b''.join(response.streaming_content) == b'%PDF-teste'
+    assert response['Content-Type'] == 'application/pdf'
+    assert response['Content-Disposition'].startswith('inline')
+    assert response['X-Content-Type-Options'] == 'nosniff'
+    assert 'private' in response['Cache-Control']
+    document.refresh_from_db()
+    assert document.downloads == 0
+
+
+@pytest.mark.django_db
+def test_only_the_preview_can_be_framed_and_only_by_the_portal(client, folder):
+    document = make_document(folder, name='manual.pdf')
+    client.force_login(make_user())
+
+    preview = client.get(reverse('app:library-preview', args=[document.id]))
+    page = client.get(reverse('app:library'))
+
+    assert "frame-ancestors 'self'" in preview['Content-Security-Policy']
+    assert preview['X-Frame-Options'] == 'SAMEORIGIN'
+    assert "frame-ancestors 'none'" in page['Content-Security-Policy']
+    assert re.search(r"frame-src [^;]*'self'", page['Content-Security-Policy'])
+
+
+@pytest.mark.django_db
+def test_preview_type_comes_from_the_extension_not_from_the_content(client, folder):
+    document = make_document(folder, content=b'<script>alert(1)</script>', name='foto.png')
+    client.force_login(make_user())
+
+    response = client.get(reverse('app:library-preview', args=[document.id]))
+
+    assert response['Content-Type'] == 'image/png'
+
+
+@pytest.mark.django_db
+def test_text_preview_sends_only_the_beginning_as_plain_text(client, folder):
+    document = make_document(folder, content='ação;'.encode() * 2000, name='dados.csv')
+    client.force_login(make_user())
+
+    response = client.get(reverse('app:library-preview', args=[document.id]))
+
+    assert response['Content-Type'] == 'text/plain; charset=utf-8'
+    assert response.content.decode().startswith('ação;ação;')
+    assert len(response.content) <= TEXT_PREVIEW_BYTES
+
+
+@pytest.mark.django_db
+def test_text_preview_reads_files_saved_by_windows(client, folder):
+    document = make_document(folder, content='Descrição;Preço'.encode('cp1252'), name='dados.csv')
+    client.force_login(make_user())
+
+    response = client.get(reverse('app:library-preview', args=[document.id]))
+
+    assert response.content.decode() == 'Descrição;Preço'
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('name', ['instalar.exe', 'contrato.docx', 'pacote.zip', 'video.mp4'])
+def test_preview_refuses_files_the_browser_should_not_open(client, folder, name):
+    document = make_document(folder, name=name)
+    client.force_login(make_user())
+
+    assert client.get(reverse('app:library-preview', args=[document.id])).status_code == 404
+
+
+@pytest.mark.django_db
+def test_preview_refuses_documents_not_released(client, folder):
+    document = make_document(folder, name='manual.pdf')
+    document.users.add(make_user(username='outro'))
+    client.force_login(make_user())
+
+    assert client.get(reverse('app:library-preview', args=[document.id])).status_code == 404
+
+
+@pytest.mark.django_db
+def test_preview_requires_login(client, folder):
+    document = make_document(folder, name='manual.pdf')
+    response = client.get(reverse('app:library-preview', args=[document.id]))
+    assert response.status_code == 302
 
 
 @pytest.mark.django_db

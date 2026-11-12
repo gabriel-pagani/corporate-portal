@@ -6,6 +6,7 @@ grupos escolhidos, e sem nenhum dos dois vale para todos. Quem edita ou exclui
 documentos vê todos eles, já que precisa alcançá-los para isso, e o autor
 sempre vê o que enviou.
 """
+import codecs
 import os
 
 from django.contrib.auth.models import Group
@@ -29,6 +30,7 @@ ALLOWED_EXTENSIONS = (
     'zip', 'rar', '7z',
     'msg', 'eml', 'xml', 'json',
     'dwg', 'dxf', 'mp4',
+    'exe',
 )
 
 MANAGE_DOCUMENT_PERMISSIONS = ('app.change_librarydocument', 'app.delete_librarydocument')
@@ -95,6 +97,7 @@ FILE_ICONS = {
     'fa-file-code': ('xml', 'json'),
     'fa-compass-drafting': ('dwg', 'dxf'),
     'fa-file-video': ('mp4',),
+    'fa-gears': ('exe',),
 }
 
 ICON_BY_EXTENSION = {extension: icon for icon, extensions in FILE_ICONS.items() for extension in extensions}
@@ -106,6 +109,43 @@ def file_extension(name):
 
 def file_icon(name):
     return ICON_BY_EXTENSION.get(file_extension(name), 'fa-file')
+
+
+# A prévia abre o arquivo dentro do portal, e por isso só vale para o que o
+# navegador mostra sem executar nada. O tipo enviado é sempre o daqui, nunca o
+# que o arquivo diz ser
+PREVIEW_CONTENT_TYPES = {
+    'pdf': 'application/pdf',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+}
+
+TEXT_PREVIEW_EXTENSIONS = ('txt', 'md', 'csv', 'json', 'xml')
+
+# Do texto vai só o começo: é o que cabe no card
+TEXT_PREVIEW_BYTES = 4096
+
+
+def preview_kind(name):
+    """'image', 'pdf' ou 'text'; None para o que não tem prévia."""
+    extension = file_extension(name)
+    if extension in TEXT_PREVIEW_EXTENSIONS:
+        return 'text'
+    if extension == 'pdf':
+        return 'pdf'
+    return 'image' if extension in PREVIEW_CONTENT_TYPES else None
+
+
+def preview_text(data):
+    try:
+        # O corte pode cair no meio de um caractere: o decodificador incremental deixa o resto de fora
+        return codecs.getincrementaldecoder('utf-8')().decode(data)
+    except UnicodeDecodeError:
+        # O que não é UTF-8 costuma ser o CSV ou o TXT salvo pelo Windows
+        return data.decode('cp1252', errors='replace')
 
 
 def serialize_folder(folder):
@@ -131,7 +171,14 @@ def serialize_document(document, user):
         'author': author_name(document.created_by),
         'updated_at': timezone.localtime(document.updated_at).strftime('%d/%m/%Y'),
         'download_url': reverse('app:library-download', args=[document.id]),
+        'preview': preview_kind(document.file_name),
+        'preview_url': None,
     }
+    if data['preview']:
+        # A prévia fica no cache do navegador: a data na URL busca de novo quando o arquivo muda
+        data['preview_url'] = '{}?v={}'.format(
+            reverse('app:library-preview', args=[document.id]), int(document.updated_at.timestamp()),
+        )
     if shows_details(user, document):
         users = list(document.users.all())
         groups = list(document.groups.all())

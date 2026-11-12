@@ -316,6 +316,7 @@ body {
 .document-icon.fa-file-powerpoint-bg { background-color: #fb8c00; color: #fff; }
 .document-icon.fa-file-image-bg,
 .document-icon.fa-file-video-bg { background-color: #ab47bc; color: #fff; }
+.document-icon.fa-gears-bg { background-color: #607d8b; color: #fff; }
 
 .document-heading {
   display: flex;
@@ -336,6 +337,67 @@ body {
 .document-details {
   color: #a9b0b8;
   font-size: 13px;
+}
+
+/* Prévia do arquivo, entre o título e a descrição */
+.document-preview {
+  display: block;
+  flex-shrink: 0;
+  height: 190px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background-color: #15181b;
+  overflow: hidden;
+}
+
+.document-preview.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #6d747c;
+  font-size: 13px;
+}
+
+.document-preview.empty i {
+  font-size: 40px;
+}
+
+a.document-preview:hover,
+a.document-preview:focus-visible {
+  border-color: #f2b705;
+}
+
+.document-preview img,
+.document-preview iframe,
+.document-preview pre {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+}
+
+.document-preview img {
+  object-fit: cover;
+  object-position: top;
+}
+
+.document-preview iframe {
+  background-color: #fff;
+}
+
+.document-preview pre {
+  padding: 10px 12px;
+  box-sizing: border-box;
+  color: #d5d9de;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .document-description {
