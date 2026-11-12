@@ -1,4 +1,4 @@
-name: CI-Pipeline
+name: CI/CD-Pipeline
 
 on:
   push:
@@ -89,3 +89,18 @@ jobs:
 
       - name: Run tests
         run: pytest -vv
+
+  # Roda no próprio servidor, por um runner self-hosted: o portal não tem porta
+  # aberta para o GitHub alcançar. Só no push para a main, e nunca em pull
+  # request, que executaria no servidor código ainda não revisado.
+  deploy:
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, corporate-portal]
+    concurrency: deploy
+    steps:
+      - name: Update code and rebuild
+        working-directory: ${{ vars.DEPLOY_PATH }}
+        run: |
+          git pull --ff-only
+          make build
