@@ -81,6 +81,10 @@ DATABASES = {
         'PASSWORD': os.getenv('POSTGRES_APP_PASSWORD') or os.getenv('POSTGRES_PASSWORD'),
         'HOST': os.getenv('POSTGRES_HOST', 'postgres'),
         'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        # Reaproveita a conexão entre requisições, em vez de abrir uma (com a
+        # autenticação) a cada página; a checagem descarta a que caiu
+        'CONN_MAX_AGE': 60,
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
