@@ -1,0 +1,282 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Reembolso de Despesas{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
+        <link href="{% static 'expenses/css/expenses.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div id="content" class="container expenses"
+            data-csrf-token="{{ csrf_token }}"
+            data-expenses-url="{% url 'expenses:expenses-api' %}"
+            data-expense-url="{% url 'expenses:expense-api' 0 %}"
+            data-photos-url="{% url 'expenses:expense-photos-api' 0 %}"
+            data-review-url="{% url 'expenses:expense-review-api' 0 %}"
+            data-reimburse-url="{% url 'expenses:expense-reimburse-api' 0 %}"
+            data-closed-url="{% url 'expenses:closed-expenses-api' %}"
+            data-my-closed-url="{% url 'expenses:my-closed-expenses-api' %}"
+            data-my-url="{% url 'expenses:my-expenses-api' %}"
+            data-my-version="{{ my_version }}"
+            data-words-url="{% url 'expenses:ignored-words-api' %}"
+            data-word-url="{% url 'expenses:ignored-word-api' 0 %}"
+        >
+            <div class="header">
+                <a href="{% url "app:home" %}">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
+                </a>
+                <div class="header-text">
+                    <h1>Reembolso de Despesas</h1>
+                </div>
+                {% if permissions.submit %}
+                <button type="button" class="button primary big" id="new-expense">
+                    <i class="fas fa-camera" aria-hidden="true"></i> Nova despesa
+                </button>
+                {% endif %}
+            </div>
+
+            <div id="alert-error" class="alert" role="alert" hidden>
+                <strong><i class="fas fa-circle-xmark" id="alert-error-icon" aria-hidden="true"></i> <span id="alert-error-text"></span></strong>
+            </div>
+
+            <div id="success-message" class="form-message" role="status" hidden></div>
+
+            <nav class="tabs" id="tabs" aria-label="Seções do reembolso">
+                {% if permissions.submit %}
+                <button type="button" class="tab" data-tab="minhas"><i class="fas fa-receipt" aria-hidden="true"></i> Minhas despesas</button>
+                {% endif %}
+                {% if reviews %}
+                <button type="button" class="tab" data-tab="aprovacoes"><i class="fas fa-clipboard-check" aria-hidden="true"></i> Aprovações</button>
+                {% endif %}
+                {% if permissions.settings %}
+                <button type="button" class="tab" data-tab="configuracoes"><i class="fas fa-gear" aria-hidden="true"></i> Configurações</button>
+                {% endif %}
+            </nav>
+
+            {% if permissions.submit %}
+            <div class="tab-panel" id="tab-minhas" hidden>
+                <div id="my-list">
+                    <div class="filters" id="my-filters" role="group" aria-label="Filtrar as suas despesas pela situação">
+                        <button type="button" class="filter" data-filter="D">Rascunhos <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="C">Correções Necessárias <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="E">Enviadas <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="A">Aprovadas <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="P">Reembolsadas <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="R">Rejeitadas <span class="count"></span></button>
+                    </div>
+                    <div id="my-expenses" class="expense-list"></div>
+                    <button type="button" class="button" id="my-more" hidden>Ver mais antigas</button>
+                    <div id="my-empty" class="empty" hidden></div>
+                </div>
+
+                <section id="expense-editor" class="card" hidden>
+                    <div id="step-photos">
+                        <h2>Fotos do recibo</h2>
+                        <p class="muted">Fotografe a nota inteira. Se ela for comprida, tire até {{ photo_limits.max_photos }} fotos.</p>
+                        <div id="photo-previews" class="photo-grid"></div>
+                        <div class="photo-actions">
+                            <!-- O capture abre a câmera direto no celular; a galeria fica para a foto que já foi tirada -->
+                            <label class="button primary big" id="camera-button">
+                                <i class="fas fa-camera" aria-hidden="true"></i> Tirar foto
+                                <input type="file" id="camera-input" class="visually-hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
+                            </label>
+                            <label class="button big" id="gallery-button">
+                                <i class="fas fa-image" aria-hidden="true"></i> Escolher da galeria
+                                <input type="file" id="gallery-input" class="visually-hidden" accept="image/jpeg,image/png,image/webp" multiple>
+                            </label>
+                        </div>
+                        <p id="reading-state" class="reading-state" role="status" hidden>
+                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Lendo a nota... Isso pode levar até um minuto.
+                        </p>
+                        <div class="editor-actions">
+                            <button type="button" class="button" id="cancel-photos">Cancelar</button>
+                            <button type="button" class="button primary" id="read-photos" disabled>Continuar</button>
+                        </div>
+                    </div>
+
+                    <form id="expense-form" autocomplete="off" hidden>
+                        <h2>Confira os dados da nota</h2>
+                        <div id="reading-failed" class="notice" role="status" hidden>
+                            <i class="fas fa-circle-info" aria-hidden="true"></i>
+                            Não foi possível ler a nota. Preencha os dados abaixo.
+                        </div>
+                        <div id="correction-note" class="notice" role="status" hidden></div>
+
+                        <div id="form-photos"></div>
+                        <button type="button" class="button small" id="change-photos">
+                            <i class="fas fa-camera-rotate" aria-hidden="true"></i> Trocar as fotos
+                        </button>
+
+                        <div class="form-grid expense-header">
+                            <div class="field field-wide">
+                                <label for="expense-merchant">Estabelecimento</label>
+                                <input id="expense-merchant" name="merchant" type="text" maxlength="150">
+                            </div>
+                            <div class="field">
+                                <label for="expense-cnpj">CNPJ</label>
+                                <input id="expense-cnpj" name="cnpj" type="text" maxlength="18">
+                            </div>
+                            <div class="field">
+                                <label for="expense-date">Data da nota</label>
+                                <input id="expense-date" name="issue_date" type="date">
+                            </div>
+                        </div>
+
+                        <h3>Itens da nota</h3>
+                        <div id="expense-items" class="items"></div>
+                        <button type="button" class="button small" data-add-item="expense-items">
+                            <i class="fas fa-plus" aria-hidden="true"></i> Adicionar item
+                        </button>
+                        <p class="totals">Total dos itens: <strong data-items-total="expense-items"></strong></p>
+
+                        <div class="editor-actions">
+                            <button type="button" class="button" id="cancel-form">Voltar</button>
+                            <button type="button" class="button danger" id="discard-draft">Descartar</button>
+                            <button type="submit" class="button primary">Enviar</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+            {% endif %}
+
+            {% if reviews %}
+            <div class="tab-panel" id="tab-aprovacoes" hidden>
+                <div id="review-list">
+                    <div class="review-search">
+                        <div class="field">
+                            <label for="review-search">Funcionário</label>
+                            <input id="review-search" type="search" placeholder="Nome, usuário ou e-mail" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <label for="review-cost-center-filter">Centro de custo</label>
+                            <select id="review-cost-center-filter">
+                                <option value="">Todos</option>
+                                {% for cost_center in filter_cost_centers %}
+                                <option value="{{ cost_center.id }}">{{ cost_center }}</option>
+                                {% endfor %}
+                                <option value="{{ without_cost_center }}">Sem centro de custo</option>
+                            </select>
+                        </div>
+                        <label class="checkbox review-needs-check">
+                            <input type="checkbox" id="review-needs-check"> Somente as com alertas
+                        </label>
+                    </div>
+                    <div class="filters" id="review-filters" role="group" aria-label="Filtrar as despesas pela situação">
+                        <button type="button" class="filter" data-filter="E">Aguardando aprovação <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="A">Aguardando pagamento <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="C">Em correção <span class="count"></span></button>
+                        <button type="button" class="filter" data-filter="X">Encerradas <span class="count"></span></button>
+                    </div>
+                    <div id="review-expenses" class="expense-list"></div>
+                    <button type="button" class="button" id="review-more" hidden>Carregar mais</button>
+                    <div id="review-empty" class="empty" hidden>Nenhuma despesa nesta situação.</div>
+                </div>
+
+                {% if permissions.approve %}
+                <section id="review-panel" class="review" hidden>
+                    <button type="button" class="button" id="close-review"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar à fila</button>
+
+                    <div class="review-head">
+                        <div>
+                            <h2 id="review-title"></h2>
+                            <p class="muted" id="review-summary"></p>
+                        </div>
+                        <p class="review-amount">A reembolsar <strong data-items-reimbursable="review-items"></strong></p>
+                    </div>
+                    <div id="review-alerts"></div>
+
+                    <div class="review-columns">
+                        <div class="review-photos" id="review-photos" aria-label="Fotos do recibo"></div>
+
+                        <form id="review-form" autocomplete="off">
+                            <section class="review-step">
+                                <h3><span class="step-number">1</span> Confira os itens com a foto</h3>
+                                <div id="review-items" class="items"></div>
+                                <button type="button" class="button small" data-add-item="review-items">
+                                    <i class="fas fa-plus" aria-hidden="true"></i> Adicionar item
+                                </button>
+                                <p class="totals">Total da nota: <span data-items-total="review-items"></span></p>
+                                <details class="more" id="review-reading">
+                                    <summary>Ver a leitura automática da nota</summary>
+                                    <div id="review-reading-content"></div>
+                                </details>
+                            </section>
+
+                            <section class="review-step">
+                                <h3><label for="review-cost-center"><span class="step-number">2</span> Centro de custo</label></h3>
+                                <div id="review-cost-center-alert"></div>
+                                <div class="field">
+                                    <select id="review-cost-center" name="cost_center">
+                                        <option value="">Sem centro de custo</option>
+                                        {% for cost_center in cost_centers %}
+                                        <option value="{{ cost_center.id }}">{{ cost_center.label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </section>
+
+                            <section class="review-step">
+                                <h3><span class="step-number">3</span> Decisão</h3>
+                                <div id="review-decision">
+                                    <label class="checkbox review-check" id="review-check" hidden>
+                                        <input type="checkbox" name="photo_checked"> Conferi a foto e os valores
+                                    </label>
+                                    <p class="muted" id="review-nothing" hidden>Nenhum item reembolsável: rejeite ou peça a correção.</p>
+                                    <div class="editor-actions">
+                                        <button type="button" class="button danger" data-ask-note="reject">Rejeitar</button>
+                                        <button type="button" class="button" data-ask-note="correction">Pedir correção</button>
+                                        <button type="button" class="button primary" data-review="approve">Aprovar</button>
+                                    </div>
+                                </div>
+                                <!-- Só aparece para rejeitar ou pedir correção, que é quando a observação é obrigatória -->
+                                <div id="review-note-step" hidden>
+                                    <div class="field">
+                                        <label for="review-note" id="review-note-label"></label>
+                                        <textarea id="review-note" name="note" maxlength="2000"></textarea>
+                                    </div>
+                                    <div class="editor-actions">
+                                        <button type="button" class="button" id="review-note-cancel">Cancelar</button>
+                                        <button type="button" class="button primary" id="review-note-confirm"></button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <div id="review-history"></div>
+                        </form>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if permissions.settings %}
+            <div class="tab-panel" id="tab-configuracoes" hidden>
+                <section class="card">
+                    <h2>Itens não reembolsáveis</h2>
+                    <p class="muted">Cadastre os tipos de item que a empresa não reembolsa, como "bebida alcoólica" ou "cigarro". O sistema avalia cada item da nota e tira do reembolso os que forem de um desses tipos; na dúvida, tira também. O aprovador vê a marca e pode devolver o item ao reembolso.</p>
+                    <form id="word-form" class="word-form" autocomplete="off">
+                        <div class="field">
+                            <label for="word-input">Novo tipo de item</label>
+                            <input id="word-input" name="word" type="text" maxlength="60" placeholder="Ex: bebida alcoólica" required>
+                        </div>
+                        <button type="submit" class="button primary"><i class="fas fa-plus" aria-hidden="true"></i> Adicionar</button>
+                    </form>
+                    <ul id="words" class="chips" aria-label="Itens não reembolsáveis"></ul>
+                    <div id="words-empty" class="empty" hidden>Nenhum tipo cadastrado.</div>
+                </section>
+            </div>
+            {% endif %}
+
+        </div>
+
+        {{ permissions|json_script:"permissions-data" }}
+        {{ my_expenses|json_script:"my-expenses-data" }}
+        {{ my_counts|json_script:"my-counts-data" }}
+        {{ review_expenses|json_script:"review-expenses-data" }}
+        {{ photo_limits|json_script:"photo-limits-data" }}
+        {{ settings|json_script:"settings-data" }}
+        <script src="{% static 'expenses/js/expenses.js' %}"></script>
+{% endblock body %}

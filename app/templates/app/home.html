@@ -37,6 +37,12 @@
                     <i class="fas fa-headphones"></i>
                     <span class="text">Central de Chamados</span>
                 </a>                            
+                {% if perms.expenses.access_expenses %}
+                <a href="{% url 'expenses:expenses' %}" title="Acessar reembolso de despesas">
+                    <i class="fas fa-receipt"></i>
+                    <span class="text">Reembolso de Despesas</span>
+                </a>
+                {% endif %}
                 {% if has_dashboards %}
                 <a href="{% url "app:dashboards" %}" title="Acessar central de dashboards">
                     <i class="fas fa-chart-pie"></i>

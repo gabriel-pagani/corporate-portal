@@ -1,0 +1,38 @@
+{% if preview.approves or preview.reimburses %}
+<div class="preview-stats">
+    {% if preview.approves %}
+    <div class="preview-summary{% if preview.to_approve %} attention{% endif %}">
+        <span class="summary-value">{{ preview.to_approve }}</span>
+        <span class="summary-label">aguardando aprovação</span>
+    </div>
+    {% endif %}
+    {% if preview.reimburses %}
+    <div class="preview-summary{% if preview.to_reimburse %} attention{% endif %}">
+        <span class="summary-value">{{ preview.to_reimburse }}</span>
+        <span class="summary-label">aguardando pagamento</span>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% if preview.correction_count %}
+<p class="preview-caption"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {{ preview.correction_count }} despesa{{ preview.correction_count|pluralize }} sua{{ preview.correction_count|pluralize }} esperando correção</p>
+{% endif %}
+{% if preview.recent %}
+<p class="preview-caption"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Suas últimas despesas</p>
+<ul class="preview-list" data-fit data-more>
+    {% for expense in preview.recent %}
+    <li>
+        <a href="{{ service.url }}" title="Abrir o reembolso de despesas">
+            <i class="fas fa-receipt item-icon" aria-hidden="true"></i>
+            <span class="item-text">
+                <strong>{{ expense.merchant|default:"Estabelecimento não informado" }}</strong>
+                <small>{{ expense.get_status_display }} · {{ expense.created_at|date:"d/m/Y" }}</small>
+            </span>
+            <span class="item-aside">R$ {{ expense.reimbursable_total|floatformat:"2g" }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% elif preview.submits %}
+<p class="preview-empty">Você ainda não enviou nenhuma despesa. Fotografe o recibo para pedir o reembolso.</p>
+{% endif %}

@@ -90,6 +90,7 @@ services:
     volumes:
       - ../app:/app/app
       - ../journey_audit:/app/journey_audit
+      - ../expenses:/app/expenses
       - ../project:/app/project
       - ../templates:/app/templates
       - ../static:/app/static

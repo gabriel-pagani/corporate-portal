@@ -42,13 +42,13 @@ def test_cards_follow_the_sidebar_permissions(client):
 
 @pytest.mark.django_db
 def test_cards_show_every_service_the_user_can_open(client):
-    user = make_user('view_toner', 'register_customers_suppliers', 'view_competency')
+    user = make_user('access_expenses', 'view_toner', 'register_customers_suppliers', 'view_competency')
     user.dashboards.add(Dashboard.objects.create(title='Faturamento'))
     client.force_login(user)
 
     assert card_order(client) == [
         ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS, ServiceAccess.LIBRARY,
-        ServiceAccess.DASHBOARDS, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
+        ServiceAccess.EXPENSES, ServiceAccess.DASHBOARDS, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
     ]
 
 

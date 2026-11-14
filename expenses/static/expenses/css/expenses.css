@@ -1,0 +1,644 @@
+/* A tela é usada no celular, na obra: tudo aqui parte da coluna única e dos
+   botões que cabem no dedo. O toners.css e o create-form.css dão a base. */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e2e2e2;
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 10px 14px;
+  border-bottom: 3px solid transparent;
+  color: #666;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: #333;
+}
+
+.tab.active {
+  border-bottom-color: #333;
+  color: #333;
+  font-weight: 600;
+}
+
+.card > .muted {
+  margin-bottom: 14px;
+}
+
+.word-form {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  max-width: 480px;
+  margin-bottom: 14px;
+}
+
+.word-form .field {
+  flex: 1;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 20px;
+  background: #f1f1f1;
+  font-size: 15px;
+}
+
+.chip button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #666;
+}
+
+.chip button:hover {
+  background: #fcebeb;
+  color: #a32d2d;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 0;
+    background-image: none;
+  }
+
+  .container {
+    width: 100%;
+    min-height: 100vh;
+    padding: 16px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  .logo {
+    width: 100px;
+  }
+}
+
+/* Logo à esquerda, título no centro e o botão de nova despesa à direita. As
+   colunas dos lados têm a mesma largura, então o título fica no centro da
+   página mesmo sem o botão (quem gerencia o reembolso não lança despesa). */
+.expenses .header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px 25px;
+}
+
+.expenses .header .header-text {
+  align-items: center;
+}
+
+.expenses .header #new-expense {
+  justify-self: end;
+}
+
+/* No celular não cabe: fica a logo e o botão, na mesma linha */
+@media (max-width: 600px) {
+  .expenses .header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .expenses .header .header-text {
+    display: none;
+  }
+}
+
+/* Minhas despesas */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.button.big {
+  min-height: 52px;
+  padding: 0 22px;
+  font-size: 18px;
+}
+
+label.button:focus-within {
+  outline: 2px solid #333;
+  outline-offset: 2px;
+}
+
+.button.danger {
+  border-color: #f09595;
+  color: #a32d2d;
+}
+
+/* O alerta do topo como aviso: as mesmas cores do .notice */
+.alert.warning {
+  border-color: #f0c674;
+  background: #fdf3dc;
+  color: #6b4600;
+}
+
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #f0c674;
+  border-radius: 8px;
+  background: #fdf3dc;
+  color: #6b4600;
+}
+
+.expense-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.expense-card {
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.expense-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.expense-summary:hover,
+.expense-summary:focus-visible {
+  background: #f7f7f7;
+}
+
+.expense-summary .expense-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+  overflow-wrap: anywhere;
+}
+
+.expense-summary .expense-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+}
+
+.expense-summary .expense-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Fechado, a seta aponta para a direita; aberto, gira para baixo */
+.expense-summary .expand-icon {
+  transition: transform .2s;
+}
+
+.expense-summary[aria-expanded="true"] .expand-icon {
+  transform: rotate(90deg);
+}
+
+.expense-detail {
+  padding: 4px 14px 14px;
+  border-top: 1px solid #eee;
+}
+
+/* A observação do aprovador e os avisos abrem o detalhe: sem colar na linha de cima */
+.expense-detail .notice {
+  margin-top: 12px;
+}
+
+.expense-detail h3,
+#expense-form h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  color: #333;
+}
+
+.badge.status-D { background: #f1f1f1; color: #555; }
+.badge.status-E { background: #e3effb; color: #1c5a96; }
+.badge.status-C { background: #fdf3dc; color: #8a5a00; border: 1px solid #f0c674; }
+.badge.status-A { background: #eaf3de; color: #3b6d11; }
+.badge.status-R { background: #fcebeb; color: #a32d2d; border: 1px solid #f09595; }
+.badge.status-P { background: #333; color: #fff; }
+
+.item-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f1f1;
+}
+
+.item-list li.out .item-amount-text {
+  color: #999;
+  text-decoration: line-through;
+}
+
+.item-list small {
+  color: #666;
+}
+
+.totals {
+  margin: 12px 0 4px;
+  font-size: 16px;
+}
+
+.totals strong {
+  font-size: 18px;
+}
+
+.photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.photo-grid .photo {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f7f7f7;
+}
+
+.photo-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-grid .photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .65);
+  color: #fff;
+}
+
+.photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.reading-state {
+  margin: 10px 0;
+  color: #333;
+  font-weight: 600;
+}
+
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.expense-header {
+  margin-top: 14px;
+}
+
+.history li {
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f1f1;
+  font-size: 14px;
+}
+
+.history .history-note {
+  display: block;
+  color: #333;
+}
+
+/* O editor de itens, do funcionário e do aprovador */
+
+.items {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 100px 150px 40px;
+  grid-template-areas: "description quantity amount flag remove";
+  gap: 8px;
+  align-items: end;
+}
+
+.item-field.description { grid-area: description; }
+.item-field.quantity { grid-area: quantity; }
+.item-field.amount { grid-area: amount; }
+.item-row .item-flag { grid-area: flag; min-height: 40px; }
+.item-row .item-remove { grid-area: remove; }
+
+.item-field span {
+  display: block;
+  margin-bottom: 2px;
+  color: #666;
+  font-size: 12px;
+}
+
+.item-row input:not([type="checkbox"]) {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 15px;
+}
+
+.item-row.out input:not([type="checkbox"]) {
+  background: #f7f7f7;
+}
+
+.item-row .item-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.item-row .item-remove {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  color: #a32d2d;
+}
+
+.item-row .item-remove:hover {
+  background: #fcebeb;
+}
+
+/* Na tela larga os rótulos da primeira linha servem de cabeçalho da lista */
+@media (min-width: 601px) {
+  .item-row:not(:first-child) .item-field span {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .button.big,
+  .editor-actions .button {
+    flex: 1 1 auto;
+  }
+
+  .photo-actions {
+    flex-direction: column;
+  }
+
+  /* A descrição ocupa a linha inteira, e o resto fica embaixo dela */
+  .item-row {
+    grid-template-columns: 1fr 1fr 40px;
+    grid-template-areas:
+      "description description description"
+      "quantity amount remove"
+      "flag flag flag";
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .item-row .item-flag {
+    min-height: 0;
+  }
+
+  .item-row .item-flag:empty {
+    display: none;
+  }
+
+  /* Abaixo de 16px o iPhone dá zoom na página ao focar o campo */
+  .item-row input:not([type="checkbox"]),
+  .field input:not([type="checkbox"]),
+  .field select,
+  .field textarea {
+    font-size: 16px;
+  }
+}
+
+.history-note {
+  white-space: pre-line;
+}
+
+/* Aprovações */
+
+.review-search {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-needs-check {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+  .review-search {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#my-filters {
+  justify-content: center;
+  margin: 0 0 12px;
+}
+
+.filter {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.filter.active {
+  border-color: #333;
+  background: #333;
+  color: #fff;
+}
+
+.filter .count {
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.reasons {
+  margin: 4px 0 0 18px;
+  list-style: disc;
+}
+
+.review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 24px;
+  align-items: start;
+}
+
+/* As fotos acompanham a rolagem dos itens */
+.review-photos {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 10px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+.review-photos img {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.review-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 8px 24px;
+  margin: 16px 0;
+}
+
+.review-amount {
+  color: #666;
+  text-align: right;
+}
+
+.review-amount strong {
+  display: block;
+  color: #333;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+/* Os três passos da análise, na ordem em que o aprovador os faz */
+.review-step {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.review .review-step h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+
+.review .review-step h3 label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #333;
+  color: #fff;
+  font-size: 14px;
+}
+
+.review-step .notice {
+  margin-bottom: 10px;
+}
+
+.review-check {
+  padding: 12px 14px;
+  border: 1px solid #f0c674;
+  border-radius: 8px;
+  background: #fdf3dc;
+  font-weight: 600;
+}
+
+.more {
+  margin-top: 12px;
+}
+
+.more summary {
+  cursor: pointer;
+  color: #555;
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .review-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .review-photos {
+    position: static;
+    max-height: none;
+  }
+
+  .review-amount {
+    text-align: left;
+  }
+}
+
+/* O Aprovar travado por falta de valor a reembolsar não está esperando nada */
+.review [data-review]:disabled {
+  cursor: not-allowed;
+}

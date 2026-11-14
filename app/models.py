@@ -70,10 +70,42 @@ class Dashboard(models.Model):
         ]
 
 
+class CostCenter(models.Model):
+    code = models.CharField(
+        max_length=30,
+        unique=True,
+        error_messages={'unique': 'Já existe um centro de custo com este código.'},
+        verbose_name='Código',
+    )
+    name = models.CharField(max_length=150, verbose_name='Nome')
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Ativo',
+        help_text='O centro de custo inativo deixa de ser oferecido ao aprovador das despesas.',
+    )
+
+    def __str__(self):
+        return f'{self.code} - {self.name}'
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = 'Centro de Custo'
+        verbose_name_plural = 'Centros de Custo'
+
+
 class User(AbstractUser):
     email = models.EmailField(blank=True, null=True, verbose_name='Endereço de email')
     observations = models.TextField(blank=True, null=True, verbose_name='Observações')
     dashboards = models.ManyToManyField(Dashboard, blank=True, verbose_name='Dashboards')
+    cost_center = models.ForeignKey(
+        CostCenter,
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name='users',
+        verbose_name='Centro de custo',
+        help_text='As despesas de reembolso do usuário são lançadas neste centro de custo.',
+    )
 
     class Meta(AbstractUser.Meta):
         permissions = [
@@ -428,6 +460,7 @@ class ServiceAccess(models.Model):
     NOTIFICATIONS = 'notifications'
     TICKETS = 'tickets'
     LIBRARY = 'library'
+    EXPENSES = 'expenses'
     DASHBOARDS = 'dashboards'
     TONERS = 'toners'
     CUSTOMERS_VENDORS = 'customers-vendors'
@@ -437,6 +470,7 @@ class ServiceAccess(models.Model):
         (NOTIFICATIONS, 'Mural de Notificações'),
         (TICKETS, 'Central de Chamados'),
         (LIBRARY, 'Biblioteca'),
+        (EXPENSES, 'Reembolso de Despesas'),
         (DASHBOARDS, 'Central de Dashboards'),
         (TONERS, 'Controle de Toners'),
         (CUSTOMERS_VENDORS, 'Clientes e Fornecedores'),

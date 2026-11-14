@@ -9,7 +9,8 @@ from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from .models import (
-    User, Group, Sector, Dashboard, GroupDashboards, TonerLocation, TonerRequest, TonerRequestItem, Notification,
+    CostCenter, User, Group, Sector, Dashboard, GroupDashboards, TonerLocation, TonerRequest, TonerRequestItem,
+    Notification,
 )
 from .utils.permissions_report import permissions_report_pdf, user_permissions_report
 
@@ -36,8 +37,9 @@ class UnaccentSearchAdmin(admin.ModelAdmin):
 class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
     list_display = ('username', 'first_name', 'last_name', 'email', 'last_login', 'is_staff', 'is_superuser', 'is_active',)
     search_fields = ('username', 'email', 'first_name__unaccent', 'last_name__unaccent', 'observations__unaccent',)
-    list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups',)
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups', 'cost_center',)
     filter_horizontal = ('groups', 'user_permissions', 'dashboards',)
+    autocomplete_fields = ('cost_center',)
     model = User
     ordering = ('username',)
     actions = ('deactivate_users', 'permissions_report',)
@@ -46,7 +48,7 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
             'fields': ('username', 'password',)
         }),
         ('Informações pessoais', {
-            'fields': ('first_name', 'last_name', 'email',)
+            'fields': ('first_name', 'last_name', 'email', 'cost_center',)
         }),
         ('Permissões', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions', 'dashboards',)
@@ -60,7 +62,7 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
     )
     add_fieldsets = (
         (None, {
-            'fields': ('username', 'password1', 'password2',),
+            'fields': ('username', 'password1', 'password2', 'cost_center',),
         }),
     )
 
@@ -107,6 +109,13 @@ class GroupAdmin(VersionAdmin, UnaccentSearchAdmin, BaseGroupAdmin):
 class SectorAdmin(VersionAdmin, UnaccentSearchAdmin):
     list_display = ('name',)
     search_fields = ('name__unaccent',)
+
+
+@admin.register(CostCenter)
+class CostCenterAdmin(VersionAdmin, UnaccentSearchAdmin):
+    list_display = ('code', 'name', 'is_active',)
+    search_fields = ('code', 'name__unaccent',)
+    list_filter = ('is_active',)
 
 
 @admin.register(Dashboard)

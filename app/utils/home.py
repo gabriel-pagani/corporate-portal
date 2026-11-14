@@ -26,6 +26,8 @@ LOW_TONERS = 12
 
 RECENT_DOCUMENTS = 12
 
+RECENT_EXPENSES = 12
+
 
 def contacts_preview(user):
     # A busca do card roda no navegador, como a da lista de contatos
@@ -135,10 +137,37 @@ def journey_audit_preview(user):
     }
 
 
+def expenses_preview(user):
+    # Importado aqui: o reembolso já depende do app, e não o contrário
+    from expenses.models import Expense
+    from expenses.workflow import can_submit
+
+    approves = user.has_perm('expenses.approve_expense')
+    reimburses = user.has_perm('expenses.reimburse_expense')
+    # O rascunho ainda não é uma despesa enviada: fica fora do card. Quem
+    # gerencia o reembolso não lança despesa, então o card dele é só a fila.
+    submits = can_submit(user)
+    mine = Expense.objects.filter(user=user).exclude(status=Expense.DRAFT)
+    preview = {
+        'recent': list(mine[:RECENT_EXPENSES]) if submits else [],
+        'correction_count': mine.filter(status=Expense.CORRECTION).count() if submits else 0,
+        'approves': approves,
+        'reimburses': reimburses,
+        'submits': submits,
+    }
+    # As filas só são contadas para quem decide ou paga
+    if preview['approves']:
+        preview['to_approve'] = Expense.objects.filter(status=Expense.SENT).exclude(user=user).count()
+    if preview['reimburses']:
+        preview['to_reimburse'] = Expense.objects.filter(status=Expense.APPROVED).count()
+    return preview
+
+
 PREVIEWS = {
     ServiceAccess.CONTACTS: contacts_preview,
     ServiceAccess.NOTIFICATIONS: notifications_preview,
     ServiceAccess.LIBRARY: library_preview,
+    ServiceAccess.EXPENSES: expenses_preview,
     ServiceAccess.DASHBOARDS: dashboards_preview,
     ServiceAccess.TONERS: toners_preview,
     ServiceAccess.JOURNEY_AUDIT: journey_audit_preview,

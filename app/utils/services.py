@@ -69,6 +69,10 @@ SERVICES = [
         'Os documentos liberados para você.', everyone,
     ),
     Service(
+        ServiceAccess.EXPENSES, 'Reembolso de Despesas', 'fa-receipt', 'expenses:expenses',
+        'Fotografe o recibo e acompanhe o seu reembolso.', has_perm('expenses.access_expenses'),
+    ),
+    Service(
         ServiceAccess.DASHBOARDS, 'Central de Dashboards', 'fa-chart-pie', 'app:dashboards',
         'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(),
     ),

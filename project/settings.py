@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_totp',
     'app',
     'journey_audit',
+    'expenses',
 ]
 
 MIDDLEWARE = [
@@ -227,6 +228,12 @@ API_TOKEN = os.getenv('API_TOKEN')
 
 # Webhook do n8n que abre a solicitação de toners no RM (autentica com RM_USER e RM_PASSWORD)
 TONER_REQUEST_WEBHOOK_URL = os.getenv('TONER_REQUEST_WEBHOOK_URL')
+
+# Leitura das fotos de recibo no reembolso de despesas. Sem a chave ou sem o
+# modelo a leitura não é feita, e o funcionário preenche a despesa à mão.
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+OPENAI_MODEL = os.getenv('OPENAI_MODEL')
 
 # Os dashboards são embutidos em iframe; nada além deles vem de fora. Do próprio
 # portal só a prévia da biblioteca aceita ser embutida.
