@@ -1345,7 +1345,7 @@ def home_card(client):
 @pytest.mark.django_db
 def test_home_has_the_link_and_the_card_for_everyone(client, employee, openai):
     home = client.get(reverse('app:home')).content.decode()
-    assert f'href="{reverse("expenses:expenses")}" title="Acessar reembolso de despesas"' in home
+    assert f'href="{reverse("expenses:expenses")}" title="Acessar despesas"' in home
     assert 'Você ainda não enviou nenhuma despesa' in home_card(client)
 
     openai.reading = CLEAN_READING
