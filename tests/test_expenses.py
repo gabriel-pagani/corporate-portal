@@ -1801,3 +1801,12 @@ def test_list_refresh_is_only_for_who_submits(client, approver):
     client.force_login(approver)
 
     assert client.get(reverse('expenses:my-expenses-api')).status_code == 403
+
+
+@pytest.mark.django_db
+def test_logo_goes_back_to_the_expenses_page_and_not_to_the_portal_home(client, employee):
+    content = page(client)
+
+    logo = re.search(r'<a href="([^"]+)">\s*<img [^>]*class="logo"', content)
+    assert logo.group(1) == reverse('expenses:expenses')
+    assert 'title="Voltar ao início das despesas"' in content
