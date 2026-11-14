@@ -38,9 +38,9 @@
                     <span class="text">Central de Chamados</span>
                 </a>                            
                 {% if perms.expenses.access_expenses %}
-                <a href="{% url 'expenses:expenses' %}" title="Acessar reembolso de despesas">
+                <a href="{% url 'expenses:expenses' %}" title="Acessar despesas">
                     <i class="fas fa-receipt"></i>
-                    <span class="text">Reembolso de Despesas</span>
+                    <span class="text">Despesas</span>
                 </a>
                 {% endif %}
                 {% if has_dashboards %}
