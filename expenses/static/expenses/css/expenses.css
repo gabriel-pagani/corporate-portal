@@ -332,6 +332,27 @@ label.button:focus-within {
   font-weight: 600;
 }
 
+/* O pé do formulário da despesa fica preso ao fim da tela enquanto os itens
+   rolam: quem confere a nota no celular não precisa descer para achar o Enviar */
+.form-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 12px;
+  padding: 10px 0 12px;
+  border-top: 1px solid #e2e2e2;
+  background: #fff;
+  box-shadow: 0 -6px 10px -6px rgba(0, 0, 0, .15);
+}
+
+.form-footer .totals {
+  margin-top: 8px;
+}
+
+.form-footer .editor-actions {
+  margin-top: 10px;
+}
+
 .editor-actions {
   display: flex;
   flex-wrap: wrap;

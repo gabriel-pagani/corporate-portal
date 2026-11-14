@@ -127,15 +127,18 @@
 
                         <h3>Itens da nota</h3>
                         <div id="expense-items" class="items"></div>
-                        <button type="button" class="button small" data-add-item="expense-items">
-                            <i class="fas fa-plus" aria-hidden="true"></i> Adicionar item
-                        </button>
-                        <p class="totals">Total dos itens: <strong data-items-total="expense-items"></strong></p>
+                        <!-- Fica preso ao pé da tela: os itens rolam por trás e o Enviar está sempre à vista -->
+                        <div class="form-footer">
+                            <button type="button" class="button small" data-add-item="expense-items">
+                                <i class="fas fa-plus" aria-hidden="true"></i> Adicionar item
+                            </button>
+                            <p class="totals">Total dos itens: <strong data-items-total="expense-items"></strong></p>
 
-                        <div class="editor-actions">
-                            <button type="button" class="button" id="cancel-form">Voltar</button>
-                            <button type="button" class="button danger" id="discard-draft">Descartar</button>
-                            <button type="submit" class="button primary">Enviar</button>
+                            <div class="editor-actions">
+                                <button type="button" class="button" id="cancel-form">Voltar</button>
+                                <button type="button" class="button danger" id="discard-draft">Descartar</button>
+                                <button type="submit" class="button primary">Enviar</button>
+                            </div>
                         </div>
                     </form>
                 </section>
