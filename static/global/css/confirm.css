@@ -1,0 +1,72 @@
+/* A janela de confirmação do portal (static/global/js/confirm.js). Tem o
+   próprio estilo, botões inclusive: cada app estiliza os botões dele de um jeito. */
+
+.confirm-modal {
+  width: min(420px, calc(100% - 32px));
+  height: fit-content;
+  margin: auto;
+  padding: 22px;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .3);
+  font-family: 'Roboto Condensed', sans-serif;
+}
+
+.confirm-modal::backdrop {
+  background: rgba(0, 0, 0, .55);
+}
+
+.confirm-modal h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: #333;
+}
+
+.confirm-modal p {
+  margin: 0 0 18px;
+  color: #555;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.confirm-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.confirm-button:hover {
+  background: #f1f1f1;
+}
+
+#confirm-ok {
+  border-color: #333;
+  background: #333;
+  color: #fff;
+}
+
+#confirm-ok:hover {
+  background: #1f1f1f;
+}
+
+#confirm-ok.danger {
+  border-color: #a32d2d;
+  background: #a32d2d;
+}
+
+#confirm-ok.danger:hover {
+  background: #8a2424;
+}

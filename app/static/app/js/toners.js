@@ -425,7 +425,10 @@ async function executarAcao(acao, id) {
             break;
         }
         case 'excluir':
-            if (!confirm(`Excluir o toner "${toner.name}" e todo o seu histórico?`)) return;
+            if (!await confirmar({
+                titulo: `Excluir o toner "${toner.name}"?`, texto: 'Todo o histórico dele também será apagado.',
+                botao: 'Excluir', perigo: true,
+            })) return;
             await requisitar(urlToner(id), 'DELETE');
             listaToners = listaToners.filter((t) => t.id !== id);
             if (historicoId === id) historicoId = null;

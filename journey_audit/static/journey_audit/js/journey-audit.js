@@ -1793,10 +1793,13 @@ async function excluirCompetencia(id) {
     const item = competencias.find((competenciaSalva) => competenciaSalva.id === id);
     if (!item) return;
     const rotulo = rotuloPeriodo(item.start_date, item.end_date);
-    if (!confirm(
-        `ATENÇÃO: excluir a competência ${rotulo}? Isso apagará permanentemente os relatórios e as tratativas `
-        + 'dessa competência. Esta ação não pode ser desfeita. Deseja continuar?',
-    )) return;
+    if (!await confirmar({
+        titulo: `Excluir a competência ${rotulo}?`,
+        texto: 'Os relatórios e as tratativas dessa competência serão apagados permanentemente. '
+            + 'Esta ação não pode ser desfeita.',
+        botao: 'Excluir competência',
+        perigo: true,
+    })) return;
 
     await requisitar(urlCom(COMPETENCIA_API_URL, id), 'DELETE');
     competencias = competencias.filter((competenciaSalva) => competenciaSalva.id !== id);
@@ -1811,7 +1814,11 @@ async function excluirCompetencia(id) {
 
 async function finalizarConferencia() {
     const pendentes = contar(ocorrencias, pendente);
-    if (pendentes && !confirm(`${pendentes} tratativa(s) ainda estão pendentes. Deseja finalizar mesmo assim?`)) return;
+    if (pendentes && !await confirmar({
+        titulo: 'Finalizar a conferência?',
+        texto: `${pendentes} tratativa(s) ainda estão pendentes.`,
+        botao: 'Finalizar mesmo assim',
+    })) return;
 
     const dados = await requisitar(urlCom(FINALIZAR_API_URL, competencia.competency.id), 'POST', {});
     competencia.competency = dados.competency;

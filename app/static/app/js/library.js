@@ -383,7 +383,9 @@ async function aoSalvarPasta(evento) {
 
 async function excluirPasta() {
     const pasta = pastaPorId(pastaAtual);
-    if (!pasta || !confirm(`Excluir a pasta "${pasta.name}"?`)) return;
+    if (!pasta || !await confirmar({
+        titulo: `Excluir a pasta "${pasta.name}"?`, botao: 'Excluir', perigo: true,
+    })) return;
 
     try {
         await requisitar(`${PASTAS_API_URL}${pasta.id}/`, 'DELETE');
@@ -539,7 +541,9 @@ function destacarDocumento(id) {
 
 async function excluirDocumento(id) {
     const documento = documentos.find((item) => item.id === id);
-    if (!documento || !confirm(`Excluir o documento "${documento.title}"?`)) return;
+    if (!documento || !await confirmar({
+        titulo: `Excluir o documento "${documento.title}"?`, botao: 'Excluir', perigo: true,
+    })) return;
 
     try {
         await requisitar(`${DOCUMENTOS_API_URL}${id}/`, 'DELETE');

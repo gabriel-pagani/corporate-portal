@@ -167,7 +167,9 @@ async function salvarContato(id) {
 
 async function excluirContato(id) {
     const contato = listaContatos.find((item) => item.id === id);
-    if (!contato || !confirm(`Excluir o contato de "${contato.name}"?`)) return;
+    if (!contato || !await confirmar({
+        titulo: `Excluir o contato de "${contato.name}"?`, botao: 'Excluir', perigo: true,
+    })) return;
     salvando = true;
     try {
         mostrarSucesso('');

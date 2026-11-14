@@ -11,6 +11,9 @@
     <link href="{% static 'global/css/reset.css' %}" rel="stylesheet" />
     {% if request.user.is_authenticated %}
     <link href="{% static 'global/css/notifications.css' %}" rel="stylesheet" />
+    <link href="{% static 'global/css/confirm.css' %}" rel="stylesheet" />
+    <!-- A confirmação das ações, no lugar do confirm() do navegador: os apps chamam confirmar() -->
+    <script src="{% static 'global/js/confirm.js' %}"></script>
     {% endif %}
     {% block head %}{% endblock %}
   </head>
