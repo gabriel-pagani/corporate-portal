@@ -426,7 +426,8 @@ function mostrarEditor(passo) {
     editor.hidden = passo === null;
     document.getElementById('step-photos').hidden = passo !== 'fotos';
     formulario.hidden = passo !== 'formulario';
-    if (passo) editor.scrollIntoView({ block: 'start' });
+    // Cada troca de tela começa do topo, com o cabeçalho e a logo à vista
+    window.scrollTo(0, 0);
 }
 
 function fecharEditor() {
