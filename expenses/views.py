@@ -12,7 +12,7 @@ from app.models import CostCenter, ServiceAccess
 from app.utils.notifications.delivery import author_name
 from app.utils.services import track_access
 from expenses.forms import ExpenseHeaderForm, ExpenseItemForm, IgnoredWordForm, ReviewForm
-from expenses.models import Expense, ExpensePhoto, IgnoredWord, IgnoredWordEvent
+from expenses.models import Expense, ExpensePhoto, GuideSeen, IgnoredWord, IgnoredWordEvent
 from expenses.payment import pay
 from expenses.receipts import MAX_ITEMS, MAX_PHOTO_SIZE, MAX_PHOTOS
 from expenses.workflow import (
@@ -74,6 +74,7 @@ def expenses_view(request):
         'my_expenses': my_expenses(user) if permissions['submit'] else [],
         'my_counts': my_counts(user) if permissions['submit'] else {},
         'my_version': my_version(user) if permissions['submit'] else '',
+        'show_guide': permissions['submit'] and not GuideSeen.objects.filter(user=user).exists(),
         # A fila e os avisos dela só vão para a página de quem aprova ou paga
         'review_expenses': serialize_expenses(review_expenses(), user) if reviews else None,
         'cost_centers': [
@@ -243,6 +244,14 @@ def my_expenses_api(request):
     return JsonResponse({
         'changed': True, 'version': version, 'expenses': my_expenses(request.user), 'counts': my_counts(request.user),
     })
+
+
+@require_POST
+@submit_required
+def guide_seen_api(request):
+    """O guia abriu: não abre sozinho de novo para esta pessoa, nem em outro aparelho."""
+    GuideSeen.objects.get_or_create(user=request.user)
+    return JsonResponse({})
 
 
 @require_http_methods(['GET'])

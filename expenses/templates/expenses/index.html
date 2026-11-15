@@ -23,6 +23,9 @@
             data-my-version="{{ my_version }}"
             data-words-url="{% url 'expenses:ignored-words-api' %}"
             data-word-url="{% url 'expenses:ignored-word-api' 0 %}"
+            data-guide-url="{% url 'expenses:guide-seen-api' %}"
+            data-show-guide="{{ show_guide|yesno:'1,' }}"
+            data-example-photo-url="{% static 'expenses/img/nota-exemplo.jpg' %}"
         >
             <div class="header">
                 <a href="{% url "expenses:expenses" %}">
@@ -32,9 +35,14 @@
                     <h1>Despesas</h1>
                 </div>
                 {% if permissions.submit %}
-                <button type="button" class="button primary big" id="new-expense">
-                    <i class="fas fa-camera" aria-hidden="true"></i> Nova despesa
-                </button>
+                <div class="header-actions" id="header-actions">
+                    <button type="button" class="help-button" id="help-tour" title="Como usar" aria-label="Ver o guia de como usar">
+                        <i class="fas fa-question" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="button primary big" id="new-expense">
+                        <i class="fas fa-camera" aria-hidden="true"></i> Nova despesa
+                    </button>
+                </div>
                 {% endif %}
             </div>
 
@@ -281,5 +289,6 @@
         {{ review_expenses|json_script:"review-expenses-data" }}
         {{ photo_limits|json_script:"photo-limits-data" }}
         {{ settings|json_script:"settings-data" }}
+        {% if permissions.submit %}<script src="{% static 'expenses/js/tour.js' %}"></script>{% endif %}
         <script src="{% static 'expenses/js/expenses.js' %}"></script>
 {% endblock body %}

@@ -16,7 +16,7 @@ from django.utils import timezone
 from PIL import Image
 
 from app.models import CostCenter, ServiceAccess, User
-from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto, IgnoredWord
+from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto, GuideSeen, IgnoredWord
 from expenses.receipts import MAX_SIDE, clean_reading, reduce_photo
 from expenses.workflow import ignored_words, ignored_words_in
 from tests.conftest import sign_in
@@ -1810,3 +1810,32 @@ def test_logo_goes_back_to_the_expenses_page_and_not_to_the_portal_home(client, 
     logo = re.search(r'<a href="([^"]+)">\s*<img [^>]*class="logo"', content)
     assert logo.group(1) == reverse('expenses:expenses')
     assert 'title="Voltar ao início das despesas"' in content
+
+
+@pytest.mark.django_db
+def test_guide_is_offered_only_to_who_submits_expenses(client, employee, approver):
+    content = page(client)
+    assert 'id="help-tour"' in content and 'expenses/js/tour.js' in content
+    # O guia usa uma nota de exemplo do próprio app: quem não tem nota em mãos consegue seguir
+    assert 'expenses/img/nota-exemplo.jpg' in content
+
+    client.force_login(approver)
+    content = page(client)
+    assert 'id="help-tour"' not in content and 'expenses/js/tour.js' not in content
+    assert 'data-show-guide=""' in content
+
+
+@pytest.mark.django_db
+def test_guide_opens_by_itself_only_until_the_user_sees_it_once(client, employee, approver):
+    assert 'data-show-guide="1"' in page(client)
+
+    assert client.post(reverse('expenses:guide-seen-api')).status_code == 200
+    # Marcado no servidor: não volta em outro aparelho nem se abrir de novo pelo botão
+    assert client.post(reverse('expenses:guide-seen-api')).status_code == 200
+    assert GuideSeen.objects.filter(user=employee).count() == 1
+    assert 'data-show-guide=""' in page(client)
+
+    # Quem gerencia o reembolso não lança despesas, então não tem guia
+    client.force_login(approver)
+    assert client.post(reverse('expenses:guide-seen-api')).status_code == 403
+    assert not GuideSeen.objects.filter(user=approver).exists()

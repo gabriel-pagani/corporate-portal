@@ -49,6 +49,18 @@ class IgnoredWordEvent(models.Model):
         verbose_name_plural = 'Histórico de Itens Não Reembolsáveis'
 
 
+class GuideSeen(models.Model):
+    """Quem já viu o guia da tela de despesas: ele abre sozinho só na primeira visita, em qualquer aparelho."""
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, primary_key=True, related_name='+', verbose_name='Usuário',
+    )
+    seen_at = models.DateTimeField(auto_now_add=True, verbose_name='Visto em')
+
+    class Meta:
+        verbose_name = 'Guia Visto'
+        verbose_name_plural = 'Guias Vistos'
+
+
 class Expense(models.Model):
     # O rascunho é a despesa entre a leitura das fotos e o envio: só o dono a vê
     DRAFT = 'D'

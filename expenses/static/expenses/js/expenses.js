@@ -24,6 +24,42 @@ let filtroMinhas = null;
 // A despesa aberta no formulário do funcionário, e as fotos que esperam a leitura
 let emEdicao = null;
 let fotosEscolhidas = [];
+// O guia é uma demonstração: a despesa é de exemplo, com a nota de exemplo do app,
+// e tudo acontece só na tela, numa lista vazia no lugar das despesas da pessoa.
+// Nada vai ao servidor, nada falha no meio, e as despesas reais voltam intactas.
+let emGuia = false;
+const ID_DO_EXEMPLO = -1;
+const ITENS_DO_EXEMPLO = [
+    ['CAFE TORRADO 500G', '1', '18.90'],
+    ['AGUA MINERAL 1,5L', '2', '7.00'],
+    ['PAO DE FORMA', '1', '9.50'],
+];
+
+function despesaDeExemplo(status) {
+    const itens = ITENS_DO_EXEMPLO.map(([description, quantity, amount]) => ({ description, quantity, amount }));
+    const total = itens.reduce((soma, item) => soma + (Number(item.amount) || 0), 0).toFixed(2);
+    return {
+        id: ID_DO_EXEMPLO,
+        status,
+        status_display: status === ENVIADA ? 'Enviada' : 'Rascunho',
+        is_own: true,
+        merchant: 'LOJA DE EXEMPLO LTDA',
+        cnpj: '11222333000181',
+        issue_date: '2026-11-10',
+        total,
+        reimbursable_total: total,
+        cost_center: null,
+        created_at: '',
+        note: '',
+        photos: [{ id: 0, url: URLS.examplePhotoUrl }],
+        items: itens.map((item, indice) => ({
+            id: indice + 1, description: item.description, quantity: String(item.quantity),
+            amount: String(item.amount), unreadable: false, ignored: false,
+        })),
+        events: [],
+    };
+}
+
 // Os cartões que o usuário abriu continuam abertos quando a lista é redesenhada
 const abertas = new Set();
 
@@ -372,8 +408,8 @@ function guardarMinha(despesa) {
 // passo: 'fotos', 'formulario' ou null para voltar à lista
 function mostrarEditor(passo) {
     document.getElementById('my-list').hidden = passo !== null;
-    // Com uma despesa aberta, o botão do cabeçalho recomeçaria e perderia o que está sendo feito
-    document.getElementById('new-expense').hidden = passo !== null;
+    // Com uma despesa aberta, os botões do cabeçalho recomeçariam e perderiam o que está sendo feito
+    document.getElementById('header-actions').hidden = passo !== null;
     editor.hidden = passo === null;
     document.getElementById('step-photos').hidden = passo !== 'fotos';
     formulario.hidden = passo !== 'formulario';
@@ -590,8 +626,8 @@ if (permissoes.submit) {
     let minhaVersao = URLS.myVersion;
 
     const atualizarMinhas = async () => {
-        // Enquanto o funcionário mexe numa despesa, a lista fica como está
-        if (document.hidden || !editor.hidden) return;
+        // Enquanto o funcionário mexe numa despesa, ou faz o guia com a de exemplo, a lista fica como está
+        if (document.hidden || !editor.hidden || emGuia) return;
         if (!minhas.some((despesa) => ESPERANDO_OUTRA_PESSOA.includes(despesa.status))) return;
         let dados;
         try {
@@ -610,12 +646,106 @@ if (permissoes.submit) {
         renderizarMinhas();
     };
 
+    // O guia de como usar: abre sozinho na primeira visita e, a qualquer hora, pelo botão de ajuda.
+    // A pessoa só toca em Próximo, e o guia mostra na tela cada ação, do envio à exclusão.
+    // ponytail: "já viu" guardado no navegador, então aparece uma vez em cada aparelho. Um campo
+    // no usuário, se precisar valer para a pessoa em qualquer aparelho.
+    const CARTAO_DO_EXEMPLO = `#my-expenses .expense-card[data-expense-id="${ID_DO_EXEMPLO}"]`;
+
+    const PASSOS_DO_GUIA = [
+        { titulo: 'Bem-vindo às Despesas', texto: 'Veja como lançar uma despesa, usando uma nota de exemplo.' },
+        {
+            alvo: '#new-expense', titulo: 'Nova despesa', texto: 'Para começar, toque em Nova despesa.',
+            acao: () => abrirFotos(),
+        },
+        {
+            alvo: '.photo-actions', titulo: 'Foto da nota', texto: 'Tire uma foto da nota inteira, ou escolha uma da galeria.',
+            acao: async () => {
+                const resposta = await fetch(URLS.examplePhotoUrl);
+                fotosEscolhidas = [new File([await resposta.blob()], 'nota-exemplo.jpg', { type: 'image/jpeg' })];
+                renderizarFotosEscolhidas();
+            },
+        },
+        {
+            alvo: '#read-photos', titulo: 'Continuar', texto: 'Depois, toque em Continuar. O sistema lê a nota em alguns segundos.',
+            acao: () => abrirFormulario(despesaDeExemplo(RASCUNHO)),
+        },
+        {
+            alvo: '#expense-form .expense-header', titulo: 'Dados da nota',
+            texto: 'O sistema preenche os dados da nota. Confira o estabelecimento, o CNPJ e a data.',
+        },
+        {
+            alvo: '#expense-items', titulo: 'Itens da nota',
+            texto: 'Confira os itens e os valores. Se algo estiver errado, corrija aqui.',
+        },
+        {
+            alvo: '#expense-form [type="submit"]', titulo: 'Enviar', texto: 'Com tudo certo, toque em Enviar.',
+            acao: () => {
+                guardarMinha(despesaDeExemplo(ENVIADA));
+                filtroMinhas = ENVIADA;
+                fecharEditor();
+                mostrarSucesso('Despesa enviada para aprovação.');
+            },
+        },
+        {
+            alvo: '#my-filters', titulo: 'Situação da despesa',
+            texto: 'A despesa vai para Enviadas, esperando a aprovação. Aqui você acompanha cada uma: '
+                + 'aprovada, reembolsada ou rejeitada. Se o aprovador pedir correção, ela aparece em Correções Necessárias.',
+        },
+        {
+            alvo: CARTAO_DO_EXEMPLO, titulo: 'Abrir a despesa', texto: 'Toque na despesa para ver os itens e as fotos.',
+            acao: () => {
+                abertas.add(ID_DO_EXEMPLO);
+                renderizarMinhas();
+            },
+        },
+        {
+            alvo: `${CARTAO_DO_EXEMPLO} [data-delete]`, titulo: 'Excluir',
+            texto: 'Enquanto a despesa não for aprovada nem rejeitada, você pode excluí-la: toque em Excluir e confirme.',
+            acao: () => {
+                minhas = minhas.filter((despesa) => despesa.id !== ID_DO_EXEMPLO);
+                renderizarMinhas();
+                mostrarSucesso('Despesa excluída.');
+            },
+        },
+        { alvo: '#help-tour', titulo: 'Pronto!', texto: 'Para ver este guia de novo, toque neste botão.' },
+    ];
+
+    const abrirGuia = () => {
+        // As despesas reais saem da tela durante o guia e voltam no fim, como estavam
+        const real = { minhas, contagens: contagensMinhas, filtro: filtroMinhas };
+        emGuia = true;
+        minhas = [];
+        contagensMinhas = {};
+        filtroMinhas = null;
+        mostrarSucesso('');
+        renderizarMinhas();
+        iniciarTour(PASSOS_DO_GUIA, {
+            bloquear: document.getElementById('content'),
+            aoTerminar: () => {
+                emGuia = false;
+                abertas.delete(ID_DO_EXEMPLO);
+                fotosEscolhidas = [];
+                ({ minhas, contagens: contagensMinhas, filtro: filtroMinhas } = real);
+                mostrarSucesso('');
+                fecharEditor();
+            },
+        });
+    };
+    document.getElementById('help-tour').addEventListener('click', abrirGuia);
+
     setInterval(atualizarMinhas, INTERVALO_DE_ATUALIZACAO);
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) atualizarMinhas();
     });
 
     renderizarMinhas();
+    // Fica marcado como visto já ao abrir: fechar a página no meio não faz o guia voltar sempre.
+    // Se a marcação falhar, o guia só abre de novo na próxima visita: não vale um erro na tela.
+    if (URLS.showGuide) {
+        abrirGuia();
+        requisitar(URLS.guideUrl, 'POST').catch(() => {});
+    }
 }
 
 
