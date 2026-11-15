@@ -1,16 +1,19 @@
 // O guia passo a passo: cada passo destaca um elemento da tela e explica, num
-// balão, o que ele faz. A pessoa só toca em Próximo: a `acao` do passo, se
-// houver, roda nesse toque e mostra na tela o que aconteceria (o editor abre, a
-// despesa vai para a lista). O resto da página fica inerte enquanto o guia está
-// aberto. Passo sem elemento, ou com ele escondido, aparece no centro da tela.
+// balão, o que fazer. Passo com `espera` é a pessoa quem faz: o balão não tem
+// botão, só o elemento destacado responde ao toque, e o guia avança sozinho
+// quando `espera()` dá verdadeiro. Passo sem `espera` só explica e avança no
+// Próximo. Fora do balão e da `area` do passo (por padrão, o próprio elemento
+// dos passos com `espera`), nenhum toque passa. Passo sem elemento, ou com ele
+// escondido, aparece no centro da tela.
 //
-//   iniciarTour([{ alvo: '#new-expense', titulo: '...', texto: '...', acao: () => abrirFotos() }], {
-//       bloquear: document.getElementById('content'), aoTerminar: () => {},
-//   });
+//   iniciarTour([
+//       { titulo: 'Bem-vindo', texto: '...' },
+//       { alvo: '#new-expense', titulo: '...', texto: 'Toque em Nova despesa.', espera: () => !editor.hidden },
+//   ], { aoTerminar: () => {} });
 
 const INTERVALO_DO_TOUR = 250;
 
-function iniciarTour(passos, { bloquear = null, aoTerminar = () => {} } = {}) {
+function iniciarTour(passos, { aoTerminar = () => {} } = {}) {
     const destaque = document.createElement('div');
     destaque.className = 'tour-highlight';
     const balao = document.createElement('div');
@@ -27,8 +30,6 @@ function iniciarTour(passos, { bloquear = null, aoTerminar = () => {} } = {}) {
         </div>`;
     document.body.append(destaque, balao);
     const proximo = document.getElementById('tour-next');
-    // Só o balão responde: a página não recebe toque nem foco até o guia acabar
-    if (bloquear) bloquear.inert = true;
 
     let atual = 0;
     // O elemento do passo é rolado para a vista uma vez, quando aparece
@@ -85,37 +86,49 @@ function iniciarTour(passos, { bloquear = null, aoTerminar = () => {} } = {}) {
         document.getElementById('tour-title').textContent = passo.titulo;
         document.getElementById('tour-text').textContent = passo.texto;
         proximo.textContent = atual === passos.length - 1 ? 'Entendi' : 'Próximo';
+        proximo.hidden = Boolean(passo.espera);
         posicionar();
-        proximo.focus();
+        if (!passo.espera) proximo.focus();
     };
 
-    // A tela muda com as ações do guia (o editor abre, a lista se redesenha): o destaque acompanha
-    const relogio = setInterval(posicionar, INTERVALO_DO_TOUR);
-
-    const terminar = () => {
-        clearInterval(relogio);
-        window.removeEventListener('resize', posicionar);
-        destaque.remove();
-        balao.remove();
-        if (bloquear) bloquear.inert = false;
-        aoTerminar();
-    };
-
-    proximo.addEventListener('click', async () => {
-        if (proximo.disabled) return;
-        proximo.disabled = true;
-        try {
-            await passos[atual].acao?.();
-        } finally {
-            proximo.disabled = false;
-        }
+    const avancar = () => {
         if (atual === passos.length - 1) {
             terminar();
             return;
         }
         atual += 1;
         mostrar();
-    });
+    };
+
+    // A tela muda com o que a pessoa faz (o editor abre, a lista se redesenha): o destaque
+    // acompanha, e o passo dela termina quando a tela chega aonde ele esperava
+    const relogio = setInterval(() => {
+        if (passos[atual].espera?.()) avancar();
+        else posicionar();
+    }, INTERVALO_DO_TOUR);
+
+    // Só passa o toque no balão, na área do passo e na janela de confirmação, que o passo pode abrir
+    const barrar = (evento) => {
+        const passo = passos[atual];
+        const area = passo.area ?? (passo.espera ? passo.alvo : null);
+        const seletor = typeof area === 'function' ? area() : area;
+        const alvo = evento.target;
+        if (balao.contains(alvo) || alvo.closest?.('dialog[open]') || (seletor && alvo.closest?.(seletor))) return;
+        evento.preventDefault();
+        evento.stopPropagation();
+    };
+    document.addEventListener('click', barrar, true);
+
+    const terminar = () => {
+        clearInterval(relogio);
+        window.removeEventListener('resize', posicionar);
+        document.removeEventListener('click', barrar, true);
+        destaque.remove();
+        balao.remove();
+        aoTerminar();
+    };
+
+    proximo.addEventListener('click', avancar);
     window.addEventListener('resize', posicionar);
     mostrar();
 }

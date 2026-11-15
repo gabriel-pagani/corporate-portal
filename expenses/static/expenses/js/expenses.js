@@ -24,9 +24,10 @@ let filtroMinhas = null;
 // A despesa aberta no formulário do funcionário, e as fotos que esperam a leitura
 let emEdicao = null;
 let fotosEscolhidas = [];
-// O guia é uma demonstração: a despesa é de exemplo, com a nota de exemplo do app,
-// e tudo acontece só na tela, numa lista vazia no lugar das despesas da pessoa.
-// Nada vai ao servidor, nada falha no meio, e as despesas reais voltam intactas.
+// O guia é um lançamento de teste: a pessoa toca nos botões e mexe nos campos de
+// verdade, mas nada vai ao servidor (requisitar responde sozinho) e a despesa é
+// sempre a de exemplo, com a nota de exemplo do app, o que quer que ela digite.
+// Tudo acontece numa lista vazia no lugar das despesas dela, que voltam intactas.
 let emGuia = false;
 const ID_DO_EXEMPLO = -1;
 const ITENS_DO_EXEMPLO = [
@@ -77,7 +78,19 @@ function urlCom(modelo, id) {
     return modelo.replace('/0/', `/${id}/`);
 }
 
+// No guia, o que iria ao servidor ganha a resposta de exemplo: as fotos viram o
+// rascunho lido, o envio vira a despesa enviada, e o resto (a exclusão) dá certo
+async function simularNoGuia(metodo, corpo) {
+    if (corpo instanceof FormData) {
+        // A leitura de verdade leva alguns segundos: o guia mostra a espera também
+        await new Promise((pronto) => setTimeout(pronto, 1500));
+        return { expense: despesaDeExemplo(RASCUNHO), read: true };
+    }
+    return metodo === 'POST' ? { expense: despesaDeExemplo(ENVIADA) } : {};
+}
+
 async function requisitar(url, metodo = 'GET', corpo = null) {
+    if (emGuia) return simularNoGuia(metodo, corpo);
     const opcoes = {
         method: metodo,
         headers: { 'X-CSRFToken': URLS.csrfToken, 'Accept': 'application/json' },
@@ -519,6 +532,15 @@ if (permissoes.submit) {
     document.getElementById('camera-input').addEventListener('change', escolherFotos);
     document.getElementById('gallery-input').addEventListener('change', escolherFotos);
 
+    // No guia, a câmera e a galeria não abrem: a foto é a nota de exemplo
+    document.querySelector('.photo-actions').addEventListener('click', async (evento) => {
+        if (!emGuia || !evento.target.closest('label')) return;
+        evento.preventDefault();
+        const resposta = await fetch(URLS.examplePhotoUrl);
+        fotosEscolhidas = [new File([await resposta.blob()], 'nota-exemplo.jpg', { type: 'image/jpeg' })];
+        renderizarFotosEscolhidas();
+    });
+
     document.getElementById('photo-previews').addEventListener('click', (evento) => {
         const botao = evento.target.closest('[data-remove-photo]');
         if (!botao) return;
@@ -647,66 +669,53 @@ if (permissoes.submit) {
     };
 
     // O guia de como usar: abre sozinho na primeira visita e, a qualquer hora, pelo botão de ajuda.
-    // A pessoa só toca em Próximo, e o guia mostra na tela cada ação, do envio à exclusão.
-    // ponytail: "já viu" guardado no navegador, então aparece uma vez em cada aparelho. Um campo
-    // no usuário, se precisar valer para a pessoa em qualquer aparelho.
+    // A pessoa faz o lançamento de teste ela mesma, do envio à exclusão.
     const CARTAO_DO_EXEMPLO = `#my-expenses .expense-card[data-expense-id="${ID_DO_EXEMPLO}"]`;
+    const exemplo = () => minhas.find((despesa) => despesa.id === ID_DO_EXEMPLO);
 
     const PASSOS_DO_GUIA = [
-        { titulo: 'Bem-vindo às Despesas', texto: 'Veja como lançar uma despesa, usando uma nota de exemplo.' },
+        { titulo: 'Bem-vindo às Despesas', texto: 'Vamos fazer um lançamento de teste. Nada é enviado de verdade.' },
         {
-            alvo: '#new-expense', titulo: 'Nova despesa', texto: 'Para começar, toque em Nova despesa.',
-            acao: () => abrirFotos(),
+            alvo: '#new-expense', titulo: 'Nova despesa', texto: 'Toque em Nova despesa.',
+            espera: () => !editor.hidden,
         },
         {
-            alvo: '.photo-actions', titulo: 'Foto da nota', texto: 'Tire uma foto da nota inteira, ou escolha uma da galeria.',
-            acao: async () => {
-                const resposta = await fetch(URLS.examplePhotoUrl);
-                fotosEscolhidas = [new File([await resposta.blob()], 'nota-exemplo.jpg', { type: 'image/jpeg' })];
-                renderizarFotosEscolhidas();
-            },
+            alvo: '.photo-actions', titulo: 'Foto da nota',
+            texto: 'Toque em Tirar foto para fotografar a nota inteira, ou em Galeria para escolher uma foto.',
+            espera: () => fotosEscolhidas.length > 0,
         },
         {
-            alvo: '#read-photos', titulo: 'Continuar', texto: 'Depois, toque em Continuar. O sistema lê a nota em alguns segundos.',
-            acao: () => abrirFormulario(despesaDeExemplo(RASCUNHO)),
+            alvo: '#read-photos', titulo: 'Continuar', texto: 'Toque em Continuar. O sistema lê a nota.',
+            espera: () => !formulario.hidden,
         },
         {
             alvo: '#expense-form .expense-header', titulo: 'Dados da nota',
-            texto: 'O sistema preenche os dados da nota. Confira o estabelecimento, o CNPJ e a data.',
+            texto: 'O sistema preencheu os dados da nota. Confira o estabelecimento, o CNPJ e a data.',
+            area: '#expense-form .expense-header',
         },
         {
             alvo: '#expense-items', titulo: 'Itens da nota',
-            texto: 'Confira os itens e os valores. Se algo estiver errado, corrija aqui.',
+            texto: 'Confira os itens, as quantidades e os valores. Se algo estiver errado, toque no campo e corrija.',
+            area: '#expense-items, [data-add-item="expense-items"]',
         },
         {
             alvo: '#expense-form [type="submit"]', titulo: 'Enviar', texto: 'Com tudo certo, toque em Enviar.',
-            acao: () => {
-                guardarMinha(despesaDeExemplo(ENVIADA));
-                filtroMinhas = ENVIADA;
-                fecharEditor();
-                mostrarSucesso('Despesa enviada para aprovação.');
-            },
+            espera: () => exemplo()?.status === ENVIADA,
         },
         {
             alvo: '#my-filters', titulo: 'Situação da despesa',
-            texto: 'A despesa vai para Enviadas, esperando a aprovação. Aqui você acompanha cada uma: '
+            texto: 'A despesa está em Enviadas, esperando a aprovação. Aqui você acompanha cada uma: '
                 + 'aprovada, reembolsada ou rejeitada. Se o aprovador pedir correção, ela aparece em Correções Necessárias.',
         },
         {
-            alvo: CARTAO_DO_EXEMPLO, titulo: 'Abrir a despesa', texto: 'Toque na despesa para ver os itens e as fotos.',
-            acao: () => {
-                abertas.add(ID_DO_EXEMPLO);
-                renderizarMinhas();
-            },
+            alvo: `${CARTAO_DO_EXEMPLO} .expense-summary`, titulo: 'Abrir a despesa',
+            texto: 'Toque na despesa para ver os itens e as fotos.',
+            espera: () => abertas.has(ID_DO_EXEMPLO),
         },
         {
             alvo: `${CARTAO_DO_EXEMPLO} [data-delete]`, titulo: 'Excluir',
-            texto: 'Enquanto a despesa não for aprovada nem rejeitada, você pode excluí-la: toque em Excluir e confirme.',
-            acao: () => {
-                minhas = minhas.filter((despesa) => despesa.id !== ID_DO_EXEMPLO);
-                renderizarMinhas();
-                mostrarSucesso('Despesa excluída.');
-            },
+            texto: 'Enquanto a despesa não for aprovada nem rejeitada, você pode excluí-la. Toque em Excluir e confirme.',
+            espera: () => !exemplo(),
         },
         { alvo: '#help-tour', titulo: 'Pronto!', texto: 'Para ver este guia de novo, toque neste botão.' },
     ];
@@ -721,7 +730,6 @@ if (permissoes.submit) {
         mostrarSucesso('');
         renderizarMinhas();
         iniciarTour(PASSOS_DO_GUIA, {
-            bloquear: document.getElementById('content'),
             aoTerminar: () => {
                 emGuia = false;
                 abertas.delete(ID_DO_EXEMPLO);
