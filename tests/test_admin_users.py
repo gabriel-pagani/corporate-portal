@@ -125,3 +125,17 @@ def test_admin_user_page_shows_the_sector(client):
     content = client.get(reverse('admin:app_user_change', args=[user.pk])).content.decode()
 
     assert 'name="sector"' in content
+
+
+@pytest.mark.django_db
+def test_admin_index_shows_everything_under_sistema_in_portuguese(client):
+    sign_in(client, User.objects.create_superuser(username='admin', password='senha'))
+
+    response = client.get(reverse('admin:index'))
+    sections = [app['name'] for app in response.context['app_list']]
+    models = [model['name'] for app in response.context['app_list'] for model in app['models']]
+
+    assert sections == ['Sistema']
+    for name in ('Tentativas de acesso', 'Falhas de acesso', 'Registros de acesso', 'Dispositivos de dois fatores'):
+        assert name in models
+    assert 'Access attempts' not in models and 'TOTP devices' not in models

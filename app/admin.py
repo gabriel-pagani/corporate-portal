@@ -1,5 +1,9 @@
 import unicodedata
+from axes.admin import AccessAttemptAdmin, AccessFailureLogAdmin, AccessLogAdmin
+from axes.models import AccessAttempt, AccessFailureLog, AccessLog
 from django.contrib import admin, messages
+from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
+from django_otp.plugins.otp_totp.models import TOTPDevice
 from reversion.admin import VersionAdmin
 import reversion
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
@@ -10,7 +14,7 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from .models import (
     CostCenter, User, Group, Sector, Dashboard, GroupDashboards, TonerLocation, TonerRequest, TonerRequestItem,
-    Notification,
+    Notification, LoginAttempt, LoginFailure, LoginLog, TwoFactorDevice,
 )
 from .utils.permissions_report import permissions_report_pdf, user_permissions_report
 
@@ -267,3 +271,16 @@ class NotificationAdmin(VersionAdmin, UnaccentSearchAdmin):
     def get_read_by(self, obj):
         users = [user.get_full_name() or user.username for user in obj.read_by.all()]
         return ', '.join(sorted(users)) or '-'
+
+
+# Acesso e segundo fator: os mesmos admins das bibliotecas, nos proxies do
+# Sistema, para tudo ficar num grupo só e em português
+for original, proxy, model_admin in (
+    (AccessAttempt, LoginAttempt, AccessAttemptAdmin),
+    (AccessFailureLog, LoginFailure, AccessFailureLogAdmin),
+    (AccessLog, LoginLog, AccessLogAdmin),
+    (TOTPDevice, TwoFactorDevice, TOTPDeviceAdmin),
+):
+    if admin.site.is_registered(original):
+        admin.site.unregister(original)
+    admin.site.register(proxy, model_admin)

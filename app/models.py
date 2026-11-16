@@ -7,6 +7,8 @@ from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
+from axes.models import AccessAttempt, AccessFailureLog, AccessLog
+from django_otp.plugins.otp_totp.models import TOTPDevice
 from .validators import valid_url
 from .utils.dashboards.metabase import generate_metabase_dashboard_url
 
@@ -518,3 +520,33 @@ class HomeLayout(models.Model):
     class Meta:
         verbose_name = 'Layout da Home'
         verbose_name_plural = 'Layouts da Home'
+
+
+# Os modelos do axes e do segundo fator aparecem no admin junto com os do
+# Sistema, com nome em português: são proxies, a tabela continua a da biblioteca.
+class LoginAttempt(AccessAttempt):
+    class Meta:
+        proxy = True
+        verbose_name = 'Tentativa de Acesso'
+        verbose_name_plural = 'Tentativas de Acesso'
+
+
+class LoginFailure(AccessFailureLog):
+    class Meta:
+        proxy = True
+        verbose_name = 'Falha de Acesso'
+        verbose_name_plural = 'Falhas de Acesso'
+
+
+class LoginLog(AccessLog):
+    class Meta:
+        proxy = True
+        verbose_name = 'Registro de Acesso'
+        verbose_name_plural = 'Registros de Acesso'
+
+
+class TwoFactorDevice(TOTPDevice):
+    class Meta:
+        proxy = True
+        verbose_name = 'Dispositivo de dois fatores'
+        verbose_name_plural = 'Dispositivos de dois fatores'
