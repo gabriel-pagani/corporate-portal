@@ -3,11 +3,13 @@ import re
 from datetime import timedelta
 
 import pytest
+from django.apps import apps
 from django.contrib.auth.models import Permission
+from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
 
-from app.models import Contact, Dashboard, HomeLayout, Notification, Sector, ServiceAccess, Toner, User
+from app.models import Contact, CostCenter, Dashboard, HomeLayout, Notification, Sector, ServiceAccess, Toner, User
 from app.utils.services import CARD_DEFAULT_HEIGHT, CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, TICKETS_URL, register_access
 from journey_audit.audit import current_period
 from journey_audit.models import Competency, Occurrence
@@ -42,13 +44,13 @@ def test_cards_follow_the_sidebar_permissions(client):
 
 @pytest.mark.django_db
 def test_cards_show_every_service_the_user_can_open(client):
-    user = make_user('access_expenses', 'view_toner', 'register_customers_suppliers', 'view_competency')
+    user = make_user('view_toner', 'register_customers_suppliers', 'view_competency')
     user.dashboards.add(Dashboard.objects.create(title='Faturamento'))
     client.force_login(user)
 
     assert card_order(client) == [
         ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.TICKETS, ServiceAccess.LIBRARY,
-        ServiceAccess.EXPENSES, ServiceAccess.DASHBOARDS, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
+        ServiceAccess.DASHBOARDS, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
     ]
 
 
@@ -441,12 +443,12 @@ def sidebar_menus(client):
 
 @pytest.mark.django_db
 def test_systems_live_in_their_own_sidebar_menu(client):
-    client.force_login(make_user('access_expenses', 'view_toner', 'register_customers_suppliers', 'view_competency'))
+    client.force_login(make_user('view_toner', 'register_customers_suppliers', 'view_competency'))
 
     main, systems = sidebar_menus(client)
 
     assert 'Serviços' in main
-    for title in ('Despesas', 'Controle de Toners', 'Clientes e Fornecedores', 'Auditoria de Jornada'):
+    for title in ('Controle de Toners', 'Clientes e Fornecedores', 'Auditoria de Jornada'):
         assert title not in main
         assert title in systems
     assert 'Lista de Contatos' in main and 'Lista de Contatos' not in systems
@@ -459,7 +461,6 @@ def test_systems_menu_only_lists_what_the_user_can_open(client):
     _, systems = sidebar_menus(client)
 
     assert 'Controle de Toners' in systems
-    assert 'Despesas' not in systems
     assert 'Auditoria de Jornada' not in systems
 
 
@@ -475,7 +476,7 @@ def test_systems_menu_is_absent_without_any_system(client):
 
 @pytest.mark.django_db
 def test_sidebar_menus_are_in_alphabetical_order(client):
-    user = make_user('access_expenses', 'view_toner', 'register_customers_suppliers', 'view_competency')
+    user = make_user('view_toner', 'register_customers_suppliers', 'view_competency')
     user.dashboards.add(Dashboard.objects.create(title='Faturamento'))
     client.force_login(user)
 
@@ -485,4 +486,17 @@ def test_sidebar_menus_are_in_alphabetical_order(client):
     system_titles = re.findall(r'<span class="text">(.*?)</span>', systems)[1:]
 
     assert main_titles == sorted(main_titles, key=str.lower)
-    assert system_titles == ['Auditoria de Jornada', 'Clientes e Fornecedores', 'Controle de Toners', 'Despesas']
+    assert system_titles == ['Auditoria de Jornada', 'Clientes e Fornecedores', 'Controle de Toners']
+
+
+def test_expenses_app_is_gone():
+    # O reembolso de despesas saiu do portal; o centro de custo ficou, sem as dicas dele
+    assert not apps.is_installed('expenses')
+    assert 'expenses' not in dict(ServiceAccess.SERVICES)
+    assert CostCenter._meta.get_field('is_active').help_text == ''
+    assert User._meta.get_field('cost_center').help_text == ''
+
+
+@pytest.mark.django_db
+def test_migrations_match_the_models():
+    call_command('makemigrations', '--check', '--dry-run', verbosity=0)

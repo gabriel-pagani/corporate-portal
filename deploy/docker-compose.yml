@@ -51,7 +51,7 @@ services:
     image: intranet-django
     expose:
       - "8000"
-    # Os documentos da biblioteca e as fotos dos recibos ficam no media_volume,
+    # Os documentos da biblioteca ficam no media_volume,
     # servidos só pelo django, que confere quem pode ver cada um. O dump do banco
     # não os inclui: o scripts/backup_portal.sh leva os arquivos à parte.
     volumes:
@@ -66,10 +66,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # As threads esperam a IA do reembolso (até 1 minuto por nota) sem ocupar a
-    # CPU: com poucas, alguns envios ao mesmo tempo travariam o portal inteiro.
-    # O nginx recebe o upload inteiro antes de repassar, então a rede lenta do
-    # celular não segura thread nenhuma. Cada thread mantém a sua conexão com o banco.
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
@@ -95,7 +91,6 @@ services:
     volumes:
       - ../app:/app/app
       - ../journey_audit:/app/journey_audit
-      - ../expenses:/app/expenses
       - ../project:/app/project
       - ../templates:/app/templates
       - ../static:/app/static

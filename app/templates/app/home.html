@@ -76,12 +76,6 @@
                     <span class="text">Controle de Toners</span>
                 </a>
                 {% endif %}
-                {% if perms.expenses.access_expenses %}
-                <a href="{% url 'expenses:expenses' %}" title="Acessar despesas">
-                    <i class="fas fa-receipt"></i>
-                    <span class="text">Despesas</span>
-                </a>
-                {% endif %}
             </nav>
             {% endif %}
 

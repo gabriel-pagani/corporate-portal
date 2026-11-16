@@ -81,7 +81,6 @@ class CostCenter(models.Model):
     is_active = models.BooleanField(
         default=True,
         verbose_name='Ativo',
-        help_text='O centro de custo inativo deixa de ser oferecido ao aprovador das despesas.',
     )
 
     def __str__(self):
@@ -104,7 +103,6 @@ class User(AbstractUser):
         null=True,
         related_name='users',
         verbose_name='Centro de custo',
-        help_text='As despesas de reembolso do usuário são lançadas neste centro de custo.',
     )
 
     class Meta(AbstractUser.Meta):
@@ -460,7 +458,6 @@ class ServiceAccess(models.Model):
     NOTIFICATIONS = 'notifications'
     TICKETS = 'tickets'
     LIBRARY = 'library'
-    EXPENSES = 'expenses'
     DASHBOARDS = 'dashboards'
     TONERS = 'toners'
     CUSTOMERS_VENDORS = 'customers-vendors'
@@ -470,7 +467,6 @@ class ServiceAccess(models.Model):
         (NOTIFICATIONS, 'Mural de Notificações'),
         (TICKETS, 'Central de Chamados'),
         (LIBRARY, 'Biblioteca'),
-        (EXPENSES, 'Reembolso de Despesas'),
         (DASHBOARDS, 'Central de Dashboards'),
         (TONERS, 'Controle de Toners'),
         (CUSTOMERS_VENDORS, 'Clientes e Fornecedores'),

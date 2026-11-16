@@ -9,10 +9,9 @@
 #   gpg --decrypt portal-....sql.gpg > portal-....sql
 #   make restore-database file=portal-....sql
 #
-# O dump não traz os arquivos do media_volume: os documentos da biblioteca e as
-# fotos dos recibos do reembolso, que são comprovante. Eles vão cifrados, um a
-# um, para a pasta media/ do destino, na mesma árvore de pastas do volume. Para
-# restaurar, copie a pasta media/ da rede, e na cópia:
+# O dump não traz os arquivos do media_volume, os documentos da biblioteca.
+# Eles vão cifrados, um a um, para a pasta media/ do destino, na mesma árvore
+# de pastas do volume. Para restaurar, copie a pasta media/ da rede, e na cópia:
 #   find media -name '*.gpg' -exec sh -c 'gpg --decrypt "$1" > "${1%.gpg}" && rm "$1"' _ {} \;
 #   docker compose -f deploy/docker-compose.yml cp media/. django:/app/media_root/
 #   docker compose -f deploy/docker-compose.yml exec -u root django chown -R django:django /app/media_root
@@ -82,7 +81,7 @@ find "$DESTINATION" -maxdepth 1 -type f \
 # Os arquivos do media_volume. O nome de cada um é sorteado e ele nunca é
 # regravado, então só vão os que ainda não estão na rede: a execução de hora em
 # hora leva só o que chegou na última hora. Nada é apagado de lá, nem quando o
-# arquivo sai do portal: recibo é comprovante.
+# arquivo sai do portal.
 MEDIA="$(docker volume inspect --format '{{ .Mountpoint }}' "$MEDIA_VOLUME")"
 
 (cd "$MEDIA" && find . -type f -print0) | while IFS= read -r -d '' file; do

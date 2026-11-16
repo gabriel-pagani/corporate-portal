@@ -69,10 +69,6 @@ SERVICES = [
         'Os documentos liberados para você.', everyone,
     ),
     Service(
-        ServiceAccess.EXPENSES, 'Reembolso de Despesas', 'fa-receipt', 'expenses:expenses',
-        'Fotografe o recibo e acompanhe o seu reembolso.', has_perm('expenses.access_expenses'),
-    ),
-    Service(
         ServiceAccess.DASHBOARDS, 'Central de Dashboards', 'fa-chart-pie', 'app:dashboards',
         'Os indicadores liberados para você.', lambda user: get_user_dashboards(user).exists(),
     ),
@@ -94,7 +90,7 @@ SERVICES = [
 # Os serviços que são sistemas completos: na home ficam no menu "Sistemas" da
 # barra lateral, separados das funcionalidades simples
 SYSTEM_SERVICES = {
-    ServiceAccess.EXPENSES, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
+    ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
 }
 
 
