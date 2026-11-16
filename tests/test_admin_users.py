@@ -136,6 +136,6 @@ def test_admin_index_shows_everything_under_sistema_in_portuguese(client):
     models = [model['name'] for app in response.context['app_list'] for model in app['models']]
 
     assert sections == ['Sistema']
-    for name in ('Tentativas de acesso', 'Falhas de acesso', 'Registros de acesso', 'Dispositivos de dois fatores'):
+    for name in ('Tentativas de Acesso', 'Falhas de Acesso', 'Registros de Acesso', 'Dispositivos 2FA'):
         assert name in models
     assert 'Access attempts' not in models and 'TOTP devices' not in models

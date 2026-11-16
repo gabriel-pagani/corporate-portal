@@ -17,8 +17,8 @@ class Migration(migrations.Migration):
             fields=[
             ],
             options={
-                'verbose_name': 'Tentativa de acesso',
-                'verbose_name_plural': 'Tentativas de acesso',
+                'verbose_name': 'Tentativa de Acesso',
+                'verbose_name_plural': 'Tentativas de Acesso',
                 'proxy': True,
                 'indexes': [],
                 'constraints': [],
@@ -30,8 +30,8 @@ class Migration(migrations.Migration):
             fields=[
             ],
             options={
-                'verbose_name': 'Falha de acesso',
-                'verbose_name_plural': 'Falhas de acesso',
+                'verbose_name': 'Falha de Acesso',
+                'verbose_name_plural': 'Falhas de Acesso',
                 'proxy': True,
                 'indexes': [],
                 'constraints': [],
@@ -43,8 +43,8 @@ class Migration(migrations.Migration):
             fields=[
             ],
             options={
-                'verbose_name': 'Registro de acesso',
-                'verbose_name_plural': 'Registros de acesso',
+                'verbose_name': 'Registro de Acesso',
+                'verbose_name_plural': 'Registros de Acesso',
                 'proxy': True,
                 'indexes': [],
                 'constraints': [],
@@ -56,8 +56,8 @@ class Migration(migrations.Migration):
             fields=[
             ],
             options={
-                'verbose_name': 'Dispositivo de dois fatores',
-                'verbose_name_plural': 'Dispositivos de dois fatores',
+                'verbose_name': 'Dispositivo 2FA',
+                'verbose_name_plural': 'Dispositivos 2FA',
                 'proxy': True,
                 'indexes': [],
                 'constraints': [],

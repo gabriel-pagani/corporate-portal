@@ -548,5 +548,5 @@ class LoginLog(AccessLog):
 class TwoFactorDevice(TOTPDevice):
     class Meta:
         proxy = True
-        verbose_name = 'Dispositivo de dois fatores'
-        verbose_name_plural = 'Dispositivos de dois fatores'
+        verbose_name = 'Dispositivo 2FA'
+        verbose_name_plural = 'Dispositivos 2FA'
