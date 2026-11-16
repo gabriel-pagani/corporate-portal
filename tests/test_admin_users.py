@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
 
-from app.models import Dashboard, GroupDashboards
+from app.models import Dashboard, GroupDashboards, Sector
 from app.utils.permissions_report import permissions_report_pdf, user_permissions_report
 from tests.conftest import sign_in
 
@@ -103,3 +103,30 @@ def test_permissions_report_starts_the_user_on_the_first_page():
     # Uma tabela que não cabe no resto da página começa nela e continua na seguinte:
     # empurrada inteira para a página 2, a primeira ficava só com o título do relatório
     assert re.search(rb'/Count (\d+)', pdf).group(1) == b'2'
+
+
+@pytest.mark.django_db
+def test_admin_sets_the_sector_when_adding_a_user(client):
+    sign_in(client, User.objects.create_superuser(username='admin', password='senha'))
+    sector = Sector.objects.create(name='Financeiro')
+
+    response = client.post(reverse('admin:app_user_add'), {
+        'username': 'novo',
+        'password1': 'Senha-forte-123',
+        'password2': 'Senha-forte-123',
+        'usable_password': 'true',
+        'sector': sector.pk,
+    })
+
+    assert response.status_code == 302
+    assert User.objects.get(username='novo').sector == sector
+
+
+@pytest.mark.django_db
+def test_admin_user_page_shows_the_sector(client):
+    sign_in(client, User.objects.create_superuser(username='admin', password='senha'))
+    user = User.objects.create_user(username='colaborador', password='senha')
+
+    content = client.get(reverse('admin:app_user_change', args=[user.pk])).content.decode()
+
+    assert 'name="sector"' in content

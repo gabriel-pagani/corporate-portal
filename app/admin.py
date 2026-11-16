@@ -37,9 +37,9 @@ class UnaccentSearchAdmin(admin.ModelAdmin):
 class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
     list_display = ('username', 'first_name', 'last_name', 'email', 'last_login', 'is_staff', 'is_superuser', 'is_active',)
     search_fields = ('username', 'email', 'first_name__unaccent', 'last_name__unaccent', 'observations__unaccent',)
-    list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups', 'cost_center',)
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups', 'sector', 'cost_center',)
     filter_horizontal = ('groups', 'user_permissions', 'dashboards',)
-    autocomplete_fields = ('cost_center',)
+    autocomplete_fields = ('sector', 'cost_center',)
     model = User
     ordering = ('username',)
     actions = ('deactivate_users', 'permissions_report',)
@@ -48,7 +48,10 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
             'fields': ('username', 'password',)
         }),
         ('Informações pessoais', {
-            'fields': ('first_name', 'last_name', 'email', 'cost_center',)
+            'fields': ('first_name', 'last_name',)
+        }),
+        ('Informações corporativas', {
+            'fields': ('email', 'sector', 'cost_center',)
         }),
         ('Permissões', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions', 'dashboards',)
@@ -62,7 +65,7 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
     )
     add_fieldsets = (
         (None, {
-            'fields': ('username', 'password1', 'password2', 'cost_center',),
+            'fields': ('username', 'password1', 'password2',),
         }),
     )
 

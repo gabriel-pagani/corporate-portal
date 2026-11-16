@@ -104,6 +104,14 @@ class User(AbstractUser):
         related_name='users',
         verbose_name='Centro de custo',
     )
+    sector = models.ForeignKey(
+        Sector,
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name='users',
+        verbose_name='Setor',
+    )
 
     class Meta(AbstractUser.Meta):
         permissions = [
