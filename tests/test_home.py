@@ -430,3 +430,59 @@ def test_customize_mode_can_be_cancelled_and_restores_without_the_server(client)
     assert json.loads(order) == [
         ServiceAccess.TICKETS, ServiceAccess.CONTACTS, ServiceAccess.NOTIFICATIONS, ServiceAccess.LIBRARY,
     ]
+
+
+def sidebar_menus(client):
+    content = client.get(reverse('app:home')).content.decode()
+    main = re.search(r'<nav class="menu" id="main-menu">(.*?)</nav>', content, re.S).group(1)
+    systems = re.search(r'<nav class="menu" id="systems-menu" hidden>(.*?)</nav>', content, re.S)
+    return main, systems.group(1) if systems else None
+
+
+@pytest.mark.django_db
+def test_systems_live_in_their_own_sidebar_menu(client):
+    client.force_login(make_user('access_expenses', 'view_toner', 'register_customers_suppliers', 'view_competency'))
+
+    main, systems = sidebar_menus(client)
+
+    assert 'Serviços' in main
+    for title in ('Despesas', 'Controle de Toners', 'Clientes e Fornecedores', 'Auditoria de Jornada'):
+        assert title not in main
+        assert title in systems
+    assert 'Lista de Contatos' in main and 'Lista de Contatos' not in systems
+
+
+@pytest.mark.django_db
+def test_systems_menu_only_lists_what_the_user_can_open(client):
+    client.force_login(make_user('view_toner'))
+
+    _, systems = sidebar_menus(client)
+
+    assert 'Controle de Toners' in systems
+    assert 'Despesas' not in systems
+    assert 'Auditoria de Jornada' not in systems
+
+
+@pytest.mark.django_db
+def test_systems_menu_is_absent_without_any_system(client):
+    client.force_login(make_user())
+
+    main, systems = sidebar_menus(client)
+
+    assert systems is None
+    assert 'Serviços' not in main
+
+
+@pytest.mark.django_db
+def test_sidebar_menus_are_in_alphabetical_order(client):
+    user = make_user('access_expenses', 'view_toner', 'register_customers_suppliers', 'view_competency')
+    user.dashboards.add(Dashboard.objects.create(title='Faturamento'))
+    client.force_login(user)
+
+    main, systems = sidebar_menus(client)
+    main_titles = re.findall(r'<span class="text">(.*?)</span>', main)
+    # O Voltar fica sempre no topo do menu dos serviços
+    system_titles = re.findall(r'<span class="text">(.*?)</span>', systems)[1:]
+
+    assert main_titles == sorted(main_titles, key=str.lower)
+    assert system_titles == ['Auditoria de Jornada', 'Clientes e Fornecedores', 'Controle de Toners', 'Despesas']

@@ -1029,3 +1029,13 @@ body.card-dragging * {
 .dropdown-button[hidden] {
   display: none;
 }
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu .menu-systems-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.7;
+}

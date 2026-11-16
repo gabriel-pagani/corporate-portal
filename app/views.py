@@ -13,7 +13,7 @@ from app.utils import otp, throttle
 from app.utils.dashboards.access import get_user_dashboards
 from app.utils.home import quick_access_cards
 from app.utils.services import (
-    CARD_DEFAULT_HEIGHT, CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, TICKETS_URL, ranked_services, save_layout, track_access,
+    CARD_DEFAULT_HEIGHT, CARD_MAX_HEIGHT, CARD_MIN_HEIGHT, SYSTEM_SERVICES, TICKETS_URL, ranked_services, save_layout, track_access,
 )
 from app.utils.customer_vendor.auth import api_token_required
 from app.utils.customer_vendor.registration import register_customers_vendors, sanitize_entry
@@ -88,6 +88,7 @@ def home_view(request):
     )
     return render(request, 'app/home.html', {
         'has_dashboards': any(card['service'].key == ServiceAccess.DASHBOARDS for card in cards),
+        'has_systems': any(card['service'].key in SYSTEM_SERVICES for card in cards),
         'cards': cards,
         'visible_cards': [card for card in cards if not card['hidden']],
         'card_default_height': CARD_DEFAULT_HEIGHT,

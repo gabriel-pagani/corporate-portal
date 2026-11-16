@@ -91,6 +91,13 @@ SERVICES = [
 ]
 
 
+# Os serviços que são sistemas completos: na home ficam no menu "Sistemas" da
+# barra lateral, separados das funcionalidades simples
+SYSTEM_SERVICES = {
+    ServiceAccess.EXPENSES, ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
+}
+
+
 def available_services(user):
     return [service for service in SERVICES if service.is_available(user)]
 

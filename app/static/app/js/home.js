@@ -1,3 +1,24 @@
+// Troca a barra lateral entre o menu principal e o menu dos sistemas
+document.addEventListener('DOMContentLoaded', () => {
+    const mainMenu = document.getElementById('main-menu');
+    const systemsMenu = document.getElementById('systems-menu');
+    if (!mainMenu || !systemsMenu) return;
+
+    function showSystems(show) {
+        mainMenu.hidden = show;
+        systemsMenu.hidden = !show;
+    }
+
+    document.getElementById('systems-open').addEventListener('click', (event) => {
+        event.preventDefault();
+        showSystems(true);
+    });
+    document.getElementById('systems-close').addEventListener('click', (event) => {
+        event.preventDefault();
+        showSystems(false);
+    });
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const toggleButton = document.getElementById('toggle');
     const userToggle = document.getElementById('user-toggle');
