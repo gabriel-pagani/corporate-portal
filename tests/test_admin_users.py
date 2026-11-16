@@ -106,20 +106,15 @@ def test_permissions_report_starts_the_user_on_the_first_page():
 
 
 @pytest.mark.django_db
-def test_admin_sets_the_sector_when_adding_a_user(client):
+def test_admin_creates_users_with_only_username_and_password(client):
+    # O setor e o centro de custo são preenchidos depois, na edição do usuário
     sign_in(client, User.objects.create_superuser(username='admin', password='senha'))
-    sector = Sector.objects.create(name='Financeiro')
 
-    response = client.post(reverse('admin:app_user_add'), {
-        'username': 'novo',
-        'password1': 'Senha-forte-123',
-        'password2': 'Senha-forte-123',
-        'usable_password': 'true',
-        'sector': sector.pk,
-    })
+    content = client.get(reverse('admin:app_user_add')).content.decode()
 
-    assert response.status_code == 302
-    assert User.objects.get(username='novo').sector == sector
+    assert 'name="username"' in content and 'name="password1"' in content
+    assert 'name="sector"' not in content
+    assert 'name="cost_center"' not in content
 
 
 @pytest.mark.django_db
