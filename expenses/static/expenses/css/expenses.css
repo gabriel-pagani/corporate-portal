@@ -260,6 +260,20 @@ label.button.primary {
   font-size: 22px;
 }
 
+/* O título no centro da tela, com o Voltar à esquerda */
+.detail-header.centered {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.detail-header.centered h2 {
+  text-align: center;
+}
+
+.detail-header.centered #detail-back {
+  justify-self: start;
+}
+
 .detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
