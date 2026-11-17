@@ -605,6 +605,8 @@ label.button.primary {
 /* Filtros da lista em botões */
 .chips {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   margin-bottom: 14px;
   overflow-x: auto;
@@ -991,6 +993,12 @@ label.button.primary {
 
   #list-view .card-header {
     margin-bottom: 10px;
+  }
+
+  /* No celular os filtros rolam de lado: centralizados, os primeiros ficariam cortados */
+  .chips {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
   }
 
   .expense-row {
