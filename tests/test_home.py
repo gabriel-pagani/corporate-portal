@@ -3,7 +3,6 @@ import re
 from datetime import timedelta
 
 import pytest
-from django.apps import apps
 from django.contrib.auth.models import Permission
 from django.core.management import call_command
 from django.urls import reverse
@@ -489,10 +488,8 @@ def test_sidebar_menus_are_in_alphabetical_order(client):
     assert system_titles == ['Auditoria de Jornada', 'Clientes e Fornecedores', 'Controle de Toners']
 
 
-def test_expenses_app_is_gone():
-    # O reembolso de despesas saiu do portal; o centro de custo ficou, sem as dicas dele
-    assert not apps.is_installed('expenses')
-    assert 'expenses' not in dict(ServiceAccess.SERVICES)
+def test_cost_center_has_no_hints():
+    # O centro de custo ficou do app de despesas removido, sem as dicas dele
     assert CostCenter._meta.get_field('is_active').help_text == ''
     assert User._meta.get_field('cost_center').help_text == ''
 

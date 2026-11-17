@@ -472,6 +472,7 @@ class ServiceAccess(models.Model):
     TONERS = 'toners'
     CUSTOMERS_VENDORS = 'customers-vendors'
     JOURNEY_AUDIT = 'journey-audit'
+    EXPENSES = 'expenses'
     SERVICES = [
         (CONTACTS, 'Lista de Contatos'),
         (NOTIFICATIONS, 'Mural de Notificações'),
@@ -481,6 +482,7 @@ class ServiceAccess(models.Model):
         (TONERS, 'Controle de Toners'),
         (CUSTOMERS_VENDORS, 'Clientes e Fornecedores'),
         (JOURNEY_AUDIT, 'Auditoria de Jornada'),
+        (EXPENSES, 'Despesas'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='service_accesses', verbose_name='Usuário')

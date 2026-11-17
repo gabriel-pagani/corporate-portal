@@ -1,0 +1,941 @@
+import io
+import json
+import re
+import smtplib
+from decimal import Decimal
+from unittest.mock import patch
+
+import pytest
+from django.contrib.auth.models import Group, Permission
+from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models import ProtectedError
+from django.urls import reverse
+from PIL import Image
+
+from app.models import CostCenter, Sector, ServiceAccess, User
+from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto
+from expenses.reading import FAILED_ALERT
+from expenses.roles import access
+from expenses.workflow import DUPLICATE_MESSAGE, act, resubmit_photos
+from tests.conftest import sign_in
+from tests.expenses_helpers import (  # noqa: F401
+    OTHER_CNPJ, VALID_CNPJ, access_key, catalog, control, employee, finance, make_user, media_root, openai, photo,
+    post_json, submitted,
+)
+
+
+@pytest.fixture(autouse=True)
+def isolated_media(media_root):
+    return media_root
+
+
+def action_url(expense):
+    return reverse('expenses:expense-action-api', args=[expense.pk])
+
+
+def form_data(expense, **changes):
+    """Os dados da nota como a tela do Controle manda, com as trocas pedidas."""
+    expense.refresh_from_db()
+    data = {
+        'cnpj': expense.cnpj,
+        'access_key': expense.access_key,
+        'number': expense.number,
+        'issue_date': expense.issue_date.isoformat() if expense.issue_date else '',
+        'total': '' if expense.total is None else str(expense.total),
+        'expense_type': expense.expense_type_id or '',
+        'items': [
+            {
+                'id': item.pk, 'description': item.description, 'quantity': str(item.quantity),
+                'amount': str(item.amount), 'non_reimbursable': item.non_reimbursable,
+            }
+            for item in expense.items.all()
+        ],
+    }
+    data.update(changes)
+    return data
+
+
+def send_action(client, expense, action, note='', data=None, version=None):
+    expense.refresh_from_db()
+    payload = {'action': action, 'note': note, 'version': expense.version if version is None else version}
+    if data is not None:
+        payload['data'] = data
+    return post_json(client, action_url(expense), payload)
+
+
+def page_json(client, script_id, url=None):
+    content = client.get(url or reverse('expenses:expenses')).content.decode()
+    match = re.search(rf'<script id="{script_id}" type="application/json">(.*?)</script>', content, re.S)
+    assert match, f'{script_id} ausente'
+    return json.loads(match.group(1))
+
+
+# ---------- Papéis ----------
+
+@pytest.mark.django_db
+def test_each_permission_gives_one_role():
+    assert access(employee()).employee
+    current = access(control())
+    assert current.control and not current.finance and not current.employee
+    current = access(finance())
+    assert current.finance and not current.control
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('codenames', [
+    ('submit_expense', 'review_expense'),
+    ('submit_expense', 'validate_expense'),
+    ('review_expense', 'validate_expense'),
+    ('submit_expense', 'manage_expense_rules'),
+])
+def test_forbidden_combinations_block_the_user(client, codenames):
+    user = make_user(*codenames)
+
+    assert access(user).conflict and not access(user).any_role
+    client.force_login(user)
+    response = client.get(reverse('expenses:expenses'))
+    assert response.status_code == 403
+    assert 'combinação de permissões das despesas que não é permitida' in response.content.decode()
+    assert client.get(reverse('expenses:expenses-api')).status_code == 403
+
+
+@pytest.mark.django_db
+def test_conflict_through_a_group_also_blocks():
+    group = Group.objects.create(name='Financeiro')
+    group.permissions.add(Permission.objects.get(codename='validate_expense'))
+    user = control()
+    user.groups.add(group)
+
+    assert access(User.objects.get(pk=user.pk)).conflict
+
+
+@pytest.mark.django_db
+def test_rules_manager_can_be_control_or_finance():
+    current = access(make_user('review_expense', 'manage_expense_rules'))
+    assert current.control and current.manage and not current.conflict
+    current = access(make_user('validate_expense', 'manage_expense_rules', username='fin'))
+    assert current.finance and current.manage and not current.conflict
+
+
+@pytest.mark.django_db
+def test_superuser_is_control_and_finance_but_never_submits():
+    current = access(User.objects.create_superuser(username='admin', password='senha'))
+
+    assert current.control and current.finance and current.manage
+    assert not current.employee and not current.conflict
+
+
+@pytest.mark.django_db
+def test_page_requires_login_and_a_role(client):
+    response = client.get(reverse('expenses:expenses'))
+    assert response.status_code == 302 and reverse('app:login') in response.url
+
+    client.force_login(make_user())
+    assert client.get(reverse('expenses:expenses')).status_code == 403
+    # Só gerenciar as regras não dá papel no fluxo
+    client.force_login(make_user('manage_expense_rules', username='gestor'))
+    assert client.get(reverse('expenses:expenses')).status_code == 403
+
+
+@pytest.mark.django_db
+def test_page_counts_the_access_and_tells_the_role(client, catalog):
+    user = control()
+    client.force_login(user)
+
+    assert page_json(client, 'expenses-access') == {'employee': False, 'control': True, 'finance': False}
+    assert [item['name'] for item in page_json(client, 'expenses-types')] == ['Alimentação', 'Combustível', 'Hospedagem']
+    assert ServiceAccess.objects.get(user=user, service=ServiceAccess.EXPENSES).count == 2
+
+
+@pytest.mark.django_db
+def test_employee_page_has_the_mobile_photo_inputs(client):
+    client.force_login(employee())
+
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    assert 'capture="environment"' in content
+    assert 'accept="image/jpeg,image/png,image/webp"' in content
+    assert page_json(client, 'expenses-limits')['max_photos'] == 3
+    assert page_json(client, 'expenses-limits')['max_size'] == 20 * 1024 * 1024
+
+
+# ---------- Envio ----------
+
+@pytest.mark.django_db
+def test_employee_submits_and_the_ai_fills_the_form(client, openai, catalog):
+    sector = Sector.objects.create(name='Comercial')
+    cost_center = CostCenter.objects.create(code='100', name='Vendas')
+    user = employee(sector=sector, cost_center=cost_center)
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()], 'note': 'Almoço com cliente'})
+
+    assert response.status_code == 201
+    expense = Expense.objects.get()
+    assert expense.status == Expense.AWAITING_REVIEW
+    assert expense.employee == user and expense.sector == sector and expense.cost_center == cost_center
+    assert expense.cnpj == VALID_CNPJ and expense.access_key == access_key() and expense.number == '000123'
+    assert expense.total == Decimal('50.00') and expense.expense_type == catalog['types']['Alimentação']
+    assert expense.employee_note == 'Almoço com cliente'
+    # A cerveja foi marcada pela IA: o valor reembolsado é só a refeição
+    assert expense.reimbursed_total == Decimal('45.00')
+    assert [item.ai_group for item in expense.items.all()] == ['', 'Bebida alcoólica']
+    assert expense.ai_reading['status'] == 'ok'
+
+    event = expense.events.get()
+    assert (event.sequence, event.action, event.status_before, event.status_after) == (
+        1, ExpenseEvent.SUBMIT, '', Expense.AWAITING_REVIEW,
+    )
+    assert event.author == user and event.author_role == ExpenseEvent.EMPLOYEE and event.note == 'Almoço com cliente'
+    assert event.snapshot['ai_reading'] == expense.ai_reading
+    assert response.json()['expense']['id'] == expense.pk
+
+
+@pytest.mark.django_db
+def test_photos_are_stored_as_normalized_jpeg(openai):
+    user = employee()
+    expense = submitted(openai, user, photos=[photo('foto.png', size=(4000, 2000), fmt='PNG', content_type='image/png')])
+
+    stored = expense.photos.get()
+    with stored.file.open('rb') as file:
+        image = Image.open(io.BytesIO(file.read()))
+        assert image.format == 'JPEG'
+        assert max(image.size) == 3000
+    # A IA recebeu uma cópia menor
+    sent = openai.call_args[1]['json']['input'][1]['content'][1]['image_url']
+    assert sent.startswith('data:image/jpeg;base64,')
+    assert stored.round == 1 and stored.replaced_at is None and len(stored.sha256) == 64
+
+
+@pytest.mark.django_db
+def test_submission_limits(client, openai, monkeypatch):
+    client.force_login(employee())
+    url = reverse('expenses:expenses-api')
+
+    response = client.post(url, {'note': 'sem foto'})
+    assert response.status_code == 400 and 'ao menos uma foto' in response.json()['detail']
+
+    response = client.post(url, {'photos': [photo(), photo(), photo(), photo()]})
+    assert response.status_code == 400 and 'no máximo 3 fotos' in response.json()['detail']
+
+    pdf = SimpleUploadedFile('nota.pdf', b'%PDF-1.4 nota', content_type='application/pdf')
+    response = client.post(url, {'photos': [pdf]})
+    assert response.status_code == 400 and 'JPEG, PNG ou WEBP' in response.json()['detail']
+
+    monkeypatch.setattr('expenses.photos.MAX_PHOTO_SIZE', 100)
+    response = client.post(url, {'photos': [photo()]})
+    assert response.status_code == 400 and 'Cada foto pode ter até' in response.json()['detail']
+
+    assert not Expense.objects.exists()
+    openai.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_twenty_megabytes_is_the_limit_per_photo():
+    from expenses.photos import MAX_PHOTO_SIZE, MAX_PHOTOS
+
+    assert MAX_PHOTO_SIZE == 20 * 1024 * 1024 and MAX_PHOTOS == 3
+
+
+@pytest.mark.django_db
+def test_failed_ai_still_sends_the_note_to_control(client, openai):
+    import requests
+
+    openai.side_effect = requests.Timeout('demorou')
+    client.force_login(employee())
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 201
+    expense = Expense.objects.get()
+    # A IA não devolve a nota ao funcionário: o formulário segue vazio para o Controle
+    assert expense.status == Expense.AWAITING_REVIEW
+    assert expense.cnpj == '' and expense.total is None and not expense.items.exists()
+    assert expense.ai_alerts == [FAILED_ALERT]
+
+
+@pytest.mark.django_db
+def test_access_key_already_sent_is_refused(client, openai):
+    user = employee()
+    first = submitted(openai, user)
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == DUPLICATE_MESSAGE
+    assert list(Expense.objects.all()) == [first]
+    assert ExpensePhoto.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_access_key_of_a_rejected_note_is_also_refused(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    act(control(), expense.pk, 'reject', 'Nota de outra empresa', expense.version)
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == DUPLICATE_MESSAGE
+
+
+@pytest.mark.django_db
+def test_notes_without_access_key_do_not_collide(openai):
+    user = employee()
+    submitted(openai, user, access_key=None)
+    submitted(openai, user, access_key=None)
+
+    assert Expense.objects.filter(access_key='').count() == 2
+
+
+@pytest.mark.django_db
+def test_only_the_employee_submits(client, openai):
+    for user in (control(), finance(), User.objects.create_superuser(username='admin', password='senha')):
+        if user.is_superuser:
+            sign_in(client, user)
+        else:
+            client.force_login(user)
+        response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+        assert response.status_code == 403
+    assert not Expense.objects.exists()
+
+
+# ---------- Quem vê o quê ----------
+
+@pytest.mark.django_db
+def test_employee_sees_only_his_notes(client, openai):
+    ana = employee()
+    bruno = employee(username='bruno', email='bruno@empresa.com')
+    mine = submitted(openai, ana, access_key=access_key(1))
+    other = submitted(openai, bruno, access_key=access_key(2))
+    client.force_login(ana)
+
+    listed = client.get(reverse('expenses:expenses-api')).json()
+    assert [item['id'] for item in listed['expenses']] == [mine.pk]
+    assert 'employee' not in listed['expenses'][0]
+    assert client.get(reverse('expenses:expense-api', args=[other.pk])).status_code == 404
+    other_photo = other.photos.get()
+    assert client.get(reverse('expenses:photo', args=[other_photo.pk])).status_code == 404
+    assert client.get(reverse('expenses:photo', args=[mine.photos.get().pk])).status_code == 200
+
+
+@pytest.mark.django_db
+def test_employee_does_not_see_the_ai_alerts(client, openai):
+    user = employee()
+    expense = submitted(openai, user, alerts=['Falta o CNPJ da empresa.'])
+    client.force_login(user)
+
+    data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
+    assert 'alerts' not in data and data['can'] == {'edit': False, 'act': False, 'resubmit': False}
+
+
+@pytest.mark.django_db
+def test_control_and_finance_see_every_note(client, openai):
+    first = submitted(openai, employee(), access_key=access_key(1))
+    second = submitted(openai, employee(username='bruno', email='b@empresa.com'), access_key=access_key(2))
+
+    for user in (control(), finance()):
+        client.force_login(user)
+        listed = client.get(reverse('expenses:expenses-api'), {'scope': 'all'}).json()
+        assert {item['id'] for item in listed['expenses']} == {first.pk, second.pk}
+        assert listed['expenses'][0]['employee']
+
+
+@pytest.mark.django_db
+def test_queue_shows_what_waits_for_each_role(client, openai):
+    user = employee()
+    waiting_review = submitted(openai, user, access_key=access_key(1))
+    waiting_validation = submitted(openai, user, access_key=access_key(2))
+    act(control(), waiting_validation.pk, 'approve', '', waiting_validation.version)
+
+    client.force_login(User.objects.get(username='controle'))
+    queue = client.get(reverse('expenses:expenses-api'), {'scope': 'queue'}).json()
+    assert [item['id'] for item in queue['expenses']] == [waiting_review.pk] and queue['queue_count'] == 1
+
+    client.force_login(finance())
+    queue = client.get(reverse('expenses:expenses-api'), {'scope': 'queue'}).json()
+    assert [item['id'] for item in queue['expenses']] == [waiting_validation.pk]
+
+
+@pytest.mark.django_db
+def test_list_filters_by_status_and_search(client, openai):
+    user = employee()
+    # Números que não aparecem no CNPJ: a busca também procura nele
+    first = submitted(openai, user, access_key=access_key(1), number='987')
+    submitted(openai, user, access_key=access_key(2), number='654')
+    act(control(), first.pk, 'reject', 'Fora da política', first.version)
+    client.force_login(User.objects.get(username='controle'))
+    url = reverse('expenses:expenses-api')
+
+    assert [item['id'] for item in client.get(url, {'status': 'R'}).json()['expenses']] == [first.pk]
+    assert [item['number'] for item in client.get(url, {'q': '654'}).json()['expenses']] == ['654']
+    assert len(client.get(url, {'q': '11.222.333'}).json()['expenses']) == 2
+    assert len(client.get(url, {'q': 'Ana'}).json()['expenses']) == 2
+
+
+# ---------- Conferência do Controle ----------
+
+@pytest.mark.django_db
+def test_control_edits_any_field_and_the_items(client, openai, catalog):
+    expense = submitted(openai, employee())
+    meal, beer = expense.items.all()
+    client.force_login(control())
+
+    data = form_data(
+        expense,
+        cnpj='11.444.777/0001-61', number='999', issue_date='2026-11-01', total='60.00',
+        expense_type=catalog['types']['Hospedagem'].pk,
+        items=[
+            {'id': meal.pk, 'description': 'Refeição', 'quantity': '2', 'amount': '50.00', 'non_reimbursable': False},
+            {'id': None, 'description': 'Taxa de serviço', 'quantity': '1', 'amount': '5.00', 'non_reimbursable': False},
+        ],
+    )
+    response = send_action(client, expense, 'request_correction', 'Envie a foto do verso.', data)
+
+    assert response.status_code == 200
+    expense.refresh_from_db()
+    assert expense.cnpj == OTHER_CNPJ and expense.number == '999' and expense.total == Decimal('60.00')
+    assert expense.expense_type == catalog['types']['Hospedagem']
+    items = list(expense.items.all())
+    assert [(item.description, item.amount) for item in items] == [('Refeição', Decimal('50.00')), ('Taxa de serviço', Decimal('5.00'))]
+    assert items[0].pk == meal.pk and not ExpenseItem.objects.filter(pk=beer.pk).exists()
+    assert expense.reimbursed_total == Decimal('55.00')
+
+
+@pytest.mark.django_db
+def test_non_reimbursable_items_stay_out_of_the_value(client, openai):
+    expense = submitted(openai, employee())
+    meal, beer = expense.items.all()
+    client.force_login(control())
+
+    # O Controle tem a última palavra: desmarca a cerveja e marca a refeição
+    data = form_data(expense)
+    data['items'][0]['non_reimbursable'] = True
+    data['items'][1]['non_reimbursable'] = False
+    send_action(client, expense, 'approve', '', data)
+
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_VALIDATION
+    assert expense.reimbursed_total == Decimal('5.00')
+    # O sinal da IA continua no item
+    assert ExpenseItem.objects.get(pk=beer.pk).ai_group == 'Bebida alcoólica'
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('changes, field, message', [
+    ({'cnpj': '11222333000182'}, 'cnpj', 'CNPJ inválido'),
+    ({'access_key': '1234'}, 'access_key', 'Chave de acesso inválida'),
+    ({'issue_date': '2999-01-01'}, 'issue_date', 'não pode ser futura'),
+    ({'total': '-1'}, 'total', ''),
+    ({'expense_type': 999999}, 'expense_type', 'Escolha um tipo da lista.'),
+])
+def test_invalid_edits_are_refused(client, openai, changes, field, message):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    response = send_action(client, expense, 'request_correction', 'Corrija', form_data(expense, **changes))
+
+    assert response.status_code == 400
+    assert field in response.json()['errors'] and message in response.json()['detail']
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW and expense.version == 1
+
+
+@pytest.mark.django_db
+def test_invalid_item_is_refused(client, openai):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+    data = form_data(expense)
+    data['items'][1]['amount'] = 'abc'
+
+    response = send_action(client, expense, 'approve', '', data)
+
+    assert response.status_code == 400 and response.json()['detail'].startswith('Item 2: Valor')
+
+
+@pytest.mark.django_db
+def test_control_cannot_reuse_an_access_key(client, openai):
+    user = employee()
+    submitted(openai, user, access_key=access_key(1))
+    second = submitted(openai, user, access_key=access_key(2))
+    client.force_login(control())
+
+    response = send_action(client, second, 'approve', '', form_data(second, access_key=access_key(1)))
+
+    assert response.status_code == 400 and 'Já existe outra nota' in response.json()['detail']
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('action', ['request_correction', 'reject'])
+def test_correction_and_rejection_need_a_note(client, openai, action):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    response = send_action(client, expense, action, '   ')
+
+    assert response.status_code == 400 and 'observação' in response.json()['detail']
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW
+
+
+@pytest.mark.django_db
+def test_control_requests_a_correction(client, openai):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    response = send_action(client, expense, 'request_correction', 'A foto está cortada.')
+
+    assert response.status_code == 200
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_CORRECTION and expense.last_note == 'A foto está cortada.'
+    event = expense.events.last()
+    assert event.action == ExpenseEvent.REQUEST_CORRECTION and event.author_role == ExpenseEvent.CONTROL
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('field, label', [
+    ('number', 'número da nota'),
+    ('issue_date', 'data'),
+    ('total', 'valor total'),
+    ('cnpj', 'CNPJ do emitente'),
+    ('expense_type', 'tipo'),
+])
+def test_approval_needs_the_required_fields(client, openai, field, label):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    response = send_action(client, expense, 'approve', '', form_data(expense, **{field: ''}))
+
+    assert response.status_code == 400 and label in response.json()['detail']
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW
+
+
+@pytest.mark.django_db
+def test_access_key_is_not_required_to_approve(client, openai):
+    expense = submitted(openai, employee(), access_key=None)
+    client.force_login(control())
+
+    assert send_action(client, expense, 'approve', '', form_data(expense)).status_code == 200
+
+
+@pytest.mark.django_db
+def test_approval_needs_a_reimbursed_value(client, openai):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+    data = form_data(expense)
+    for item in data['items']:
+        item['non_reimbursable'] = True
+
+    response = send_action(client, expense, 'approve', '', data)
+    assert response.status_code == 400 and 'valor reembolsado maior que zero' in response.json()['detail']
+
+    response = send_action(client, expense, 'approve', '', form_data(expense, items=[]))
+    assert response.status_code == 400 and 'valor reembolsado maior que zero' in response.json()['detail']
+
+
+@pytest.mark.django_db
+def test_stale_version_is_refused(client, openai):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    response = send_action(client, expense, 'approve', '', form_data(expense), version=expense.version + 5)
+
+    assert response.status_code == 409
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW
+
+
+@pytest.mark.django_db
+def test_each_stage_only_accepts_its_role(client, openai):
+    expense = submitted(openai, employee())
+    client.force_login(finance())
+    assert send_action(client, expense, 'approve').status_code == 403
+
+    act(control(), expense.pk, 'approve', '', expense.version)
+    client.force_login(User.objects.get(username='controle'))
+    assert send_action(client, expense, 'approve').status_code == 403
+
+    client.force_login(User.objects.get(username='funcionario'))
+    assert send_action(client, expense, 'approve').status_code == 403
+
+
+# ---------- Validação do Financeiro ----------
+
+@pytest.mark.django_db
+def test_finance_sees_the_form_read_only(client, openai):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', expense.version)
+    client.force_login(finance())
+
+    data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
+    assert data['can'] == {'edit': False, 'act': True, 'resubmit': False}
+
+    # O que o Financeiro mandar de dados é ignorado
+    response = send_action(client, expense, 'request_correction', 'Confirme o valor.', form_data(expense, number='1'))
+    assert response.status_code == 200
+    expense.refresh_from_db()
+    assert expense.number == '000123'
+
+
+@pytest.mark.django_db
+def test_finance_correction_goes_back_to_control_never_to_the_employee(client, openai):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', expense.version)
+    client.force_login(finance())
+
+    assert send_action(client, expense, 'request_correction', '').status_code == 400
+    response = send_action(client, expense, 'request_correction', 'Por que o valor é maior que a média?')
+
+    assert response.status_code == 200
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_EXPLANATION
+    assert expense.events.last().action == ExpenseEvent.REQUEST_EXPLANATION
+
+
+@pytest.mark.django_db
+def test_control_must_explain_before_sending_back_to_finance(client, openai):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', expense.version)
+    expense.refresh_from_db()
+    act(finance(), expense.pk, 'request_correction', 'Explique o valor.', expense.version)
+    client.force_login(User.objects.get(username='controle'))
+
+    response = send_action(client, expense, 'approve', '', form_data(expense))
+    assert response.status_code == 400 and 'explicação' in response.json()['detail']
+
+    response = send_action(client, expense, 'approve', 'Reunião com 3 clientes.', form_data(expense))
+    assert response.status_code == 200
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_VALIDATION
+    assert expense.events.last().action == ExpenseEvent.EXPLAIN
+
+
+@pytest.mark.django_db
+def test_control_can_send_a_returned_note_to_the_employee(openai):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', 1)
+    act(finance(), expense.pk, 'request_correction', 'A foto não mostra a data.', 2)
+
+    act(User.objects.get(username='controle'), expense.pk, 'request_correction', 'Envie a foto com a data.', 3)
+
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_CORRECTION
+
+
+@pytest.mark.django_db
+def test_finance_approval_triggers_the_rm_launch(client, openai, django_capture_on_commit_callbacks):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', expense.version)
+    client.force_login(finance())
+
+    with patch('expenses.workflow.rm.launch_in_rm') as launch:
+        with django_capture_on_commit_callbacks(execute=True):
+            response = send_action(client, expense, 'approve')
+
+    assert response.status_code == 200
+    expense.refresh_from_db()
+    assert expense.status == Expense.APPROVED
+    launch.assert_called_once()
+    assert launch.call_args[0][0].pk == expense.pk
+
+
+@pytest.mark.django_db
+def test_rm_launch_is_not_triggered_before_the_finance_approval(client, openai, django_capture_on_commit_callbacks):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    with patch('expenses.workflow.rm.launch_in_rm') as launch:
+        with django_capture_on_commit_callbacks(execute=True):
+            send_action(client, expense, 'approve', '', form_data(expense))
+
+    launch.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_rm_extension_point_does_nothing_yet():
+    from expenses.rm import launch_in_rm
+
+    assert launch_in_rm(object()) is None
+
+
+@pytest.mark.django_db
+def test_finance_rejects_and_the_note_is_closed(client, openai):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', expense.version)
+    client.force_login(finance())
+
+    assert send_action(client, expense, 'reject', 'Despesa pessoal.').status_code == 200
+    expense.refresh_from_db()
+    assert expense.status == Expense.REJECTED and expense.last_note == 'Despesa pessoal.'
+
+    # Encerrada de vez: ninguém age mais sobre ela
+    for user in (finance(username='fin2'), User.objects.get(username='controle')):
+        client.force_login(user)
+        response = send_action(client, expense, 'approve')
+        assert response.status_code in (400, 403)
+    expense.refresh_from_db()
+    assert expense.status == Expense.REJECTED
+
+
+@pytest.mark.django_db
+def test_superuser_plays_control_and_finance_on_the_same_note(client, openai):
+    expense = submitted(openai, employee())
+    admin = User.objects.create_superuser(username='admin', password='senha')
+    sign_in(client, admin)
+
+    assert send_action(client, expense, 'approve', '', form_data(expense)).status_code == 200
+    assert send_action(client, expense, 'approve').status_code == 200
+
+    expense.refresh_from_db()
+    assert expense.status == Expense.APPROVED
+    assert [event.author_role for event in expense.events.all()] == [
+        ExpenseEvent.EMPLOYEE, ExpenseEvent.CONTROL, ExpenseEvent.FINANCE,
+    ]
+
+
+@pytest.mark.django_db
+def test_unknown_action_is_refused(client, openai):
+    expense = submitted(openai, employee())
+    client.force_login(control())
+
+    assert send_action(client, expense, 'pay').status_code == 400
+
+
+# ---------- Reenvio ----------
+
+@pytest.mark.django_db
+def test_resubmission_swaps_only_the_photos(client, openai, catalog):
+    user = employee()
+    expense = submitted(openai, user)
+    old_photo = expense.photos.get()
+    act(control(), expense.pk, 'request_correction', 'A foto está cortada.', 1,
+        data=form_data(expense, number='777', expense_type=catalog['types']['Combustível'].pk))
+    openai.reset_mock()
+    client.force_login(user)
+
+    response = client.post(
+        reverse('expenses:expense-photos-api', args=[expense.pk]),
+        {'photos': [photo(color='gray'), photo(color='black')], 'note': 'Fotos novas.'},
+    )
+
+    assert response.status_code == 200
+    # A IA não analisa de novo, e o que o Controle editou fica como está
+    openai.assert_not_called()
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW
+    assert expense.number == '777' and expense.expense_type == catalog['types']['Combustível']
+    current = list(expense.photos.filter(replaced_at__isnull=True))
+    assert [photo_.round for photo_ in current] == [2, 2]
+    old_photo.refresh_from_db()
+    assert old_photo.replaced_at is not None
+    event = expense.events.last()
+    assert event.action == ExpenseEvent.RESUBMIT and event.note == 'Fotos novas.'
+    assert [item['id'] for item in event.snapshot['photos']] == [item.pk for item in current]
+
+
+@pytest.mark.django_db
+def test_replaced_photos_stay_accessible(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    old_photo = expense.photos.get()
+    act(control(), expense.pk, 'request_correction', 'Refaça.', 1)
+    resubmit_photos(user, expense.pk, [photo(color='gray')])
+
+    client.force_login(User.objects.get(username='controle'))
+    assert client.get(reverse('expenses:photo', args=[old_photo.pk])).status_code == 200
+    client.force_login(user)
+    response = client.get(reverse('expenses:photo', args=[old_photo.pk]))
+    assert response.status_code == 200 and response['Content-Type'] == 'image/jpeg'
+
+
+@pytest.mark.django_db
+def test_resubmission_only_while_awaiting_correction(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    client.force_login(user)
+    url = reverse('expenses:expense-photos-api', args=[expense.pk])
+
+    response = client.post(url, {'photos': [photo()]})
+    assert response.status_code == 400 and 'aguarda correção' in response.json()['detail']
+
+    act(control(), expense.pk, 'reject', 'Nota de terceiro.', 1)
+    assert client.post(url, {'photos': [photo()]}).status_code == 400
+    assert expense.photos.count() == 1
+
+
+@pytest.mark.django_db
+def test_only_the_owner_resubmits(client, openai):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'request_correction', 'Refaça.', 1)
+    client.force_login(employee(username='bruno', email='b@empresa.com'))
+
+    response = client.post(reverse('expenses:expense-photos-api', args=[expense.pk]), {'photos': [photo()]})
+
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_round_trips_as_many_times_as_needed(openai):
+    user = employee()
+    reviewer, validator = control(), finance()
+    expense = submitted(openai, user)
+
+    act(reviewer, expense.pk, 'request_correction', 'Foto 1 ruim.', 1)
+    resubmit_photos(user, expense.pk, [photo()])
+    act(reviewer, expense.pk, 'request_correction', 'Foto 2 ruim.', 3)
+    resubmit_photos(user, expense.pk, [photo()])
+    act(reviewer, expense.pk, 'approve', '', 5)
+    act(validator, expense.pk, 'request_correction', 'Explique.', 6)
+    act(reviewer, expense.pk, 'approve', 'Explicado.', 7)
+    act(validator, expense.pk, 'approve', '', 8)
+
+    expense.refresh_from_db()
+    assert expense.status == Expense.APPROVED and expense.version == 9
+    assert [event.sequence for event in expense.events.all()] == list(range(1, 10))
+    assert expense.photos.count() == 3 and expense.photos.filter(replaced_at__isnull=True).count() == 1
+
+
+# ---------- E-mails ----------
+
+@pytest.mark.django_db
+def test_employee_gets_an_email_on_every_status_change(client, openai, django_capture_on_commit_callbacks):
+    user = employee()
+    client.force_login(user)
+    with django_capture_on_commit_callbacks(execute=True):
+        client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+    expense = Expense.objects.get()
+
+    with django_capture_on_commit_callbacks(execute=True):
+        act(control(), expense.pk, 'approve', '', 1)
+    with django_capture_on_commit_callbacks(execute=True):
+        act(finance(), expense.pk, 'approve', '', 2)
+
+    assert [message.to for message in mail.outbox] == [[user.email]] * 3
+    assert [message.subject for message in mail.outbox] == [
+        f'Nota #{expense.pk}: Aguardando conferência',
+        f'Nota #{expense.pk}: Aguardando validação',
+        f'Nota #{expense.pk}: Aprovada',
+    ]
+    assert f'/expenses/?nota={expense.pk}' in mail.outbox[0].body
+    assert 'Valor reembolsado: R$ 45,00' in mail.outbox[2].body
+
+
+@pytest.mark.django_db
+def test_rejection_email_brings_the_reason(openai, django_capture_on_commit_callbacks):
+    expense = submitted(openai, employee())
+
+    with django_capture_on_commit_callbacks(execute=True):
+        act(control(), expense.pk, 'reject', 'Despesa fora da política de viagens.', 1)
+
+    message = mail.outbox[-1]
+    assert message.subject == f'Nota #{expense.pk}: Rejeitada'
+    assert 'Motivo da rejeição:\nDespesa fora da política de viagens.' in message.body
+
+
+@pytest.mark.django_db
+def test_correction_email_brings_what_to_fix(openai, django_capture_on_commit_callbacks):
+    expense = submitted(openai, employee())
+
+    with django_capture_on_commit_callbacks(execute=True):
+        act(control(), expense.pk, 'request_correction', 'A foto está cortada.', 1)
+
+    assert 'Correção pedida:\nA foto está cortada.' in mail.outbox[-1].body
+
+
+@pytest.mark.django_db
+def test_notes_between_control_and_finance_stay_out_of_the_email(openai, django_capture_on_commit_callbacks):
+    expense = submitted(openai, employee())
+    act(control(), expense.pk, 'approve', '', 1)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        act(finance(), expense.pk, 'request_correction', 'Assunto interno do Financeiro.', 2)
+
+    message = mail.outbox[-1]
+    assert message.subject == f'Nota #{expense.pk}: Aguardando explicação'
+    assert 'Assunto interno do Financeiro.' not in message.body
+
+
+@pytest.mark.django_db
+def test_control_and_finance_get_no_email(openai, django_capture_on_commit_callbacks):
+    with django_capture_on_commit_callbacks(execute=True):
+        expense = submitted(openai, employee())
+        act(control(), expense.pk, 'approve', '', 1)
+        act(finance(), expense.pk, 'approve', '', 2)
+
+    recipients = {address for message in mail.outbox for address in message.to}
+    assert recipients == {'funcionario@empresa.com'}
+
+
+@pytest.mark.django_db
+def test_employee_without_email_gets_nothing_and_the_flow_goes_on(openai, django_capture_on_commit_callbacks):
+    with django_capture_on_commit_callbacks(execute=True):
+        expense = submitted(openai, employee(email=''))
+
+    assert mail.outbox == [] and expense.status == Expense.AWAITING_REVIEW
+
+
+@pytest.mark.django_db
+def test_mail_server_failure_does_not_undo_the_action(openai, django_capture_on_commit_callbacks):
+    expense = submitted(openai, employee())
+
+    with patch('expenses.emails.send_mail', side_effect=smtplib.SMTPException('fora')):
+        with django_capture_on_commit_callbacks(execute=True):
+            act(control(), expense.pk, 'approve', '', 1)
+
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_VALIDATION
+
+
+# ---------- O que o funcionário vê ----------
+
+@pytest.mark.django_db
+def test_rejection_reason_shows_on_the_note(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    act(control(), expense.pk, 'reject', 'Nota de outra empresa.', 1)
+    client.force_login(user)
+
+    data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
+
+    assert data['status_display'] == 'Rejeitada' and data['last_note'] == 'Nota de outra empresa.'
+    assert data['timeline'][-1]['note'] == 'Nota de outra empresa.'
+
+
+@pytest.mark.django_db
+def test_employee_timeline_hides_the_notes_between_control_and_finance(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    act(control(), expense.pk, 'approve', 'Conferido sem ressalvas.', 1)
+    act(finance(), expense.pk, 'request_correction', 'Assunto interno.', 2)
+    client.force_login(user)
+
+    data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
+
+    assert [event['note'] for event in data['timeline']] == ['', '', '']
+    assert data['last_note'] == ''
+    assert 'author_name' not in data['timeline'][0]
+
+
+@pytest.mark.django_db
+def test_control_sees_the_alerts_and_the_last_note(client, openai):
+    expense = submitted(openai, employee(), alerts=['A nota não traz o CNPJ da empresa.'])
+    act(control(), expense.pk, 'approve', '', 1)
+    act(finance(), expense.pk, 'request_correction', 'Explique.', 2)
+    client.force_login(User.objects.get(username='controle'))
+
+    data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
+
+    assert data['alerts'] == ['A nota não traz o CNPJ da empresa.']
+    assert data['explanation_required'] is True and data['can']['edit'] is True
+    assert data['timeline'][-1]['note'] == 'Explique.'
+
+
+# ---------- Exclusão ----------
+
+@pytest.mark.django_db
+def test_notes_with_history_cannot_be_deleted(openai):
+    expense = submitted(openai, employee())
+
+    with pytest.raises(ProtectedError):
+        expense.delete()

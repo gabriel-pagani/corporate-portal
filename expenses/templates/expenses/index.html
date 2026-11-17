@@ -1,0 +1,281 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Despesas{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+        <link href="{% static 'app/css/create-form.css' %}" rel="stylesheet">
+        <link href="{% static 'expenses/css/expenses.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div id="content" class="container expenses"
+            data-csrf-token="{{ csrf_token }}"
+            data-list-url="{% url 'expenses:expenses-api' %}"
+            data-expense-url="{% url 'expenses:expense-api' 0 %}"
+            data-action-url="{% url 'expenses:expense-action-api' 0 %}"
+            data-photos-url="{% url 'expenses:expense-photos-api' 0 %}"
+            data-history-url="{% url 'expenses:expense-history-api' 0 %}"
+            data-state-url="{% url 'expenses:expense-state-api' 0 %}"
+            data-compare-url="{% url 'expenses:expense-compare-api' 0 %}"
+        >
+            <div class="header">
+                <a href="{% url 'app:home' %}">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
+                </a>
+                <div class="header-text">
+                    <h1>Despesas</h1>
+                </div>
+                {% if access.employee %}
+                <a href="#enviar" class="button primary big" id="new-expense">
+                    <i class="fas fa-camera" aria-hidden="true"></i> Enviar nota
+                </a>
+                {% endif %}
+            </div>
+
+            <div id="alert-error" class="alert" role="alert" hidden>
+                <strong><i class="fas fa-circle-xmark" aria-hidden="true"></i> <span id="alert-error-text"></span></strong>
+            </div>
+
+            <div id="success-message" class="form-message" role="status" hidden></div>
+
+            <!-- A lista de notas -->
+            <section id="list-view" class="card" hidden>
+                <div class="card-header">
+                    {% if access.control or access.finance %}
+                    <nav class="tabs" aria-label="Notas">
+                        <button type="button" class="tab" data-scope="queue">
+                            <i class="fas fa-inbox" aria-hidden="true"></i> Fila <span class="tab-count" id="queue-count"></span>
+                        </button>
+                        <button type="button" class="tab" data-scope="all">
+                            <i class="fas fa-list" aria-hidden="true"></i> Todas as notas
+                        </button>
+                    </nav>
+                    {% else %}
+                    <h2>Minhas notas</h2>
+                    {% endif %}
+                    <div class="toolbar">
+                        <select id="status-filter" aria-label="Filtrar pela situação">
+                            <option value="">Todas as situações</option>
+                        </select>
+                        {% if access.control or access.finance %}
+                        <input type="search" id="search-input" placeholder="Nº, CNPJ ou funcionário" aria-label="Pesquisar notas">
+                        {% endif %}
+                    </div>
+                </div>
+                <div id="expense-list" class="expense-list"></div>
+                <p id="list-empty" class="empty" hidden>Nenhuma nota por aqui.</p>
+                <button type="button" class="button" id="list-more" hidden>Ver mais</button>
+            </section>
+
+            {% if access.employee %}
+            <!-- O envio: só as fotos e a observação -->
+            <section id="submit-view" class="card" hidden>
+                <h2>Enviar nota</h2>
+                <p class="muted">Fotografe a nota inteira, com boa luz. Se ela for comprida, tire até {{ limits.max_photos }} fotos.</p>
+                <div id="submit-previews" class="photo-grid"></div>
+                <div class="photo-actions">
+                    <!-- O capture abre a câmera direto no celular; a galeria fica para a foto que já foi tirada -->
+                    <label class="button primary big">
+                        <i class="fas fa-camera" aria-hidden="true"></i> Tirar foto
+                        <input type="file" id="submit-camera" class="visually-hidden" accept="{{ limits.accepted }}" capture="environment">
+                    </label>
+                    <label class="button big">
+                        <i class="fas fa-image" aria-hidden="true"></i> Escolher da galeria
+                        <input type="file" id="submit-gallery" class="visually-hidden" accept="{{ limits.accepted }}" multiple>
+                    </label>
+                </div>
+                <div class="field">
+                    <label for="submit-note">Observação (opcional)</label>
+                    <textarea id="submit-note" maxlength="2000" rows="3"></textarea>
+                </div>
+                <p id="submit-state" class="reading-state" role="status" hidden>
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Enviando e analisando a nota... Isso pode levar até um minuto.
+                </p>
+                <div class="editor-actions">
+                    <a href="#" class="button" id="submit-cancel">Cancelar</a>
+                    <button type="button" class="button primary" id="submit-send" disabled>Enviar</button>
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- A nota: as fotos ao lado do formulário -->
+            <section id="detail-view" hidden>
+                <div class="detail-header">
+                    <a href="#" class="button small" id="detail-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar</a>
+                    <h2 id="detail-title"></h2>
+                    <span id="detail-status" class="status-badge"></span>
+                </div>
+
+                <div id="detail-notice" class="notice" role="status" hidden></div>
+
+                <div class="detail-layout">
+                    <div class="card detail-photos">
+                        <h3>Fotos da nota</h3>
+                        <div id="detail-photos" class="photo-stack"></div>
+                    </div>
+
+                    <div class="detail-side">
+                        <div id="detail-alerts" class="ai-alerts" role="alert" hidden>
+                            <h3><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Alertas da IA</h3>
+                            <ul id="detail-alerts-list"></ul>
+                        </div>
+
+                        <div class="card">
+                            <dl class="detail-meta" id="detail-meta"></dl>
+                            <div class="employee-note">
+                                <span class="muted">Observação do funcionário</span>
+                                <p id="detail-employee-note"></p>
+                            </div>
+                        </div>
+
+                        <form id="expense-form" class="card" autocomplete="off" novalidate>
+                            <h3>Dados da nota</h3>
+                            <div class="form-grid expense-fields">
+                                <div class="field">
+                                    <label for="field-number">Número da nota</label>
+                                    <input id="field-number" name="number" type="text" maxlength="20" inputmode="numeric">
+                                </div>
+                                <div class="field">
+                                    <label for="field-issue-date">Data</label>
+                                    <input id="field-issue-date" name="issue_date" type="date">
+                                </div>
+                                <div class="field">
+                                    <label for="field-cnpj">CNPJ do emitente</label>
+                                    <input id="field-cnpj" name="cnpj" type="text" maxlength="18">
+                                </div>
+                                <div class="field">
+                                    <label for="field-total">Valor total</label>
+                                    <input id="field-total" name="total" type="text" inputmode="decimal" placeholder="0,00">
+                                </div>
+                                <div class="field">
+                                    <label for="field-type">Tipo</label>
+                                    <select id="field-type" name="expense_type">
+                                        <option value="">Selecione</option>
+                                    </select>
+                                </div>
+                                <div class="field field-wide">
+                                    <label for="field-access-key">Chave de acesso</label>
+                                    <input id="field-access-key" name="access_key" type="text" maxlength="54" inputmode="numeric">
+                                </div>
+                            </div>
+
+                            <h3>Itens</h3>
+                            <div class="items-wrapper">
+                                <table class="items-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Descrição</th>
+                                            <th>Qtd.</th>
+                                            <th>Valor</th>
+                                            <th title="Fora do valor reembolsado">Não reemb.</th>
+                                            <th class="item-remove-column"><span class="visually-hidden">Remover</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="items-body"></tbody>
+                                </table>
+                            </div>
+                            <p id="items-empty" class="muted" hidden>Nenhum item.</p>
+                            <button type="button" class="button small" id="add-item" hidden>
+                                <i class="fas fa-plus" aria-hidden="true"></i> Adicionar item
+                            </button>
+                            <p class="totals">
+                                <span>Total dos itens: <strong id="items-total"></strong></span>
+                                <span class="reimbursed">Valor reembolsado: <strong id="reimbursed-total"></strong></span>
+                            </p>
+                        </form>
+
+                        <section id="resubmit-box" class="card" hidden>
+                            <h3>Enviar novas fotos</h3>
+                            <p class="muted">As novas fotos substituem as atuais. Os dados da nota continuam como estão.</p>
+                            <div id="resubmit-previews" class="photo-grid"></div>
+                            <div class="photo-actions">
+                                <label class="button primary">
+                                    <i class="fas fa-camera" aria-hidden="true"></i> Tirar foto
+                                    <input type="file" id="resubmit-camera" class="visually-hidden" accept="{{ limits.accepted }}" capture="environment">
+                                </label>
+                                <label class="button">
+                                    <i class="fas fa-image" aria-hidden="true"></i> Escolher da galeria
+                                    <input type="file" id="resubmit-gallery" class="visually-hidden" accept="{{ limits.accepted }}" multiple>
+                                </label>
+                            </div>
+                            <div class="field">
+                                <label for="resubmit-note">Observação (opcional)</label>
+                                <textarea id="resubmit-note" maxlength="2000" rows="3"></textarea>
+                            </div>
+                            <div class="editor-actions">
+                                <button type="button" class="button primary" id="resubmit-send" disabled>Reenviar fotos</button>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- Fica presa ao pé da tela: o formulário rola por trás e as ações ficam à vista -->
+                <div id="detail-actions" class="detail-actions" hidden>
+                    <p id="approve-hint" class="muted" hidden></p>
+                    <div class="editor-actions">
+                        <button type="button" class="button danger" data-action="reject">Rejeitar</button>
+                        <button type="button" class="button" data-action="request_correction" id="correction-button">Pedir correção</button>
+                        <button type="button" class="button primary" data-action="approve" id="approve-button">Aprovar</button>
+                    </div>
+                </div>
+
+                <section class="card">
+                    <h3>Histórico</h3>
+                    <ol id="timeline" class="timeline"></ol>
+                </section>
+
+                {% if access.control or access.finance %}
+                <section class="card audit" id="audit">
+                    <h3>Auditoria</h3>
+                    <div class="audit-controls">
+                        <div class="field">
+                            <label for="audit-at">Estado da nota em</label>
+                            <div class="inline-form">
+                                <input type="datetime-local" id="audit-at">
+                                <button type="button" class="button" id="audit-at-button">Ver</button>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="audit-from">Comparar etapas</label>
+                            <div class="inline-form">
+                                <select id="audit-from" aria-label="Etapa inicial"></select>
+                                <span class="muted">com</span>
+                                <select id="audit-to" aria-label="Etapa final"></select>
+                                <button type="button" class="button" id="audit-compare-button">Comparar</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="audit-result" class="audit-result" hidden></div>
+                </section>
+                {% endif %}
+            </section>
+
+            <dialog id="note-dialog" class="form-modal note-modal" aria-labelledby="note-title">
+                <form method="dialog" id="note-form">
+                    <div class="modal-header">
+                        <h2 id="note-title"></h2>
+                    </div>
+                    <p id="note-text" class="muted"></p>
+                    <div class="field">
+                        <label for="note-input" id="note-label">Observação</label>
+                        <textarea id="note-input" maxlength="2000" rows="4"></textarea>
+                    </div>
+                    <p id="note-error" class="form-error" hidden></p>
+                    <div class="modal-actions">
+                        <button type="button" class="button" id="note-cancel">Cancelar</button>
+                        <button type="submit" class="button primary" id="note-confirm"></button>
+                    </div>
+                </form>
+            </dialog>
+        </div>
+
+        {{ access|json_script:"expenses-access" }}
+        {{ types|json_script:"expenses-types" }}
+        {{ limits|json_script:"expenses-limits" }}
+        {{ statuses|json_script:"expenses-statuses" }}
+        {{ open_expense|json_script:"expenses-open" }}
+
+        <script src="{% static 'expenses/js/expenses.js' %}"></script>
+{% endblock body %}

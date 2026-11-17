@@ -1,0 +1,49 @@
+{% if preview.conflict %}
+<p class="preview-empty"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> O seu cadastro tem uma combinação de permissões das despesas que não é permitida. Procure o administrador do portal.</p>
+{% elif preview.employee %}
+<div class="preview-stats">
+    <div class="preview-summary{% if preview.correction_count %} attention{% endif %}">
+        <span class="summary-value">{{ preview.correction_count }}</span>
+        <span class="summary-label">aguardando correção</span>
+    </div>
+    <div class="preview-summary">
+        <span class="summary-value">{{ preview.open_count }}</span>
+        <span class="summary-label">em andamento</span>
+    </div>
+</div>
+<ul class="preview-list" data-fit data-more>
+    {% for expense in preview.recent %}
+    <li>
+        <a href="{{ service.url }}?nota={{ expense.id }}" title="Abrir a nota #{{ expense.id }}">
+            <i class="fas fa-receipt item-icon" aria-hidden="true"></i>
+            <span class="item-text">
+                <strong>Nota #{{ expense.id }}</strong>
+                <small>Enviada em {{ expense.created_at|date:"d/m/Y" }}</small>
+            </span>
+            <span class="item-aside{% if expense.status == 'S' %} stock-badge{% endif %}">{{ expense.status_display }}</span>
+        </a>
+    </li>
+    {% empty %}
+    <li class="preview-empty">Você ainda não enviou notas.</li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="preview-stats">
+    {% if 'to_review' in preview %}
+    <div class="preview-summary{% if preview.to_review %} attention{% endif %}">
+        <span class="summary-value">{{ preview.to_review }}</span>
+        <span class="summary-label">aguardando conferência</span>
+    </div>
+    <div class="preview-summary{% if preview.to_explain %} attention{% endif %}">
+        <span class="summary-value">{{ preview.to_explain }}</span>
+        <span class="summary-label">aguardando explicação</span>
+    </div>
+    {% endif %}
+    {% if 'to_validate' in preview %}
+    <div class="preview-summary{% if preview.to_validate %} attention{% endif %}">
+        <span class="summary-value">{{ preview.to_validate }}</span>
+        <span class="summary-label">aguardando validação</span>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

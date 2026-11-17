@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_totp',
     'app',
     'journey_audit',
+    'expenses',
 ]
 
 MIDDLEWARE = [
@@ -230,7 +231,28 @@ TONER_REQUEST_WEBHOOK_URL = os.getenv('TONER_REQUEST_WEBHOOK_URL')
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+# O modelo tem de aceitar imagens: é ele que analisa as fotos das notas de despesa
 OPENAI_MODEL = os.getenv('OPENAI_MODEL')
+
+# O e-mail ao funcionário a cada mudança de situação da nota de despesa
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
+
+EMAIL_PORT = int(os.getenv('EMAIL_PORT') or 587)
+
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', '1') == '1'
+
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', '0') == '1'
+
+# Sem resposta do servidor de e-mail a tempo, a ação segue e o aviso fica no log
+EMAIL_TIMEOUT = 10
+
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'webmaster@localhost')
 
 # Os dashboards são embutidos em iframe; nada além deles vem de fora. Do próprio
 # portal só a prévia da biblioteca aceita ser embutida.

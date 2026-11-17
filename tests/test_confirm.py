@@ -21,7 +21,7 @@ def test_apps_do_not_use_the_browser_dialogs():
     dialog = re.compile(r'(?<![\w.])(?:window\.)?(?:confirm|alert|prompt)\(')
     base = Path(settings.BASE_DIR)
     scripts = [
-        path for folder in ('app', 'journey_audit', 'static')
+        path for folder in ('app', 'journey_audit', 'expenses', 'static')
         for path in (base / folder).rglob('*.js') if '.min.' not in path.name
     ]
     assert scripts

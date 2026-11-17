@@ -26,6 +26,8 @@ LOW_TONERS = 12
 
 RECENT_DOCUMENTS = 12
 
+RECENT_EXPENSES = 12
+
 
 
 def contacts_preview(user):
@@ -135,6 +137,33 @@ def journey_audit_preview(user):
         },
     }
 
+def expenses_preview(user):
+    # Importado aqui: as despesas já dependem do app, e não o contrário
+    from expenses.models import Expense
+    from expenses.roles import access
+
+    current = access(user)
+    preview = {'conflict': current.conflict, 'employee': current.employee, 'reviewer': current.reviewer}
+    if current.employee:
+        mine = Expense.objects.filter(employee=user)
+        preview['correction_count'] = mine.filter(status=Expense.AWAITING_CORRECTION).count()
+        preview['open_count'] = mine.exclude(status__in=Expense.CLOSED).count()
+        preview['recent'] = [
+            {
+                'id': expense.pk,
+                'status': expense.status,
+                'status_display': expense.get_status_display(),
+                'created_at': expense.created_at,
+            }
+            for expense in mine.order_by('-created_at', '-id')[:RECENT_EXPENSES]
+        ]
+    # As filas só são contadas para quem confere ou valida
+    if current.control:
+        preview['to_review'] = Expense.objects.filter(status=Expense.AWAITING_REVIEW).count()
+        preview['to_explain'] = Expense.objects.filter(status=Expense.AWAITING_EXPLANATION).count()
+    if current.finance:
+        preview['to_validate'] = Expense.objects.filter(status=Expense.AWAITING_VALIDATION).count()
+    return preview
 
 
 PREVIEWS = {
@@ -144,6 +173,7 @@ PREVIEWS = {
     ServiceAccess.DASHBOARDS: dashboards_preview,
     ServiceAccess.TONERS: toners_preview,
     ServiceAccess.JOURNEY_AUDIT: journey_audit_preview,
+    ServiceAccess.EXPENSES: expenses_preview,
 }
 
 

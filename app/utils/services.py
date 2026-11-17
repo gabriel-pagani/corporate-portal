@@ -51,6 +51,13 @@ def has_perm(perm):
     return lambda user: user.has_perm(perm)
 
 
+def has_expenses(user):
+    # Importado aqui: as despesas dependem do app, e não o contrário
+    from expenses.roles import has_any_expense_permission
+
+    return has_any_expense_permission(user)
+
+
 SERVICES = [
     Service(
         ServiceAccess.CONTACTS, 'Lista de Contatos', 'fa-phone', 'app:contacts',
@@ -84,13 +91,17 @@ SERVICES = [
         ServiceAccess.JOURNEY_AUDIT, 'Auditoria de Jornada', 'fa-user-clock', 'journey_audit:audit',
         'Conferência das ocorrências de ponto da competência.', has_perm('journey_audit.view_competency'),
     ),
+    Service(
+        ServiceAccess.EXPENSES, 'Despesas', 'fa-receipt', 'expenses:expenses',
+        'Envio, conferência e validação das notas de despesa.', has_expenses,
+    ),
 ]
 
 
 # Os serviços que são sistemas completos: na home ficam no menu "Sistemas" da
 # barra lateral, separados das funcionalidades simples
 SYSTEM_SERVICES = {
-    ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT,
+    ServiceAccess.TONERS, ServiceAccess.CUSTOMERS_VENDORS, ServiceAccess.JOURNEY_AUDIT, ServiceAccess.EXPENSES,
 }
 
 

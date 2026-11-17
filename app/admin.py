@@ -6,7 +6,9 @@ from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from reversion.admin import VersionAdmin
 import reversion
+from django import forms
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
+from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import Group as BaseGroup, Permission
 from django.db.models import Q
 from django.http import HttpResponse
@@ -36,9 +38,49 @@ class UnaccentSearchAdmin(admin.ModelAdmin):
         return super().get_search_results(request, queryset, without_accents(search_term))
 
 
+def expense_permission_conflict(permissions, groups, is_superuser=False):
+    # Importado aqui: as despesas dependem do app, e não o contrário
+    from expenses.roles import conflict_message, expense_codenames
+
+    return conflict_message(expense_codenames(permissions, groups), is_superuser)
+
+
+class PortalUserChangeForm(UserChangeForm):
+    """Recusa o usuário que ficaria com dois papéis nas despesas, pelas permissões diretas ou pelos grupos."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        message = expense_permission_conflict(
+            cleaned_data.get('user_permissions') or [],
+            cleaned_data.get('groups') or [],
+            cleaned_data.get('is_superuser', False),
+        )
+        if message:
+            raise forms.ValidationError(message)
+        return cleaned_data
+
+
+class PortalGroupForm(forms.ModelForm):
+    """Recusa as permissões que deixariam algum membro do grupo com dois papéis nas despesas."""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self.instance.pk:
+            return cleaned_data
+        permissions = list(cleaned_data.get('permissions') or [])
+        members = User.objects.filter(groups=self.instance, is_superuser=False).prefetch_related('user_permissions', 'groups')
+        for member in members:
+            other_groups = [group for group in member.groups.all() if group.pk != self.instance.pk]
+            message = expense_permission_conflict(list(member.user_permissions.all()) + permissions, other_groups)
+            if message:
+                raise forms.ValidationError(f'{message} Com estas permissões, o usuário {member.username} ficaria assim.')
+        return cleaned_data
+
+
 # Users Admin
 @admin.register(User)
 class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
+    form = PortalUserChangeForm
     list_display = ('username', 'first_name', 'last_name', 'email', 'last_login', 'is_staff', 'is_superuser', 'is_active',)
     search_fields = ('username', 'email', 'first_name__unaccent', 'last_name__unaccent', 'observations__unaccent',)
     list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups', 'sector', 'cost_center',)
@@ -108,6 +150,7 @@ class GroupDashboardsInline(admin.StackedInline):
 
 @admin.register(Group)
 class GroupAdmin(VersionAdmin, UnaccentSearchAdmin, BaseGroupAdmin):
+    form = PortalGroupForm
     search_fields = ('name__unaccent',)
     inlines = (GroupDashboardsInline,)
 

@@ -89,6 +89,7 @@ def home_view(request):
     return render(request, 'app/home.html', {
         'has_dashboards': any(card['service'].key == ServiceAccess.DASHBOARDS for card in cards),
         'has_systems': any(card['service'].key in SYSTEM_SERVICES for card in cards),
+        'has_expenses': any(card['service'].key == ServiceAccess.EXPENSES for card in cards),
         'cards': cards,
         'visible_cards': [card for card in cards if not card['hidden']],
         'card_default_height': CARD_DEFAULT_HEIGHT,

@@ -1,0 +1,17 @@
+{% autoescape off %}Olá, {{ name }}.
+
+{{ message }}
+
+Nota #{{ expense.pk }}{% if expense.number %} (número {{ expense.number }}){% endif %}
+Enviada em: {{ created_at }}
+Situação: {{ expense.get_status_display }}{% if total %}
+Valor total: {{ total }}{% endif %}{% if reimbursed %}
+Valor reembolsado: {{ reimbursed }}{% endif %}{% if note %}
+
+{{ note_label }}:
+{{ note }}{% endif %}{% if link %}
+
+Acompanhe a nota no portal: {{ link }}?nota={{ expense.pk }}{% endif %}
+
+Este é um aviso automático do portal. Não responda este e-mail.
+{% endautoescape %}

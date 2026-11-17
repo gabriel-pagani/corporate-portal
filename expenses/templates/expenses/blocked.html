@@ -1,0 +1,24 @@
+{% extends 'global/global.html' %}
+{% load static %}
+
+{% block title %}Despesas{% endblock title %}
+
+{% block head %}
+        <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+{% endblock head %}
+
+{% block body %}
+        <div id="content" class="container">
+            <div class="header">
+                <a href="{% url 'app:home' %}">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
+                </a>
+                <div class="header-text">
+                    <h1>Despesas</h1>
+                </div>
+            </div>
+            <div class="alert" role="alert">
+                <strong><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {{ message }}</strong>
+            </div>
+        </div>
+{% endblock body %}
