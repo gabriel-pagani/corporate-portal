@@ -939,3 +939,56 @@ def test_notes_with_history_cannot_be_deleted(openai):
 
     with pytest.raises(ProtectedError):
         expense.delete()
+
+
+# ---------- Celular ----------
+
+@pytest.mark.django_db
+def test_employee_filters_by_several_statuses_and_gets_the_counts(client, openai):
+    user = employee()
+    waiting = submitted(openai, user, access_key=access_key(1))
+    correction = submitted(openai, user, access_key=access_key(2))
+    validation = submitted(openai, user, access_key=access_key(3))
+    reviewer = control()
+    act(reviewer, correction.pk, 'request_correction', 'Refaça a foto.', 1)
+    act(reviewer, validation.pk, 'approve', '', 1)
+    submitted(openai, employee(username='bruno', email='b@empresa.com'), access_key=access_key(4))
+    client.force_login(user)
+    url = reverse('expenses:expenses-api')
+
+    # "Em andamento" junta o que está com o Controle e com o Financeiro
+    in_progress = client.get(url, {'status': 'C,E,V'}).json()
+    assert {item['id'] for item in in_progress['expenses']} == {waiting.pk, validation.pk}
+    assert [item['id'] for item in client.get(url, {'status': 'S'}).json()['expenses']] == [correction.pk]
+    # Situação desconhecida é ignorada
+    assert len(client.get(url, {'status': 'X,'}).json()['expenses']) == 3
+    # Os números dos filtros contam só as notas dele
+    assert in_progress['counts'] == {'C': 1, 'S': 1, 'V': 1}
+
+
+@pytest.mark.django_db
+def test_reviewers_get_no_employee_counts(client, openai):
+    submitted(openai, employee())
+    client.force_login(control())
+
+    assert 'counts' not in client.get(reverse('expenses:expenses-api')).json()
+
+
+@pytest.mark.django_db
+def test_employee_page_is_built_for_the_phone(client):
+    client.force_login(employee())
+
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    # Os filtros em botões, o Enviar nota no rodapé e o progresso do envio
+    for element_id in ('status-chips', 'mobile-bar', 'submit-progress', 'resubmit-progress', 'status-banner', 'employee-summary'):
+        assert f'id="{element_id}"' in content
+    assert 'id="status-filter"' not in content and 'id="search-input"' not in content
+
+
+@pytest.mark.django_db
+def test_reviewer_page_keeps_the_search_and_has_no_phone_bar(client):
+    client.force_login(control())
+
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    assert 'id="status-filter"' in content and 'id="search-input"' in content
+    assert 'id="status-chips"' not in content and 'id="mobile-bar"' not in content

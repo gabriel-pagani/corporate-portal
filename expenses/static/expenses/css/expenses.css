@@ -678,3 +678,481 @@ label.button.primary {
     width: 100%;
   }
 }
+
+/* ---------- Funcionário: a maior parte do uso é pelo celular ---------- */
+
+/* Filtros da lista em botões */
+.chips {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  background: #fff;
+  color: #333;
+  font-size: 15px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip.active {
+  border-color: #333;
+  background: #333;
+  color: #fff;
+}
+
+.chip-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .08);
+  font-size: 13px;
+  text-align: center;
+}
+
+.chip.active .chip-count {
+  background: rgba(255, 255, 255, .25);
+}
+
+.chip.attention:not(.active) {
+  border-color: #e08a00;
+  color: #8a5a00;
+}
+
+.chip.attention .chip-count {
+  background: #e08a00;
+  color: #fff;
+}
+
+.expense-row.needs-action {
+  border: 2px solid #e08a00;
+  background: #fffaf0;
+}
+
+.expense-row .row-action {
+  grid-column: 1 / -1;
+  color: #8a5a00;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Envio */
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.view-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.tips {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  color: #555;
+}
+
+.tips li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.tips i {
+  width: 16px;
+  color: #888;
+  text-align: center;
+}
+
+.photo-count {
+  margin: -4px 0 12px;
+}
+
+.photo-grid figure .photo-number {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, .65);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+}
+
+.photo-grid figure.preparing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #666;
+  font-size: 13px;
+}
+
+.upload-progress {
+  margin: 12px 0;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #eee;
+}
+
+.progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #333;
+  transition: width .2s;
+}
+
+/* Depois do upload vem a análise: a barra cheia pulsa enquanto espera */
+.upload-progress.reading .progress-bar {
+  animation: progress-wait 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes progress-wait {
+  from { opacity: 1; }
+  to { opacity: .35; }
+}
+
+.upload-progress p {
+  margin: 6px 0 0;
+  color: #333;
+}
+
+/* A nota, para o funcionário */
+.status-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #b7cde6;
+  border-radius: 8px;
+  background: #eef4fb;
+  color: #1f4a73;
+}
+
+.status-banner > i {
+  margin-top: 2px;
+  font-size: 22px;
+}
+
+.status-banner strong {
+  display: block;
+  font-size: 17px;
+}
+
+.status-banner p {
+  margin: 4px 0 0;
+  white-space: pre-line;
+}
+
+.status-banner.attention {
+  border: 2px solid #e08a00;
+  background: #fff4e0;
+  color: #6b4600;
+}
+
+.status-banner.success {
+  border-color: #b5d69b;
+  background: #eaf3de;
+  color: #2f5a0d;
+}
+
+.status-banner.danger {
+  border-color: #f09595;
+  background: #fcebeb;
+  color: #a32d2d;
+}
+
+.resubmit-box {
+  border: 2px solid #e08a00;
+}
+
+.employee-summary h4 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  color: #333;
+}
+
+.summary-list {
+  margin: 0;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.summary-row dt {
+  color: #666;
+}
+
+.summary-row dd {
+  margin: 0;
+  color: #333;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.summary-row.highlight dd {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.summary-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.summary-items .item-name,
+.summary-items .item-value {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-items .item-value {
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.summary-items small {
+  color: #666;
+  font-size: 13px;
+}
+
+.summary-items .item-tag {
+  color: #a32d2d;
+}
+
+.summary-items li.non-reimbursable .item-value {
+  color: #a32d2d;
+  text-decoration: line-through;
+}
+
+/* As fotos da nota do funcionário em miniaturas: ele só confere o que mandou */
+.detail-photos.compact .photo-stack {
+  flex-direction: row;
+  flex-wrap: wrap;
+  max-height: none;
+}
+
+.detail-photos.compact .photo-stack a {
+  flex: 0 0 auto;
+  width: 120px;
+}
+
+.detail-photos.compact .photo-stack img {
+  height: 160px;
+  object-fit: cover;
+}
+
+.detail-photos.compact .photo-caption {
+  display: none;
+}
+
+/* O Enviar nota do rodapé: só no celular, e só na lista */
+.mobile-bar {
+  display: none;
+}
+
+/* Auditoria: os campos ficam na linha, sem ocupar a largura toda */
+.audit-controls .field input,
+.audit-controls .field select {
+  width: auto;
+  max-width: 100%;
+}
+
+.audit-controls .inline-form {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  /* Abaixo de 16px o iPhone dá zoom na tela ao tocar no campo */
+  .expenses input,
+  .expenses select,
+  .expenses textarea,
+  .note-modal textarea {
+    font-size: 16px;
+  }
+
+  .expenses .button,
+  .chip {
+    min-height: 44px;
+  }
+
+  /* No celular a tela é toda branca: sem a foto da estrada de fundo */
+  body {
+    background: #fff;
+  }
+
+  .expenses {
+    min-height: 100vh;
+    min-height: 100dvh;
+    box-shadow: none;
+  }
+
+  /* Logo e título numa linha só: o toners.css os empilha, e a altura faz falta no celular */
+  .header {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .logo {
+    width: 84px;
+  }
+
+  .detail-layout {
+    gap: 0;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  /* No celular o Enviar nota fica no rodapé */
+  #new-expense {
+    display: none;
+  }
+
+  .expenses[data-view="list-view"] {
+    padding-bottom: 96px;
+  }
+
+  .expenses[data-view="list-view"] .mobile-bar {
+    display: block;
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 10;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, .12);
+  }
+
+  .mobile-bar .button {
+    width: 100%;
+    justify-content: center;
+    min-height: 50px;
+    font-size: 17px;
+  }
+
+  #list-view .card-header {
+    margin-bottom: 10px;
+  }
+
+  .expense-row {
+    padding: 14px;
+  }
+
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .photo-grid figure {
+    width: auto;
+    height: auto;
+    aspect-ratio: 3 / 4;
+  }
+
+  .photo-grid .photo-remove {
+    width: 36px;
+    height: 36px;
+  }
+
+  .photo-actions {
+    flex-direction: column;
+  }
+
+  .photo-actions .button {
+    width: 100%;
+    min-height: 52px;
+    justify-content: center;
+    font-size: 17px;
+  }
+
+  .submit-view .sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 12px -14px -14px;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid #e2e2e2;
+    background: rgba(255, 255, 255, .97);
+  }
+
+  .submit-view .sticky-actions .button {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .resubmit-box .editor-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .detail-header h2 {
+    font-size: 20px;
+  }
+
+  .detail-photos.compact .photo-stack {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .detail-photos.compact .photo-stack a {
+    width: 104px;
+  }
+
+  .detail-photos.compact .photo-stack img {
+    height: 140px;
+  }
+
+  .timeline li {
+    padding-bottom: 12px;
+  }
+}

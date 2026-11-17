@@ -5,10 +5,11 @@
 
 {% block head %}
         <link href="{% static 'app/css/toners.css' %}" rel="stylesheet">
+        <link href="{% static 'expenses/css/expenses.css' %}" rel="stylesheet">
 {% endblock head %}
 
 {% block body %}
-        <div id="content" class="container">
+        <div id="content" class="container expenses">
             <div class="header">
                 <a href="{% url 'app:home' %}">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>

@@ -52,18 +52,20 @@
                             <i class="fas fa-list" aria-hidden="true"></i> Todas as notas
                         </button>
                     </nav>
-                    {% else %}
-                    <h2>Minhas notas</h2>
-                    {% endif %}
                     <div class="toolbar">
                         <select id="status-filter" aria-label="Filtrar pela situação">
                             <option value="">Todas as situações</option>
                         </select>
-                        {% if access.control or access.finance %}
                         <input type="search" id="search-input" placeholder="Nº, CNPJ ou funcionário" aria-label="Pesquisar notas">
-                        {% endif %}
                     </div>
+                    {% else %}
+                    <h2>Minhas notas</h2>
+                    {% endif %}
                 </div>
+                {% if not access.control and not access.finance %}
+                <!-- Os filtros são botões, que no celular rolam de lado -->
+                <div class="chips" id="status-chips" role="group" aria-label="Filtrar as notas"></div>
+                {% endif %}
                 <div id="expense-list" class="expense-list"></div>
                 <p id="list-empty" class="empty" hidden>Nenhuma nota por aqui.</p>
                 <button type="button" class="button" id="list-more" hidden>Ver mais</button>
@@ -71,11 +73,18 @@
 
             {% if access.employee %}
             <!-- O envio: só as fotos e a observação -->
-            <section id="submit-view" class="card" hidden>
-                <h2>Enviar nota</h2>
-                <p class="muted">Fotografe a nota inteira, com boa luz. Se ela for comprida, tire até {{ limits.max_photos }} fotos.</p>
+            <section id="submit-view" class="card submit-view" hidden>
+                <div class="view-header">
+                    <a href="#" class="button small" id="submit-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar</a>
+                    <h2>Enviar nota</h2>
+                </div>
+                <ul class="tips">
+                    <li><i class="fas fa-receipt" aria-hidden="true"></i> Fotografe a nota inteira, sobre uma superfície plana e com boa luz.</li>
+                    <li><i class="fas fa-images" aria-hidden="true"></i> Nota comprida? Tire até {{ limits.max_photos }} fotos, uma parte em cada.</li>
+                </ul>
                 <div id="submit-previews" class="photo-grid"></div>
-                <div class="photo-actions">
+                <p id="submit-count" class="photo-count muted" hidden></p>
+                <div class="photo-actions" id="submit-actions">
                     <!-- O capture abre a câmera direto no celular; a galeria fica para a foto que já foi tirada -->
                     <label class="button primary big">
                         <i class="fas fa-camera" aria-hidden="true"></i> Tirar foto
@@ -90,12 +99,14 @@
                     <label for="submit-note">Observação (opcional)</label>
                     <textarea id="submit-note" maxlength="2000" rows="3"></textarea>
                 </div>
-                <p id="submit-state" class="reading-state" role="status" hidden>
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Enviando e analisando a nota... Isso pode levar até um minuto.
-                </p>
-                <div class="editor-actions">
+                <div id="submit-progress" class="upload-progress" role="status" hidden>
+                    <div class="progress-track"><span class="progress-bar" id="submit-progress-bar"></span></div>
+                    <p id="submit-progress-text"></p>
+                </div>
+                <!-- No celular fica presa ao pé da tela -->
+                <div class="editor-actions sticky-actions">
                     <a href="#" class="button" id="submit-cancel">Cancelar</a>
-                    <button type="button" class="button primary" id="submit-send" disabled>Enviar</button>
+                    <button type="button" class="button primary" id="submit-send" disabled>Enviar nota</button>
                 </div>
             </section>
             {% endif %}
@@ -110,6 +121,43 @@
 
                 <div id="detail-notice" class="notice" role="status" hidden></div>
 
+                <!-- O que está acontecendo com a nota e o que o funcionário precisa fazer -->
+                <div id="status-banner" class="status-banner" role="status" hidden>
+                    <i id="status-banner-icon" class="fas" aria-hidden="true"></i>
+                    <div>
+                        <strong id="status-banner-title"></strong>
+                        <p id="status-banner-text"></p>
+                    </div>
+                </div>
+
+                <section id="resubmit-box" class="card resubmit-box" hidden>
+                    <h3>Enviar novas fotos</h3>
+                    <p class="muted">As novas fotos substituem as atuais. Os dados da nota continuam como estão.</p>
+                    <div id="resubmit-previews" class="photo-grid"></div>
+                    <p id="resubmit-count" class="photo-count muted" hidden></p>
+                    <div class="photo-actions" id="resubmit-actions">
+                        <label class="button primary big">
+                            <i class="fas fa-camera" aria-hidden="true"></i> Tirar foto
+                            <input type="file" id="resubmit-camera" class="visually-hidden" accept="{{ limits.accepted }}" capture="environment">
+                        </label>
+                        <label class="button big">
+                            <i class="fas fa-image" aria-hidden="true"></i> Escolher da galeria
+                            <input type="file" id="resubmit-gallery" class="visually-hidden" accept="{{ limits.accepted }}" multiple>
+                        </label>
+                    </div>
+                    <div class="field">
+                        <label for="resubmit-note">Observação (opcional)</label>
+                        <textarea id="resubmit-note" maxlength="2000" rows="3"></textarea>
+                    </div>
+                    <div id="resubmit-progress" class="upload-progress" role="status" hidden>
+                        <div class="progress-track"><span class="progress-bar" id="resubmit-progress-bar"></span></div>
+                        <p id="resubmit-progress-text"></p>
+                    </div>
+                    <div class="editor-actions">
+                        <button type="button" class="button primary big" id="resubmit-send" disabled>Reenviar fotos</button>
+                    </div>
+                </section>
+
                 <div class="detail-layout">
                     <div class="card detail-photos">
                         <h3>Fotos da nota</h3>
@@ -122,7 +170,15 @@
                             <ul id="detail-alerts-list"></ul>
                         </div>
 
-                        <div class="card">
+                        <!-- Os dados da nota em texto, para o funcionário: ele não edita nada -->
+                        <section id="employee-summary" class="card employee-summary" hidden>
+                            <h3>Dados da nota</h3>
+                            <dl class="summary-list" id="summary-list"></dl>
+                            <h4>Itens</h4>
+                            <ul class="summary-items" id="summary-items"></ul>
+                        </section>
+
+                        <div class="card" id="detail-meta-card">
                             <dl class="detail-meta" id="detail-meta"></dl>
                             <div class="employee-note">
                                 <span class="muted">Observação do funcionário</span>
@@ -186,28 +242,6 @@
                             </p>
                         </form>
 
-                        <section id="resubmit-box" class="card" hidden>
-                            <h3>Enviar novas fotos</h3>
-                            <p class="muted">As novas fotos substituem as atuais. Os dados da nota continuam como estão.</p>
-                            <div id="resubmit-previews" class="photo-grid"></div>
-                            <div class="photo-actions">
-                                <label class="button primary">
-                                    <i class="fas fa-camera" aria-hidden="true"></i> Tirar foto
-                                    <input type="file" id="resubmit-camera" class="visually-hidden" accept="{{ limits.accepted }}" capture="environment">
-                                </label>
-                                <label class="button">
-                                    <i class="fas fa-image" aria-hidden="true"></i> Escolher da galeria
-                                    <input type="file" id="resubmit-gallery" class="visually-hidden" accept="{{ limits.accepted }}" multiple>
-                                </label>
-                            </div>
-                            <div class="field">
-                                <label for="resubmit-note">Observação (opcional)</label>
-                                <textarea id="resubmit-note" maxlength="2000" rows="3"></textarea>
-                            </div>
-                            <div class="editor-actions">
-                                <button type="button" class="button primary" id="resubmit-send" disabled>Reenviar fotos</button>
-                            </div>
-                        </section>
                     </div>
                 </div>
 
@@ -251,6 +285,13 @@
                 </section>
                 {% endif %}
             </section>
+
+            {% if access.employee %}
+            <!-- No celular o Enviar nota fica no rodapé da lista, ao alcance do polegar -->
+            <div class="mobile-bar" id="mobile-bar">
+                <a href="#enviar" class="button primary big"><i class="fas fa-camera" aria-hidden="true"></i> Enviar nota</a>
+            </div>
+            {% endif %}
 
             <dialog id="note-dialog" class="form-modal note-modal" aria-labelledby="note-title">
                 <form method="dialog" id="note-form">

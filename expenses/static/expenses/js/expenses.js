@@ -138,6 +138,8 @@
             const node = document.getElementById(view);
             if (node) node.hidden = view !== id;
         }
+        // O CSS mostra o Enviar nota do rodapé só na lista
+        content.dataset.view = id;
         window.scrollTo(0, 0);
     }
 
@@ -162,28 +164,66 @@
     // ---------- Lista ----------
 
     const statusFilter = document.getElementById('status-filter');
-    for (const status of statuses) {
-        statusFilter.append(element('option', { value: status.value, text: status.label }));
+    if (statusFilter) {
+        for (const status of statuses) {
+            statusFilter.append(element('option', { value: status.value, text: status.label }));
+        }
     }
 
     const searchInput = document.getElementById('search-input');
     let searchTimer;
 
+    // Os filtros do funcionário. "Em andamento" junta o que está com o Controle e com o Financeiro.
+    const chipFilters = [
+        { label: 'Todas', value: '' },
+        { label: 'Aguardando correção', value: 'S', attention: true },
+        { label: 'Em andamento', value: 'C,E,V' },
+        { label: 'Aprovadas', value: 'A' },
+        { label: 'Rejeitadas', value: 'R' },
+    ];
+    const chipsBox = document.getElementById('status-chips');
+    state.chip = '';
+    state.counts = {};
+
+    function renderChips() {
+        if (!chipsBox) return;
+        const counts = state.counts;
+        chipsBox.replaceChildren(...chipFilters.map((chip) => {
+            const values = chip.value ? chip.value.split(',') : Object.keys(counts);
+            const total = values.reduce((sum, value) => sum + (counts[value] || 0), 0);
+            const active = state.chip === chip.value;
+            return element('button', {
+                type: 'button',
+                className: `chip${active ? ' active' : ''}${chip.attention && total ? ' attention' : ''}`,
+                'aria-pressed': active ? 'true' : 'false',
+                onclick: () => {
+                    state.chip = chip.value;
+                    renderChips();
+                    loadList();
+                },
+            }, [chip.label, element('span', { className: 'chip-count', text: String(total) })]);
+        }));
+    }
+
     function listUrl(page) {
         const params = new URLSearchParams({ scope: state.scope, page });
-        if (statusFilter.value) params.set('status', statusFilter.value);
+        const status = statusFilter ? statusFilter.value : state.chip;
+        if (status) params.set('status', status);
         if (searchInput && searchInput.value.trim()) params.set('q', searchInput.value.trim());
         return `${content.dataset.listUrl}?${params}`;
     }
 
     function expenseRow(expense) {
+        // A nota que espera o funcionário fica em destaque na lista dele
+        const needsAction = !reviewer && expense.status === 'S';
         const meta = [
             expense.employee,
             expense.expense_type,
             expense.number ? `Nº ${expense.number}` : '',
             `Enviada em ${expense.created_at}`,
         ].filter(Boolean).join(' · ');
-        return element('a', { className: 'expense-row', href: `#nota-${expense.id}` }, [
+        const showReimbursed = reviewer || expense.status === 'A';
+        return element('a', { className: `expense-row${needsAction ? ' needs-action' : ''}`, href: `#nota-${expense.id}` }, [
             element('span', { className: 'row-title' }, [
                 `Nota #${expense.id}`,
                 statusBadge(expense.status, expense.status_display),
@@ -192,10 +232,14 @@
                 ]) : null,
             ]),
             element('span', { className: 'row-meta', text: meta }),
-            element('span', { className: 'row-values' }, [
+            element('span', { className: 'row-values' }, showReimbursed ? [
                 element('strong', { text: expense.reimbursed_total }),
                 expense.total ? `de ${expense.total}` : 'reembolsado',
+            ] : [
+                element('strong', { text: expense.total || '-' }),
+                'valor da nota',
             ]),
+            needsAction ? element('span', { className: 'row-action' }, [icon('fa-camera'), ' Toque para enviar novas fotos']) : null,
         ]);
     }
 
@@ -210,19 +254,24 @@
             document.getElementById('list-more').hidden = !data.has_next;
             const counter = document.getElementById('queue-count');
             if (counter) counter.textContent = data.queue_count ? String(data.queue_count) : '';
+            if (data.counts) {
+                state.counts = data.counts;
+                renderChips();
+            }
         } catch (error) {
             showError(error.message);
         }
     }
 
     document.getElementById('list-more').addEventListener('click', () => loadList(state.page + 1));
-    statusFilter.addEventListener('change', () => loadList());
+    if (statusFilter) statusFilter.addEventListener('change', () => loadList());
     if (searchInput) {
         searchInput.addEventListener('input', () => {
             clearTimeout(searchTimer);
             searchTimer = setTimeout(() => loadList(), 300);
         });
     }
+    renderChips();
 
     const tabs = document.querySelectorAll('.tab[data-scope]');
     function selectTab(scope) {
@@ -237,51 +286,106 @@
 
     // ---------- Fotos ----------
 
+    // A foto do celular passa fácil de 10 MB, e três delas demoram a subir no 4G.
+    // Ela é reduzida aqui ao tamanho que o servidor guarda (lado maior de 3000 px):
+    // a nota chega igual, só mais rápido.
+    const SHRINK_SIDE = 3000;
+    const SHRINK_QUALITY = 0.9;
+    const SMALL_FILE = 1.5 * 1024 * 1024;
+
+    async function shrink(file) {
+        if (file.type && !accepted.includes(file.type)) return file;
+        const url = URL.createObjectURL(file);
+        try {
+            const image = new Image();
+            image.src = url;
+            await image.decode();
+            // O navegador já aplica a rotação do EXIF no tamanho e no desenho da imagem
+            const scale = Math.min(1, SHRINK_SIDE / Math.max(image.naturalWidth, image.naturalHeight));
+            if (scale === 1 && file.size < SMALL_FILE) return file;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(image.naturalWidth * scale);
+            canvas.height = Math.round(image.naturalHeight * scale);
+            const context = canvas.getContext('2d');
+            // O fundo transparente do PNG viraria preto no JPEG
+            context.fillStyle = '#fff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', SHRINK_QUALITY));
+            if (!blob || blob.size >= file.size) return file;
+            const name = `${(file.name || 'foto').replace(/\.[^.]+$/, '')}.jpg`;
+            return new File([blob], name, { type: 'image/jpeg' });
+        } catch {
+            // Sem memória ou formato que o navegador não abre: vai o original, e o servidor confere
+            return file;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    }
+
     function photoPicker(prefix, onChange) {
         const files = [];
         const urls = [];
         const previews = document.getElementById(`${prefix}-previews`);
+        const count = document.getElementById(`${prefix}-count`);
+        const actions = document.getElementById(`${prefix}-actions`);
         const megabytes = Math.round(limits.max_size / (1024 * 1024));
+        let preparing = 0;
 
         function render() {
-            previews.replaceChildren(...files.map((file, index) => element('figure', {}, [
-                element('img', { src: urls[index], alt: `Foto ${index + 1}` }),
-                element('button', {
-                    type: 'button',
-                    className: 'photo-remove',
-                    title: 'Remover a foto',
-                    'aria-label': `Remover a foto ${index + 1}`,
-                    onclick: () => {
-                        URL.revokeObjectURL(urls[index]);
-                        files.splice(index, 1);
-                        urls.splice(index, 1);
-                        render();
-                    },
-                }, [icon('fa-xmark')]),
-            ])));
-            onChange(files.length);
+            previews.replaceChildren(
+                ...files.map((file, index) => element('figure', {}, [
+                    element('img', { src: urls[index], alt: `Foto ${index + 1}` }),
+                    element('span', { className: 'photo-number', text: String(index + 1) }),
+                    element('button', {
+                        type: 'button',
+                        className: 'photo-remove',
+                        title: 'Remover a foto',
+                        'aria-label': `Remover a foto ${index + 1}`,
+                        onclick: () => {
+                            URL.revokeObjectURL(urls[index]);
+                            files.splice(index, 1);
+                            urls.splice(index, 1);
+                            render();
+                        },
+                    }, [icon('fa-xmark')]),
+                ])),
+                ...Array.from({ length: preparing }, () => element('figure', { className: 'preparing' }, [
+                    icon('fa-spinner fa-spin'), element('span', { text: 'Preparando...' }),
+                ])),
+            );
+            count.hidden = files.length + preparing === 0;
+            count.textContent = `${files.length} de ${limits.max_photos} foto${limits.max_photos > 1 ? 's' : ''}`;
+            // Com o limite atingido, os botões de foto saem da frente
+            actions.hidden = files.length + preparing >= limits.max_photos;
+            onChange(files.length, preparing > 0);
         }
 
-        function add(list) {
+        async function add(list) {
             clearMessages();
-            for (const file of list) {
-                if (files.length >= limits.max_photos) {
-                    showError(`Envie no máximo ${limits.max_photos} fotos por nota.`);
-                    break;
-                }
-                // Alguns celulares não dizem o tipo: aí o servidor confere
-                if (file.type && !accepted.includes(file.type)) {
-                    showError('Envie apenas fotos nos formatos JPEG, PNG ou WEBP.');
-                    continue;
-                }
+            const room = limits.max_photos - files.length - preparing;
+            let chosen = Array.from(list);
+            if (chosen.length > room) {
+                showError(`Envie no máximo ${limits.max_photos} fotos por nota.`);
+                chosen = chosen.slice(0, Math.max(room, 0));
+            }
+            // Alguns celulares não dizem o tipo: aí o servidor confere
+            const valid = chosen.filter((file) => !file.type || accepted.includes(file.type));
+            if (valid.length < chosen.length) showError('Envie apenas fotos nos formatos JPEG, PNG ou WEBP.');
+
+            preparing += valid.length;
+            render();
+            for (const original of valid) {
+                const file = await shrink(original);
+                preparing -= 1;
                 if (file.size > limits.max_size) {
                     showError(`Cada foto pode ter até ${megabytes} MB.`);
-                    continue;
+                } else {
+                    files.push(file);
+                    urls.push(URL.createObjectURL(file));
                 }
-                files.push(file);
-                urls.push(URL.createObjectURL(file));
+                render();
             }
-            render();
         }
 
         for (const source of ['camera', 'gallery']) {
@@ -310,32 +414,97 @@
         return form;
     }
 
+    // O envio das fotos mostra o quanto já subiu: no 4G ele leva um tempo, e
+    // depois vem a análise da IA. O fetch não conta o upload; o XMLHttpRequest conta.
+    let uploading = false;
+
+    window.addEventListener('beforeunload', (event) => {
+        if (!uploading) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
+
+    function progressView(prefix, readingText) {
+        const box = document.getElementById(`${prefix}-progress`);
+        const bar = document.getElementById(`${prefix}-progress-bar`);
+        const text = document.getElementById(`${prefix}-progress-text`);
+        return {
+            sending(fraction) {
+                const percent = Math.round(fraction * 100);
+                box.hidden = false;
+                box.classList.remove('reading');
+                bar.style.width = `${percent}%`;
+                text.textContent = `Enviando as fotos... ${percent}%`;
+            },
+            reading() {
+                box.hidden = false;
+                box.classList.add('reading');
+                bar.style.width = '100%';
+                text.textContent = readingText;
+            },
+            hide() {
+                box.hidden = true;
+                box.classList.remove('reading');
+                bar.style.width = '0';
+            },
+        };
+    }
+
+    function upload(url, form, progress) {
+        return new Promise((resolve, reject) => {
+            const request = new XMLHttpRequest();
+            request.open('POST', url);
+            request.setRequestHeader('X-CSRFToken', csrfToken);
+            request.responseType = 'json';
+            request.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) progress.sending(event.loaded / event.total);
+            });
+            request.upload.addEventListener('load', () => progress.reading());
+            request.addEventListener('load', () => {
+                const data = request.response || {};
+                if (request.status >= 200 && request.status < 300) {
+                    resolve(data);
+                    return;
+                }
+                const message = data.detail || (request.status === 413
+                    ? 'As fotos passam do tamanho aceito. Envie fotos menores.'
+                    : 'Não foi possível concluir. Tente de novo.');
+                reject(Object.assign(new Error(message), { status: request.status, data }));
+            });
+            request.addEventListener('error', () => reject(Object.assign(
+                new Error('Sem conexão com o portal. Confira a internet e tente de novo.'), { status: 0 },
+            )));
+            request.send(form);
+        });
+    }
+
     // ---------- Envio ----------
 
     if (access.employee) {
         const sendButton = document.getElementById('submit-send');
         const submitNote = document.getElementById('submit-note');
-        const submitState = document.getElementById('submit-state');
-        const picker = photoPicker('submit', (count) => { sendButton.disabled = count === 0; });
+        const progress = progressView('submit', 'Fotos enviadas. Analisando a nota... isso pode levar até um minuto.');
+        const picker = photoPicker('submit', (count, busy) => {
+            sendButton.disabled = count === 0 || busy || uploading;
+        });
 
         sendButton.addEventListener('click', async () => {
             clearMessages();
             sendButton.disabled = true;
-            submitState.hidden = false;
+            uploading = true;
+            progress.sending(0);
             try {
-                const data = await api(content.dataset.listUrl, {
-                    method: 'POST',
-                    body: photosForm(picker.files(), submitNote.value),
-                });
+                const data = await upload(content.dataset.listUrl, photosForm(picker.files(), submitNote.value), progress);
                 picker.clear();
                 submitNote.value = '';
                 state.flash = 'Nota enviada. Ela agora aguarda a conferência do Controle.';
                 window.location.hash = `#nota-${data.expense.id}`;
             } catch (error) {
                 showError(error.message);
-                sendButton.disabled = picker.files().length === 0;
             } finally {
-                submitState.hidden = true;
+                uploading = false;
+                progress.hide();
+                sendButton.disabled = picker.files().length === 0;
             }
         });
     }
@@ -485,19 +654,87 @@
     function renderNotice(expense) {
         const notice = document.getElementById('detail-notice');
         notice.classList.toggle('danger', expense.status === 'R');
-        let text = '';
-        if (!reviewer) {
-            if (expense.last_note && expense.status === 'S') text = `Correção pedida:\n${expense.last_note}`;
-            if (expense.last_note && expense.status === 'R') text = `Motivo da rejeição:\n${expense.last_note}`;
-            if (expense.status === 'S' && !text) text = 'O Controle pediu uma correção: envie novas fotos da nota.';
-        } else {
-            const last = expense.timeline[expense.timeline.length - 1];
-            if (last && last.note && expense.status !== 'A') {
-                text = `${last.action_display} (${last.role_display}, ${last.author_name}, ${last.created_at}):\n${last.note}`;
-            }
-        }
+        const last = expense.timeline[expense.timeline.length - 1];
+        const text = last && last.note && expense.status !== 'A'
+            ? `${last.action_display} (${last.role_display}, ${last.author_name}, ${last.created_at}):\n${last.note}`
+            : '';
         notice.textContent = text;
         notice.hidden = !text;
+    }
+
+    // O que o funcionário vê no topo da nota: o que está acontecendo e o que ele precisa fazer
+    const banners = {
+        C: {
+            icon: 'fa-magnifying-glass', title: 'Em conferência',
+            text: () => 'O Controle está conferindo a sua nota. Você recebe um e-mail quando a situação mudar.',
+        },
+        S: {
+            icon: 'fa-camera', title: 'Envie novas fotos', tone: 'attention',
+            text: (expense) => (expense.last_note
+                ? `O Controle pediu uma correção: ${expense.last_note}`
+                : 'O Controle pediu uma correção na nota.'),
+        },
+        E: {
+            icon: 'fa-hourglass-half', title: 'Em análise',
+            text: () => 'O Controle e o Financeiro estão conferindo a nota. Você não precisa fazer nada.',
+        },
+        V: {
+            icon: 'fa-hourglass-half', title: 'Em validação',
+            text: () => 'O Controle conferiu a nota, que agora aguarda a validação do Financeiro.',
+        },
+        A: {
+            icon: 'fa-circle-check', title: 'Aprovada', tone: 'success',
+            text: (expense) => `Valor reembolsado: ${expense.reimbursed_total}.`,
+        },
+        R: {
+            icon: 'fa-circle-xmark', title: 'Rejeitada', tone: 'danger',
+            text: (expense) => (expense.last_note ? `Motivo: ${expense.last_note}` : 'A nota foi rejeitada e está encerrada.'),
+        },
+    };
+
+    function renderStatusBanner(expense) {
+        const banner = document.getElementById('status-banner');
+        const config = banners[expense.status];
+        banner.hidden = !config;
+        if (!config) return;
+        banner.className = `status-banner${config.tone ? ` ${config.tone}` : ''}`;
+        document.getElementById('status-banner-icon').className = `fas ${config.icon}`;
+        document.getElementById('status-banner-title').textContent = config.title;
+        document.getElementById('status-banner-text').textContent = config.text(expense);
+    }
+
+    function renderEmployeeSummary(expense) {
+        const fields = expense.fields;
+        const rows = [];
+        if (expense.status !== 'R') {
+            rows.push([expense.status === 'A' ? 'Valor reembolsado' : 'Valor a reembolsar (previsto)', expense.reimbursed_total, 'highlight']);
+        }
+        rows.push(
+            ['Valor total da nota', expense.total || '-'],
+            ['Tipo', expense.expense_type || '-'],
+            ['Número da nota', fields.number || '-'],
+            ['Data da nota', expense.issue_date || '-'],
+            ['CNPJ do emitente', fields.cnpj_display || '-'],
+            ['Enviada em', expense.created_at],
+            ['Sua observação', expense.employee_note || 'Sem observação.'],
+        );
+        document.getElementById('summary-list').replaceChildren(...rows.map(([label, value, tone]) => element('div', {
+            className: `summary-row${tone ? ` ${tone}` : ''}`,
+        }, [element('dt', { text: label }), element('dd', { text: value })])));
+
+        const items = expense.items.map((item) => element('li', { className: item.non_reimbursable ? 'non-reimbursable' : '' }, [
+            element('span', { className: 'item-name' }, [
+                item.description,
+                item.non_reimbursable ? element('small', { className: 'item-tag', text: 'Não reembolsável' }) : null,
+            ]),
+            element('span', { className: 'item-value' }, [
+                formatMoney(toCents(item.amount)),
+                Number(item.quantity) !== 1 ? element('small', { text: `Qtd. ${formatQuantity(item.quantity)}` }) : null,
+            ]),
+        ]));
+        document.getElementById('summary-items').replaceChildren(
+            ...(items.length ? items : [element('li', { className: 'muted', text: 'Os itens ainda não foram preenchidos.' })]),
+        );
     }
 
     function renderPhotos(expense) {
@@ -610,11 +847,24 @@
         const badge = document.getElementById('detail-status');
         badge.className = `status-badge status-${expense.status}`;
         badge.textContent = expense.status_display;
-        renderNotice(expense);
+        // O funcionário vê a nota em texto, com o aviso da situação; quem confere vê o formulário
+        const employeeView = !reviewer;
+        document.getElementById('expense-form').hidden = employeeView;
+        document.getElementById('detail-meta-card').hidden = employeeView;
+        document.getElementById('employee-summary').hidden = !employeeView;
+        document.querySelector('.detail-photos').classList.toggle('compact', employeeView);
+        if (employeeView) {
+            document.getElementById('detail-notice').hidden = true;
+            renderStatusBanner(expense);
+            renderEmployeeSummary(expense);
+        } else {
+            document.getElementById('status-banner').hidden = true;
+            renderNotice(expense);
+            renderMeta(expense);
+            renderFields(expense);
+        }
         renderPhotos(expense);
-        renderMeta(expense);
         renderAlerts(expense);
-        renderFields(expense);
         renderActions(expense);
         renderTimeline(expense);
         renderResubmit(expense);
@@ -767,23 +1017,29 @@
     if (access.employee) {
         const resendButton = document.getElementById('resubmit-send');
         const resendNote = document.getElementById('resubmit-note');
-        const picker = photoPicker('resubmit', (count) => { resendButton.disabled = count === 0; });
+        const progress = progressView('resubmit', 'Fotos enviadas. Salvando...');
+        const picker = photoPicker('resubmit', (count, busy) => {
+            resendButton.disabled = count === 0 || busy || uploading;
+        });
 
         resendButton.addEventListener('click', async () => {
             const expense = state.expense;
             clearMessages();
             resendButton.disabled = true;
+            uploading = true;
+            progress.sending(0);
             try {
-                const data = await api(urlFor('photosUrl', expense.id), {
-                    method: 'POST',
-                    body: photosForm(picker.files(), resendNote.value),
-                });
+                const data = await upload(urlFor('photosUrl', expense.id), photosForm(picker.files(), resendNote.value), progress);
                 picker.clear();
                 resendNote.value = '';
                 renderDetail(data.expense);
+                window.scrollTo(0, 0);
                 showSuccess('Fotos reenviadas. A nota volta para a conferência do Controle.');
             } catch (error) {
                 showError(error.message);
+            } finally {
+                uploading = false;
+                progress.hide();
                 resendButton.disabled = picker.files().length === 0;
             }
         });

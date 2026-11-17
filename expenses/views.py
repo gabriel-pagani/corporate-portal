@@ -4,7 +4,7 @@ from functools import wraps
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Prefetch, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -149,9 +149,10 @@ def expenses_api(request):
     else:
         expenses = expenses.order_by('-created_at', '-id')
 
-    status = request.GET.get('status', '')
-    if status in dict(Expense.STATUS):
-        expenses = expenses.filter(status=status)
+    # Uma situação ou várias, separadas por vírgula ("C,E,V" é o "em andamento" do funcionário)
+    statuses = [value for value in request.GET.get('status', '').split(',') if value in dict(Expense.STATUS)]
+    if statuses:
+        expenses = expenses.filter(status__in=statuses)
     term = request.GET.get('q', '')
     if term.strip() and current.reviewer:
         expenses = expenses.filter(search_filter(term))
@@ -171,6 +172,12 @@ def expenses_api(request):
     }
     if current.reviewer:
         data['queue_count'] = Expense.objects.filter(status__in=queue_statuses(current)).count()
+    else:
+        # Os números dos filtros do funcionário, pelas notas dele
+        data['counts'] = {
+            row['status']: row['total']
+            for row in Expense.objects.filter(employee=request.user).values('status').annotate(total=Count('id'))
+        }
     return JsonResponse(data)
 
 
