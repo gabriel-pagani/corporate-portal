@@ -1,5 +1,4 @@
 import unicodedata
-from datetime import date, datetime
 from functools import wraps
 
 from django.contrib.auth.decorators import login_required
@@ -13,11 +12,10 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from app.models import ServiceAccess
 from app.utils.services import track_access
 from app.views import json_login_required, parse_json_body
-from expenses.history import compare, state_at
 from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto, ExpenseType
 from expenses.photos import ACCEPTED_TYPES, MAX_PHOTO_SIZE, MAX_PHOTOS
 from expenses.roles import access
-from expenses.serializers import serialize_detail, serialize_event, serialize_summary
+from expenses.serializers import serialize_detail, serialize_summary
 from expenses.workflow import Conflict, act, resubmit_photos, submit_expense, visible_expenses
 
 
@@ -241,83 +239,6 @@ def expense_photos_api(request, expense_id):
     except ValidationError as error:
         return error_response(error)
     return detail_response(request, expense_id)
-
-
-def reviewer_expense(request, expense_id):
-    if not request.expense_access.reviewer:
-        raise PermissionDenied
-    return get_object_or_404(Expense, pk=expense_id)
-
-
-def parse_day(value, label):
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        raise ValidationError(f'{label} inválida.')
-
-
-@require_GET
-@expense_access_required
-def expense_history_api(request, expense_id):
-    """Os registros da nota, cada um com o estado dela naquela etapa; com start e end, só os do período."""
-    try:
-        expense = reviewer_expense(request, expense_id)
-        start = parse_day(request.GET.get('start'), 'Data inicial')
-        end = parse_day(request.GET.get('end'), 'Data final')
-    except PermissionDenied:
-        return JsonResponse({'detail': NO_PERMISSION}, status=403)
-    except ValidationError as error:
-        return error_response(error)
-
-    events = expense.events.order_by('sequence')
-    if start:
-        events = events.filter(created_at__date__gte=start)
-    if end:
-        events = events.filter(created_at__date__lte=end)
-    return JsonResponse({'events': [serialize_event(event) for event in events]})
-
-
-@require_GET
-@expense_access_required
-def expense_state_api(request, expense_id):
-    """A nota como estava no momento pedido (at, em AAAA-MM-DDTHH:MM no horário local)."""
-    try:
-        expense = reviewer_expense(request, expense_id)
-    except PermissionDenied:
-        return JsonResponse({'detail': NO_PERMISSION}, status=403)
-    try:
-        moment = datetime.fromisoformat(request.GET.get('at', ''))
-    except ValueError:
-        return JsonResponse({'detail': 'Informe a data e a hora.'}, status=400)
-
-    event = state_at(expense, moment)
-    if event is None:
-        return JsonResponse({'detail': 'A nota ainda não existia neste momento.'}, status=404)
-    return JsonResponse({'event': serialize_event(event)})
-
-
-@require_GET
-@expense_access_required
-def expense_compare_api(request, expense_id):
-    """O que mudou entre duas etapas da nota (from e to são os números das etapas)."""
-    try:
-        expense = reviewer_expense(request, expense_id)
-    except PermissionDenied:
-        return JsonResponse({'detail': NO_PERMISSION}, status=403)
-    try:
-        first, second = int(request.GET.get('from', '')), int(request.GET.get('to', ''))
-    except ValueError:
-        return JsonResponse({'detail': 'Escolha as duas etapas para comparar.'}, status=400)
-
-    before = get_object_or_404(expense.events, sequence=first)
-    after = get_object_or_404(expense.events, sequence=second)
-    return JsonResponse({
-        'from': serialize_event(before),
-        'to': serialize_event(after),
-        'changes': compare(before.snapshot, after.snapshot),
-    })
 
 
 # As fotos ficam no media_volume e só saem por aqui, para quem vê a nota. As

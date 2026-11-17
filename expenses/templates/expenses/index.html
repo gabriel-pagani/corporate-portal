@@ -16,9 +16,6 @@
             data-expense-url="{% url 'expenses:expense-api' 0 %}"
             data-action-url="{% url 'expenses:expense-action-api' 0 %}"
             data-photos-url="{% url 'expenses:expense-photos-api' 0 %}"
-            data-history-url="{% url 'expenses:expense-history-api' 0 %}"
-            data-state-url="{% url 'expenses:expense-state-api' 0 %}"
-            data-compare-url="{% url 'expenses:expense-compare-api' 0 %}"
         >
             <div class="header">
                 <a href="{% url 'app:home' %}">
@@ -259,32 +256,8 @@
                     <h3>Histórico</h3>
                     <ol id="timeline" class="timeline"></ol>
                 </section>
-
-                {% if access.control or access.finance %}
-                <section class="card audit" id="audit">
-                    <h3>Auditoria</h3>
-                    <div class="audit-controls">
-                        <div class="field">
-                            <label for="audit-at">Estado da nota em</label>
-                            <div class="inline-form">
-                                <input type="datetime-local" id="audit-at">
-                                <button type="button" class="button" id="audit-at-button">Ver</button>
-                            </div>
-                        </div>
-                        <div class="field">
-                            <label for="audit-from">Comparar etapas</label>
-                            <div class="inline-form">
-                                <select id="audit-from" aria-label="Etapa inicial"></select>
-                                <span class="muted">com</span>
-                                <select id="audit-to" aria-label="Etapa final"></select>
-                                <button type="button" class="button" id="audit-compare-button">Comparar</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="audit-result" class="audit-result" hidden></div>
-                </section>
-                {% endif %}
             </section>
+
 
             {% if access.employee %}
             <!-- No celular o Enviar nota fica no rodapé da lista, ao alcance do polegar -->

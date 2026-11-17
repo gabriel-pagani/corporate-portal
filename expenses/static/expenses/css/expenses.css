@@ -483,85 +483,6 @@ label.button.primary {
   white-space: pre-line;
 }
 
-.timeline .button {
-  margin-top: 6px;
-}
-
-/* Auditoria */
-.audit-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.audit-controls .inline-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.audit-controls input[type="datetime-local"] {
-  height: 38px;
-  padding: 0 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.audit-result {
-  margin-top: 16px;
-  padding: 14px 16px;
-  border: 1px solid #e2e2e2;
-  border-radius: 8px;
-  background: #fafafa;
-}
-
-.audit-result h4 {
-  margin: 14px 0 6px;
-  font-size: 15px;
-}
-
-.audit-result h4:first-child {
-  margin-top: 0;
-}
-
-.audit-result table {
-  background: #fff;
-}
-
-.audit-result .before {
-  color: #a32d2d;
-  text-decoration: line-through;
-}
-
-.audit-result .after {
-  color: #3b6d11;
-}
-
-.audit-result pre {
-  max-height: 320px;
-  overflow: auto;
-  padding: 8px;
-  background: #fff;
-  border: 1px solid #eee;
-  font-size: 12px;
-  white-space: pre-wrap;
-}
-
-.audit-photos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.audit-photos img {
-  width: 90px;
-  height: 120px;
-  object-fit: cover;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
 .note-modal textarea {
   width: 100%;
 }
@@ -993,18 +914,6 @@ label.button.primary {
 /* O Enviar nota do rodapé: só no celular, e só na lista */
 .mobile-bar {
   display: none;
-}
-
-/* Auditoria: os campos ficam na linha, sem ocupar a largura toda */
-.audit-controls .field input,
-.audit-controls .field select {
-  width: auto;
-  max-width: 100%;
-}
-
-.audit-controls .inline-form {
-  flex-wrap: wrap;
-  align-items: center;
 }
 
 @media (max-width: 600px) {

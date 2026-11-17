@@ -1,5 +1,5 @@
 // Despesas: a lista de notas, o envio das fotos, a conferência do Controle, a
-// validação do Financeiro e o histórico. As telas trocam pelo endereço
+// validação do Financeiro e o histórico de cada nota. As telas trocam pelo endereço
 // (#enviar, #nota-12): o voltar do celular volta para a tela anterior.
 
 (() => {
@@ -22,7 +22,6 @@
         page: 1,
         expense: null,
         items: [],
-        history: null,
         // A mensagem que aparece depois da troca de tela (a troca limpa as mensagens)
         flash: null,
     };
@@ -814,25 +813,7 @@
                 text: [event.created_at, event.author_name ? `${event.author_name} (${event.role_display})` : event.role_display, event.status_display].join(' · '),
             }),
             event.note ? element('p', { className: 'event-note', text: event.note }) : null,
-            reviewer ? element('button', {
-                type: 'button', className: 'button small', text: 'Ver a nota nesta etapa',
-                onclick: () => showEventState(event.sequence),
-            }) : null,
         ])));
-
-        if (reviewer) {
-            const options = expense.timeline.map((event) => element('option', {
-                value: event.sequence, text: `${event.sequence}. ${event.action_display} (${event.created_at})`,
-            }));
-            const from = document.getElementById('audit-from');
-            const to = document.getElementById('audit-to');
-            from.replaceChildren(...options.map((option) => option.cloneNode(true)));
-            to.replaceChildren(...options);
-            const count = expense.timeline.length;
-            from.value = String(Math.max(1, count - 1));
-            to.value = String(count);
-            document.getElementById('audit-result').hidden = true;
-        }
     }
 
     function renderResubmit(expense) {
@@ -842,7 +823,6 @@
 
     function renderDetail(expense) {
         state.expense = expense;
-        state.history = null;
         document.getElementById('detail-title').textContent = `Nota #${expense.id}`;
         const badge = document.getElementById('detail-status');
         badge.className = `status-badge status-${expense.status}`;
@@ -1041,165 +1021,6 @@
                 uploading = false;
                 progress.hide();
                 resendButton.disabled = picker.files().length === 0;
-            }
-        });
-    }
-
-    // ---------- Auditoria ----------
-
-    const auditResult = document.getElementById('audit-result');
-
-    function table(headers, rows) {
-        return element('table', {}, [
-            element('thead', {}, [element('tr', {}, headers.map((header) => element('th', { text: header })))]),
-            element('tbody', {}, rows.map((row) => element('tr', {}, row.map((cell) => element('td', {}, [cell]))))),
-        ]);
-    }
-
-    function renderState(event) {
-        const snapshot = event.state;
-        const fields = snapshot.fields;
-        const reading = snapshot.ai_reading || {};
-        const money = (value) => (value === '' || value === null) ? '-' : formatMoney(toCents(value));
-        const date = (value) => value ? value.split('-').reverse().join('/') : '-';
-        auditResult.replaceChildren(
-            element('h4', { text: `Etapa ${event.sequence}: ${event.action_display}` }),
-            element('p', {
-                text: `${event.created_at} · ${event.author_name} (${event.role_display}) · ${event.status_before_display ? `${event.status_before_display} → ` : ''}${event.status_display}`,
-            }),
-            event.note ? element('p', { text: `Observação: ${event.note}` }) : null,
-            element('h4', { text: 'Dados da nota' }),
-            table(['Campo', 'Valor'], [
-                ['Número da nota', fields.number || '-'],
-                ['Data', date(fields.issue_date)],
-                ['CNPJ do emitente', fields.cnpj || '-'],
-                ['Valor total', money(fields.total)],
-                ['Tipo', fields.expense_type || '-'],
-                ['Chave de acesso', fields.access_key || '-'],
-                ['Valor reembolsado', money(snapshot.reimbursed_total)],
-                ['Observação do funcionário', snapshot.employee_note || '-'],
-            ]),
-            element('h4', { text: 'Itens' }),
-            snapshot.items.length ? table(['Descrição', 'Qtd.', 'Valor', 'Não reembolsável', 'IA'], snapshot.items.map((item) => [
-                item.description, formatQuantity(item.quantity), money(item.amount), item.non_reimbursable ? 'Sim' : 'Não',
-                item.ai_group || '-',
-            ])) : element('p', { className: 'muted', text: 'Nenhum item.' }),
-            element('h4', { text: 'Fotos' }),
-            element('div', { className: 'audit-photos' }, snapshot.photos.map((photo) => element('a', {
-                href: photo.url, target: '_blank', rel: 'noopener', title: `Foto ${photo.position + 1}, envio ${photo.round}`,
-            }, [element('img', { src: photo.url, alt: `Foto ${photo.position + 1}, envio ${photo.round}`, loading: 'lazy' })]))),
-            element('h4', { text: 'Alertas da IA' }),
-            snapshot.ai_alerts.length
-                ? element('ul', {}, snapshot.ai_alerts.map((alert) => element('li', { text: alert })))
-                : element('p', { className: 'muted', text: 'Nenhum alerta.' }),
-            element('details', {}, [
-                element('summary', { text: `Leitura da IA (${reading.status || 'sem leitura'}${reading.model ? `, ${reading.model}` : ''})` }),
-                element('pre', { text: JSON.stringify(reading, null, 2) }),
-            ]),
-        );
-        auditResult.hidden = false;
-        auditResult.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-
-    async function loadHistory() {
-        if (!state.history) {
-            const data = await api(urlFor('historyUrl', state.expense.id));
-            state.history = data.events;
-        }
-        return state.history;
-    }
-
-    async function showEventState(sequence) {
-        try {
-            const events = await loadHistory();
-            const event = events.find((item) => item.sequence === sequence);
-            if (event) renderState(event);
-        } catch (error) {
-            showError(error.message);
-        }
-    }
-
-    function changeLine(change) {
-        return element('li', {}, [
-            `${change.label}: `,
-            element('span', { className: 'before', text: change.before || '(vazio)' }),
-            ' → ',
-            element('span', { className: 'after', text: change.after || '(vazio)' }),
-        ]);
-    }
-
-    function renderComparison(data) {
-        const changes = data.changes;
-        const sections = [];
-        if (changes.status) {
-            sections.push(element('h4', { text: 'Situação' }), element('ul', {}, [changeLine({ label: 'Situação', ...changes.status })]));
-        }
-        if (changes.fields.length) {
-            sections.push(element('h4', { text: 'Dados da nota' }), element('ul', {}, changes.fields.map(changeLine)));
-        }
-        const items = changes.items;
-        if (items.added.length || items.removed.length || items.changed.length) {
-            sections.push(element('h4', { text: 'Itens' }), element('ul', {}, [
-                ...items.added.map((item) => element('li', { className: 'after', text: `Incluído: ${item.description} (${item.quantity} × ${item.amount}${item.non_reimbursable ? ', não reembolsável' : ''})` })),
-                ...items.removed.map((item) => element('li', { className: 'before', text: `Removido: ${item.description} (${item.amount})` })),
-                ...items.changed.map((item) => element('li', {}, [
-                    `Alterado: ${item.description}`,
-                    element('ul', {}, item.changes.map(changeLine)),
-                ])),
-            ]));
-        }
-        if (changes.reimbursed_total) {
-            sections.push(element('h4', { text: 'Valor reembolsado' }), element('ul', {}, [changeLine(changes.reimbursed_total)]));
-        }
-        if (changes.photos) {
-            const fromPhotos = new Map(data.from.state.photos.map((photo) => [photo.id, photo]));
-            const toPhotos = new Map(data.to.state.photos.map((photo) => [photo.id, photo]));
-            const thumbs = (ids, photos) => element('div', { className: 'audit-photos' }, ids.map((id) => element('a', {
-                href: photos.get(id).url, target: '_blank', rel: 'noopener',
-            }, [element('img', { src: photos.get(id).url, alt: 'Foto', loading: 'lazy' })])));
-            sections.push(
-                element('h4', { text: 'Fotos substituídas' }),
-                element('p', { className: 'muted', text: 'Antes:' }), thumbs(changes.photos.removed, fromPhotos),
-                element('p', { className: 'muted', text: 'Depois:' }), thumbs(changes.photos.added, toPhotos),
-            );
-        }
-        if (changes.alerts) {
-            sections.push(element('h4', { text: 'Alertas da IA' }), element('p', {
-                text: `${changes.alerts.before.length} antes, ${changes.alerts.after.length} depois.`,
-            }));
-        }
-        auditResult.replaceChildren(
-            element('h4', { text: `Da etapa ${data.from.sequence} (${data.from.action_display}) para a ${data.to.sequence} (${data.to.action_display})` }),
-            ...(sections.length ? sections : [element('p', { className: 'muted', text: 'Nada mudou entre as duas etapas.' })]),
-        );
-        auditResult.hidden = false;
-    }
-
-    const atButton = document.getElementById('audit-at-button');
-    if (atButton) {
-        atButton.addEventListener('click', async () => {
-            const at = document.getElementById('audit-at').value;
-            if (!at) {
-                showError('Informe a data e a hora.');
-                return;
-            }
-            try {
-                const data = await api(`${urlFor('stateUrl', state.expense.id)}?${new URLSearchParams({ at })}`);
-                renderState(data.event);
-            } catch (error) {
-                showError(error.message);
-            }
-        });
-
-        document.getElementById('audit-compare-button').addEventListener('click', async () => {
-            const params = new URLSearchParams({
-                from: document.getElementById('audit-from').value,
-                to: document.getElementById('audit-to').value,
-            });
-            try {
-                renderComparison(await api(`${urlFor('compareUrl', state.expense.id)}?${params}`));
-            } catch (error) {
-                showError(error.message);
             }
         });
     }

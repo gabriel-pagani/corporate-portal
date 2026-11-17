@@ -54,25 +54,6 @@ def serialize_event_for_employee(event):
     }
 
 
-def serialize_event(event):
-    """O registro completo, com o estado da nota naquela etapa, para o Controle e o Financeiro."""
-    state = dict(event.snapshot)
-    state['photos'] = [{**photo, 'url': photo_url(photo['id'])} for photo in state.get('photos', [])]
-    return {
-        'sequence': event.sequence,
-        'action': event.action,
-        'action_display': event.get_action_display(),
-        'status_before_display': event.get_status_before_display() if event.status_before else '',
-        'status_display': event.get_status_after_display(),
-        'author_name': event.author_name,
-        'role_display': event.get_author_role_display(),
-        'note': event.note,
-        'created_at': local(event.created_at),
-        'created_at_iso': timezone.localtime(event.created_at).isoformat(),
-        'state': state,
-    }
-
-
 def serialize_detail(expense, user, current):
     photos = [photo for photo in expense.photos.all() if photo.replaced_at is None]
     events = list(expense.events.all())
