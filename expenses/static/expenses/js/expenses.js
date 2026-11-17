@@ -830,7 +830,6 @@
         badge.textContent = expense.status_display;
         // O funcionário já tem o aviso da situação logo abaixo: o título fica só com a nota, no centro
         badge.hidden = !reviewer;
-        document.querySelector('.detail-header').classList.toggle('centered', !reviewer);
         // O funcionário vê a nota em texto, com o aviso da situação; quem confere vê o formulário
         const employeeView = !reviewer;
         document.getElementById('expense-form').hidden = employeeView;
