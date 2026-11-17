@@ -215,13 +215,13 @@
     function expenseRow(expense) {
         // A nota que espera o funcionário fica em destaque na lista dele
         const needsAction = !reviewer && expense.status === 'S';
-        const meta = [
+        // O funcionário vê só a data de envio; quem confere vê também quem, o tipo e o número
+        const meta = reviewer ? [
             expense.employee,
             expense.expense_type,
             expense.number ? `Nº ${expense.number}` : '',
             `Enviada em ${expense.created_at}`,
-        ].filter(Boolean).join(' · ');
-        const showReimbursed = reviewer || expense.status === 'A';
+        ].filter(Boolean).join(' · ') : `Enviada em ${expense.created_at}`;
         return element('a', { className: `expense-row${needsAction ? ' needs-action' : ''}`, href: `#nota-${expense.id}` }, [
             element('span', { className: 'row-title' }, [
                 `Nota #${expense.id}`,
@@ -231,11 +231,12 @@
                 ]) : null,
             ]),
             element('span', { className: 'row-meta', text: meta }),
-            element('span', { className: 'row-values' }, showReimbursed ? [
+            // Para o funcionário o valor em destaque é o que ele vai receber, não o total da nota
+            element('span', { className: 'row-values' }, reviewer ? [
                 element('strong', { text: expense.reimbursed_total }),
                 expense.total ? `de ${expense.total}` : 'reembolsado',
             ] : [
-                element('strong', { text: expense.total || '-' }),
+                element('strong', { text: expense.reimbursed_total }),
                 'valor da nota',
             ]),
             needsAction ? element('span', { className: 'row-action' }, [icon('fa-camera'), ' Toque para enviar novas fotos']) : null,
