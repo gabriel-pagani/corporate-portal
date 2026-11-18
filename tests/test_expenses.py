@@ -1558,3 +1558,34 @@ def test_resubmit_screen_says_the_photos_are_being_analysed():
     # O reenvio agora espera a IA: a tela avisa que pode demorar
     script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
     assert "progressView('resubmit', 'Fotos enviadas. Analisando as fotos" in script
+
+
+def test_detail_shows_what_needs_attention_in_a_single_box():
+    # A observação da etapa, a IA que não leu e os alertas da IA ficam num quadro só
+    template = Path('expenses/templates/expenses/index.html').read_text(encoding='utf-8')
+    assert template.count('id="attention"') == 1 and 'id="attention-list"' in template
+    assert '</i> Observações e Alertas</h3>' in template
+    for old in ('id="detail-notice"', 'id="detail-alerts"', 'id="ai-unread"', 'Alertas da IA</h3>'):
+        assert old not in template
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    body = script[script.index('function renderAttention'):script.index('function renderMeta')]
+    # Primeiro o que fazer (a observação), depois o que conferir (a IA)
+    assert body.index("'fa-comment'") < body.index("'A IA não leu esta nota'") < body.index("'Alerta da IA'")
+    # A observação do envio já está em "Dados da despesa" e não se repete no quadro
+    assert 'expense.timeline.length > 1 && last.note' in body
+    # No celular o quadro vem antes das fotos, no topo da despesa
+    style = Path(finders.find('expenses/css/expenses.css')).read_text(encoding='utf-8')
+    assert re.search(r'#attention \{\s*order: -1;', style)
+
+
+def test_system_messages_are_toasts_that_do_not_push_the_page():
+    template = Path('expenses/templates/expenses/index.html').read_text(encoding='utf-8')
+    toasts = template[template.index('<div class="toasts">'):template.index('<!-- A lista de despesas -->')]
+    assert 'id="alert-error"' in toasts and 'id="success-message"' in toasts and 'id="alert-error-close"' in toasts
+    style = Path(finders.find('expenses/css/expenses.css')).read_text(encoding='utf-8')
+    assert re.search(r'\.toasts \{[^}]*position: fixed', style)
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    # O sucesso some sozinho; o erro só some quando a pessoa fecha (ou na próxima ação)
+    success = script[script.index('function showSuccess'):script.index('function clearMessages')]
+    error = script[script.index('function showError'):script.index('function showSuccess')]
+    assert 'setTimeout' in success and 'setTimeout' not in error

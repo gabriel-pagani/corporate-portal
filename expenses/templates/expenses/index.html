@@ -42,11 +42,20 @@
                 {% endif %}
             </div>
 
-            <div id="alert-error" class="alert" role="alert" hidden>
-                <strong><i class="fas fa-circle-xmark" aria-hidden="true"></i> <span id="alert-error-text"></span></strong>
+            <!-- A resposta do sistema fica no canto, por cima da tela: o sucesso some sozinho, o erro espera ser fechado -->
+            <div class="toasts">
+                <div id="alert-error" class="toast toast-error" role="alert" hidden>
+                    <i class="fas fa-circle-xmark" aria-hidden="true"></i>
+                    <span id="alert-error-text"></span>
+                    <button type="button" class="toast-close" id="alert-error-close" aria-label="Fechar o aviso">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div id="success-message" class="toast toast-success" role="status" hidden>
+                    <i class="fas fa-circle-check" aria-hidden="true"></i>
+                    <span id="success-message-text"></span>
+                </div>
             </div>
-
-            <div id="success-message" class="form-message" role="status" hidden></div>
 
             <!-- A lista de despesas -->
             <section id="list-view" class="card" hidden>
@@ -124,8 +133,6 @@
                     <span id="detail-status" class="status-badge"></span>
                 </div>
 
-                <div id="detail-notice" class="notice" role="status" hidden></div>
-
                 <!-- O que está acontecendo com a nota e o que o funcionário precisa fazer -->
                 <div id="status-banner" class="status-banner" role="status" hidden>
                     <i id="status-banner-icon" class="fas" aria-hidden="true"></i>
@@ -170,19 +177,16 @@
                     </div>
 
                     <div class="detail-side">
-                        <!-- A IA não leu a nota no envio: a conferência pede de novo, uma leitura por vez -->
-                        <div id="ai-unread" class="ai-unread" role="alert" hidden>
-                            <h3><i class="fas fa-robot" aria-hidden="true"></i> A IA não leu esta nota</h3>
-                            <p id="ai-unread-text"></p>
-                            <button type="button" class="button primary" id="reread-button" hidden>
+                        <!-- Tudo o que pede atenção de quem confere ou valida, num lugar só: a observação
+                             da última etapa, a IA que não leu a nota e os alertas da leitura -->
+                        <section id="attention" class="card attention" role="status" hidden>
+                            <h3><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Observações e Alertas</h3>
+                            <ul id="attention-list" class="attention-list"></ul>
+                            <!-- A linha da IA que não leu leva o botão para dentro dela -->
+                            <button type="button" class="button primary small" id="reread-button" hidden>
                                 <i class="fas fa-rotate" aria-hidden="true"></i> Ler a nota com a IA
                             </button>
-                        </div>
-
-                        <div id="detail-alerts" class="ai-alerts" role="alert" hidden>
-                            <h3><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Alertas da IA</h3>
-                            <ul id="detail-alerts-list"></ul>
-                        </div>
+                        </section>
 
                         <!-- Os dados da nota em texto, para o funcionário: ele não edita nada -->
                         <section id="employee-summary" class="card employee-summary" hidden>

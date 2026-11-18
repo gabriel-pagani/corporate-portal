@@ -104,25 +104,36 @@
     });
 
     const alertBox = document.getElementById('alert-error');
+    const rereadButton = document.getElementById('reread-button');
     const successBox = document.getElementById('success-message');
 
+    // A resposta do sistema aparece no canto: o sucesso some sozinho, o erro fica até ser fechado
+    const SUCCESS_SECONDS = 5;
+    let successTimer = null;
+
     function showError(message) {
+        clearTimeout(successTimer);
         document.getElementById('alert-error-text').textContent = message;
         alertBox.hidden = false;
         successBox.hidden = true;
-        alertBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     function showSuccess(message) {
-        successBox.textContent = message;
+        clearTimeout(successTimer);
+        document.getElementById('success-message-text').textContent = message;
         successBox.hidden = false;
         alertBox.hidden = true;
+        successTimer = setTimeout(() => { successBox.hidden = true; }, SUCCESS_SECONDS * 1000);
     }
 
     function clearMessages() {
+        clearTimeout(successTimer);
         alertBox.hidden = true;
         successBox.hidden = true;
     }
+
+    document.getElementById('alert-error-close').addEventListener('click', () => { alertBox.hidden = true; });
+    successBox.addEventListener('click', () => { successBox.hidden = true; });
 
     function statusBadge(status, label, title) {
         return element('span', { className: `status-badge status-${status}`, text: label, title });
@@ -677,15 +688,43 @@
         };
     }
 
-    function renderNotice(expense) {
-        const notice = document.getElementById('detail-notice');
-        notice.classList.toggle('danger', expense.status === 'R');
+    function attentionRow(iconName, meta, text, { danger = false, extra = null } = {}) {
+        return element('li', { className: danger ? 'danger' : '' }, [
+            icon(iconName),
+            element('div', { className: 'attention-body' }, [
+                meta ? element('span', { className: 'attention-meta', text: meta }) : null,
+                text ? element('p', { className: 'attention-text', text }) : null,
+                extra,
+            ]),
+        ]);
+    }
+
+    // Quem confere e quem valida veem num quadro só o que pede atenção: primeiro o que
+    // fazer (a observação da última etapa), depois o que conferir (a IA)
+    function renderAttention(expense) {
+        const rows = [];
         const last = expense.timeline[expense.timeline.length - 1];
-        const text = last && last.note && expense.status !== 'A'
-            ? `${last.action_display} (${last.author_name}, ${last.created_at}):\n${last.note}`
-            : '';
-        notice.textContent = text;
-        notice.hidden = !text;
+        // A observação do envio já aparece em "Dados da despesa": aqui só a das etapas seguintes
+        if (expense.timeline.length > 1 && last.note && expense.status !== 'A') {
+            rows.push(attentionRow(
+                'fa-comment', `${last.action_display} · ${last.author_name}, ${last.created_at}`, last.note,
+                { danger: expense.status === 'R' },
+            ));
+        }
+        rereadButton.hidden = !expense.can.reread;
+        if (expense.ai_status !== 'ok') {
+            rows.push(attentionRow('fa-robot', 'A IA não leu esta nota', expense.can.reread
+                ? 'A análise não aconteceu no envio. Peça a leitura de novo ou preencha os dados a partir das fotos.'
+                : 'A análise não aconteceu no envio: os dados foram preenchidos a partir das fotos.',
+            { danger: true, extra: expense.can.reread ? rereadButton : null }));
+        }
+        for (const alert of expense.alerts || []) rows.push(attentionRow('fa-robot', 'Alerta da IA', alert));
+
+        const box = document.getElementById('attention');
+        // O botão volta para o quadro antes de a lista ser trocada, para não sair da página
+        if (!expense.can.reread) box.append(rereadButton);
+        document.getElementById('attention-list').replaceChildren(...rows);
+        box.hidden = rows.length === 0;
     }
 
     // O que o funcionário vê no topo da nota: o que está acontecendo e o que ele precisa fazer
@@ -783,27 +822,6 @@
         document.getElementById('detail-employee-note').textContent = expense.employee_note || 'Sem observação.';
     }
 
-    function renderUnread(expense) {
-        const box = document.getElementById('ai-unread');
-        const unread = reviewer && expense.ai_status !== 'ok';
-        box.hidden = !unread;
-        if (!unread) return;
-        const text = expense.can.reread
-            ? 'A análise pela IA não aconteceu no envio. Peça a leitura de novo ou preencha os dados a partir das fotos.'
-            : 'A análise pela IA não aconteceu no envio: os dados foram preenchidos a partir das fotos.';
-        document.getElementById('ai-unread-text').textContent = text;
-        document.getElementById('reread-button').hidden = !expense.can.reread;
-    }
-
-    function renderAlerts(expense) {
-        const box = document.getElementById('detail-alerts');
-        const alerts = expense.alerts || [];
-        box.hidden = alerts.length === 0;
-        document.getElementById('detail-alerts-list').replaceChildren(
-            ...alerts.map((alert) => element('li', { text: alert })),
-        );
-    }
-
     function renderFields(expense) {
         const editable = canEdit();
         const fields = expense.fields;
@@ -879,18 +897,16 @@
         document.getElementById('employee-summary').hidden = !employeeView;
         document.querySelector('.detail-photos').classList.toggle('compact', employeeView);
         if (employeeView) {
-            document.getElementById('detail-notice').hidden = true;
+            document.getElementById('attention').hidden = true;
             renderStatusBanner(expense);
             renderEmployeeSummary(expense);
         } else {
             document.getElementById('status-banner').hidden = true;
-            renderNotice(expense);
+            renderAttention(expense);
             renderMeta(expense);
             renderFields(expense);
         }
         renderPhotos(expense);
-        renderUnread(expense);
-        renderAlerts(expense);
         renderActions(expense);
         renderTimeline(expense);
         renderResubmit(expense);
@@ -1043,7 +1059,6 @@
 
     // ---------- Nova leitura pela IA ----------
 
-    const rereadButton = document.getElementById('reread-button');
     rereadButton.addEventListener('click', async () => {
         const expense = state.expense;
         if (!expense || !expense.can.reread) return;

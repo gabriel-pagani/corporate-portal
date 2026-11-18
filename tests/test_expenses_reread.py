@@ -212,9 +212,10 @@ def test_reread_on_an_old_version_is_refused_before_the_ai(client, openai):
 
 def test_screen_has_the_unread_notice_and_the_reread_button():
     template = Path('expenses/templates/expenses/index.html').read_text(encoding='utf-8')
-    assert 'id="ai-unread"' in template and 'id="reread-button"' in template
-    assert 'A IA não leu esta nota' in template and 'data-reading-url=' in template
+    assert 'id="reread-button"' in template and 'data-reading-url=' in template
     script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
     assert "urlFor('readingUrl'" in script and "' IA não leu'" in script
+    # O aviso entra como uma linha do quadro de atenção, com o botão dentro dela
+    assert "'A IA não leu esta nota'" in script and 'extra: expense.can.reread ? rereadButton : null' in script
     # Um pedido por vez: o botão fica desligado enquanto a leitura não volta
     assert 'rereadButton.disabled = true' in script

@@ -51,20 +51,69 @@ label.button.primary {
   color: #fff;
 }
 
-.notice {
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid #f0c674;
-  border-radius: 8px;
-  background: #fdf3dc;
-  color: #6b4600;
-  white-space: pre-line;
+/* A resposta do sistema: no canto, por cima da tela, sem empurrar o conteúdo */
+.toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100vw - 24px));
+  pointer-events: none;
 }
 
-.notice.danger {
-  border-color: #f09595;
-  background: #fcebeb;
-  color: #a32d2d;
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  font-size: 14px;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast > i {
+  margin-top: 2px;
+}
+
+.toast > span {
+  flex: 1;
+}
+
+.toast-success {
+  background: #1f6f43;
+  color: #fff;
+}
+
+.toast-error {
+  background: #a32d2d;
+  color: #fff;
+}
+
+.toast-close {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .toasts {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
 }
 
 .empty {
@@ -332,55 +381,77 @@ label.button.primary {
   font-size: 13px;
 }
 
-/* A IA não leu a nota: vem antes dos alertas, com o botão da nova leitura */
-.ai-unread {
-  margin-bottom: 20px;
-  padding: 14px 16px;
-  border: 2px solid #a32d2d;
-  border-radius: 8px;
-  background: #fdecec;
-  color: #6b1f1f;
-}
-
-.ai-unread h3 {
-  color: #a32d2d;
-}
-
-.ai-unread p {
-  margin: 0 0 12px;
-}
-
-.ai-unread p:last-child {
-  margin-bottom: 0;
-}
-
 .ai-unread-badge {
   color: #a32d2d;
   font-size: 13px;
   font-weight: normal;
 }
 
-.ai-alerts {
-  margin-bottom: 20px;
-  padding: 14px 16px;
+/* Observações e Alertas: um quadro só, uma linha por assunto; o ícone diz de onde vem */
+.attention {
   border: 2px solid #e08a00;
-  border-radius: 8px;
-  background: #fff4e0;
-  color: #6b4600;
+  background: #fffaf0;
 }
 
-.ai-alerts h3 {
+.attention h3 {
   color: #8a5a00;
 }
 
-.ai-alerts ul {
+.attention-list {
   margin: 0;
-  padding-left: 20px;
-  list-style: disc;
+  padding: 0;
+  list-style: none;
 }
 
-.ai-alerts li + li {
-  margin-top: 6px;
+.attention-list li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 4px 10px;
+  padding: 10px 0;
+}
+
+.attention-list li + li {
+  border-top: 1px solid #f3e2c2;
+}
+
+.attention-list li:first-child {
+  padding-top: 0;
+}
+
+.attention-list li:last-child {
+  padding-bottom: 0;
+}
+
+.attention-list li > i {
+  margin-top: 3px;
+  color: #8a5a00;
+  text-align: center;
+}
+
+.attention-list .attention-body {
+  min-width: 0;
+  color: #4a3a1a;
+}
+
+.attention-list .attention-meta {
+  display: block;
+  color: #8a6d3b;
+  font-size: 13px;
+}
+
+.attention-list .attention-text {
+  margin: 2px 0 0;
+  white-space: pre-line;
+}
+
+.attention-list .attention-body > .button {
+  margin-top: 8px;
+}
+
+/* A rejeição e a IA que não leu pedem mais do que um olhar */
+.attention-list li.danger > i,
+.attention-list li.danger .attention-meta {
+  color: #a32d2d;
 }
 
 .detail-meta {
@@ -554,8 +625,18 @@ label.button.primary {
 
 /* Celular: as fotos em cima do formulário, e as ações sempre à mão */
 @media (max-width: 900px) {
+  /* Uma coluna só: os cartões já têm a margem de baixo, e o quadro de atenção vem antes das fotos */
   .detail-layout {
     grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .detail-side {
+    display: contents;
+  }
+
+  #attention {
+    order: -1;
   }
 
   .detail-photos {
