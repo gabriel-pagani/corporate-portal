@@ -770,12 +770,11 @@
     }
 
     function renderMeta(expense) {
-        const rows = [['Enviada em', expense.created_at]];
-        if (reviewer) {
-            rows.unshift(['Funcionário', `${expense.employee} (${expense.employee_username})`]);
-            rows.push(['Setor', expense.sector || '-'], ['Centro de custo', expense.cost_center || '-']);
-        }
-        rows.push(['Valor reembolsado', expense.reimbursed_total]);
+        const rows = reviewer ? [
+            ['Funcionário', `${expense.employee} (${expense.employee_username})`],
+            ['Centro de custo', expense.cost_center || '-'],
+            ['Enviada em', expense.created_at],
+        ] : [['Enviada em', expense.created_at]];
         document.getElementById('detail-meta').replaceChildren(...rows.flatMap(([label, value]) => [
             element('dt', { text: label }), element('dd', { text: value }),
         ]));

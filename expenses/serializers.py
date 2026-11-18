@@ -100,7 +100,6 @@ def serialize_detail(expense, user, current):
         reading = expense.ai_reading or {}
         data.update({
             'employee_username': expense.employee.username,
-            'sector': str(expense.sector) if expense.sector_id else '',
             'cost_center': str(expense.cost_center) if expense.cost_center_id else '',
             'alerts': list(expense.ai_alerts or []),
             'ai_status': reading.get('status', ''),

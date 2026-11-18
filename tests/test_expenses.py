@@ -221,6 +221,24 @@ def test_employee_list_abbreviates_the_long_statuses():
     assert 'statusBadge(expense.status, shortStatus[expense.status], expense.status_display)' in script
 
 
+@pytest.mark.django_db
+def test_reviewer_details_are_titled_as_the_expense_data(client):
+    client.force_login(control())
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    card = re.search(r'<div class="card" id="detail-meta-card">(.*?)<dl', content, re.S).group(1)
+    assert '<h3>Dados da despesa</h3>' in card
+
+
+def test_reviewer_details_leave_the_reimbursed_value_to_the_items():
+    # O valor reembolsado já aparece na seção dos itens; os dados de quem enviou não o repetem
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    details = re.search(r'function renderMeta\(expense\) \{(.*?)\n    \}\n', script, re.S).group(1)
+    assert 'Valor reembolsado' not in details and "'Setor'" not in details
+    # Quem enviou, o centro de custo e, depois, quando
+    positions = [details.index(f"'{label}'") for label in ('Funcionário', 'Centro de custo', 'Enviada em')]
+    assert positions == sorted(positions)
+
+
 def test_employee_summary_leaves_out_the_note_total():
     # O funcionário vê o que vai receber; o total da nota poderia passar por esse valor
     script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
@@ -1045,6 +1063,8 @@ def test_control_sees_the_alerts_and_the_last_note(client, openai):
     data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
 
     assert data['alerts'] == ['A nota não traz o CNPJ da empresa.']
+    # O setor saiu da tela; o centro de custo fica
+    assert 'sector' not in data and 'cost_center' in data
     assert data['explanation_required'] is True and data['can']['edit'] is True
     assert data['timeline'][-1]['note'] == 'Explique.'
 
