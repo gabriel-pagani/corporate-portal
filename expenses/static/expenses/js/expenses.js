@@ -725,10 +725,9 @@
             rows.push([expense.status === 'A' ? 'Valor reembolsado' : 'Valor a reembolsar (previsto)', expense.reimbursed_total, 'highlight']);
         }
         rows.push(
-            ['Valor total da nota', expense.total || '-'],
             ['Tipo', expense.expense_type || '-'],
-            ['Número da nota', fields.number || '-'],
-            ['Data da nota', expense.issue_date || '-'],
+            ['Número', fields.number || '-'],
+            ['Data', expense.issue_date || '-'],
             ['CNPJ do emitente', fields.cnpj_display || '-'],
             ['Enviada em', expense.created_at],
             ['Sua observação', expense.employee_note || 'Sem observação.'],
@@ -827,7 +826,7 @@
             element('div', {
                 className: 'event-meta',
                 // O funcionário não recebe o nome de quem conferiu ou validou
-                text: [event.created_at, event.author_name, event.status_display].filter(Boolean).join(' · '),
+                text: [event.created_at, event.author_name].filter(Boolean).join(' · '),
             }),
             event.note ? element('p', { className: 'event-note', text: event.note }) : null,
         ])));

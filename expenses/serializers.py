@@ -21,7 +21,8 @@ def photo_url(photo_id):
     return reverse('expenses:photo', args=[photo_id])
 
 
-def employee_name(user):
+def user_name(user):
+    """O nome do cadastro; o username só quando não há nome salvo."""
     return user.get_full_name() or user.username
 
 
@@ -38,7 +39,7 @@ def serialize_summary(expense, current):
         'reimbursed_total': money(expense.reimbursed_total),
     }
     if current.reviewer:
-        data['employee'] = employee_name(expense.employee)
+        data['employee'] = user_name(expense.employee)
         data['alerts_count'] = len(expense.ai_alerts or [])
     return data
 
@@ -47,7 +48,6 @@ def serialize_event_for_employee(event):
     return {
         'sequence': event.sequence,
         'action_display': event.get_action_display(),
-        'status_display': event.get_status_after_display(),
         'note': event.note if event.action in EMPLOYEE_VISIBLE_NOTES else '',
         'created_at': local(event.created_at),
     }
@@ -108,8 +108,9 @@ def serialize_detail(expense, user, current):
                 {
                     'sequence': event.sequence,
                     'action_display': event.get_action_display(),
-                    'status_display': event.get_status_after_display(),
-                    'author_name': event.author_name,
+                    # O nome de hoje: o author_name gravado é o de quando a ação aconteceu, e fica
+                    # no registro para a auditoria
+                    'author_name': user_name(event.author),
                     'note': event.note,
                     'created_at': local(event.created_at),
                 }

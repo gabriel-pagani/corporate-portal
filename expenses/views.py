@@ -60,7 +60,7 @@ def detail_queryset(user):
     return visible_expenses(user).prefetch_related(
         Prefetch('items', queryset=ExpenseItem.objects.order_by('position', 'id')),
         Prefetch('photos', queryset=ExpensePhoto.objects.order_by('position', 'id')),
-        Prefetch('events', queryset=ExpenseEvent.objects.order_by('sequence')),
+        Prefetch('events', queryset=ExpenseEvent.objects.select_related('author').order_by('sequence')),
     )
 
 

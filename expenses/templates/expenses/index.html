@@ -40,10 +40,10 @@
 
             <div id="success-message" class="form-message" role="status" hidden></div>
 
-            <!-- A lista de notas -->
+            <!-- A lista de despesas -->
             <section id="list-view" class="card" hidden>
+                {% if access.control or access.finance %}
                 <div class="card-header">
-                    {% if access.control or access.finance %}
                     <nav class="tabs" aria-label="Despesas">
                         <button type="button" class="tab" data-scope="queue">
                             <i class="fas fa-inbox" aria-hidden="true"></i> Fila <span class="tab-count" id="queue-count"></span>
@@ -58,12 +58,9 @@
                         </select>
                         <input type="search" id="search-input" placeholder="Nº, CNPJ ou funcionário" aria-label="Pesquisar despesas">
                     </div>
-                    {% else %}
-                    <h2>Minhas despesas</h2>
-                    {% endif %}
                 </div>
-                {% if not access.control and not access.finance %}
-                <!-- Os filtros são botões, que no celular rolam de lado -->
+                {% else %}
+                <!-- O funcionário vai direto aos filtros, que são botões e no celular rolam de lado -->
                 <div class="chips" id="status-chips" role="group" aria-label="Filtrar as despesas"></div>
                 {% endif %}
                 <div id="expense-list" class="expense-list"></div>
@@ -190,7 +187,7 @@
                             <h3>Dados da nota</h3>
                             <div class="form-grid expense-fields">
                                 <div class="field">
-                                    <label for="field-number">Número da nota</label>
+                                    <label for="field-number">Número</label>
                                     <input id="field-number" name="number" type="text" maxlength="20" inputmode="numeric">
                                 </div>
                                 <div class="field">

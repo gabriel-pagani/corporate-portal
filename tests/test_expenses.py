@@ -177,13 +177,30 @@ def test_routes_respect_who_sees_the_expense(client, openai):
     assert client.get(reverse('expenses:expense-add')).status_code == 403
 
 
+def test_employee_summary_leaves_out_the_note_total():
+    # O funcionário vê o que vai receber; o total da nota poderia passar por esse valor
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    summary = re.search(r'function renderEmployeeSummary\(expense\) \{(.*?)\n    \}\n', script, re.S).group(1)
+    assert 'Valor total da nota' not in summary
+    for label in ('Valor a reembolsar (previsto)', 'Valor reembolsado', 'Tipo', 'Número', 'Data',
+                  'CNPJ do emitente', 'Enviada em', 'Sua observação'):
+        assert f"'{label}'" in summary
+    # Dentro dos dados da nota, o número e a data dispensam o "da nota"
+    assert 'Número da nota' not in summary and 'Data da nota' not in summary
+
+
 @pytest.mark.django_db
 def test_list_names_the_expenses_and_keeps_the_note_inside(client):
     client.force_login(employee())
     content = client.get(reverse('expenses:expenses')).content.decode()
-    assert 'Minhas despesas' in content and 'Nenhuma despesa por aqui.' in content
+    # A lista do funcionário começa nos filtros, sem título
+    assert 'Nenhuma despesa por aqui.' in content and 'id="status-chips"' in content
+    assert 'Minhas despesas' not in content
     # Dentro da despesa, o documento continua sendo a nota
-    assert 'Enviar nota' in content and 'Fotos da nota' in content and 'Número da nota' in content
+    assert 'Enviar nota' in content and 'Fotos da nota' in content and 'Dados da nota' in content
+    # No formulário dos dados da nota, o número e a data dispensam o "da nota"
+    assert '<label for="field-number">Número</label>' in content
+    assert '<label for="field-issue-date">Data</label>' in content
     assert 'Minhas notas' not in content
 
     client.force_login(control())
@@ -1007,6 +1024,45 @@ def test_timeline_names_the_user_and_the_stage_but_not_the_role(client, openai):
     client.force_login(user)
     timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
     assert all('role_display' not in event and 'author_name' not in event for event in timeline)
+
+
+@pytest.mark.django_db
+def test_timeline_leaves_out_the_status_of_each_step(client, openai):
+    # O título da etapa já diz o que aconteceu: a situação ao lado do nome sobra
+    user, reviewer = employee(), control()
+    expense = submitted(openai, user)
+    act(reviewer, expense.pk, 'request_correction', 'Foto cortada.', 1)
+
+    for viewer in (user, reviewer):
+        client.force_login(viewer)
+        timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
+        assert len(timeline) == 2 and all('status_display' not in event for event in timeline)
+
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    assert "text: [event.created_at, event.author_name].filter(Boolean).join(' · ')" in script
+
+
+@pytest.mark.django_db
+def test_timeline_shows_the_current_name_of_the_author(client, openai):
+    reviewer = control()
+    expense = submitted(openai, employee())
+    act(reviewer, expense.pk, 'request_correction', 'Foto cortada.', 1)
+
+    # O nome foi salvo no cadastro depois da ação
+    reviewer.first_name, reviewer.last_name = 'Adm', 'Silva'
+    reviewer.save()
+    client.force_login(reviewer)
+
+    timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
+    assert [event['author_name'] for event in timeline] == ['Ana Silva', 'Adm Silva']
+    # O registro guarda o nome de quando a ação aconteceu, para a auditoria
+    assert expense.events.last().author_name == 'controle'
+
+    # Sem nome no cadastro, fica o username
+    reviewer.first_name = reviewer.last_name = ''
+    reviewer.save()
+    timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
+    assert timeline[-1]['author_name'] == 'controle'
 
 
 @pytest.mark.django_db
