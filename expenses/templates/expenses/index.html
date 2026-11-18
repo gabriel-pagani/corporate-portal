@@ -21,9 +21,16 @@
             data-photos-url="{% url 'expenses:expense-photos-api' 0 %}"
         >
             <div class="header">
-                <a href="{% url 'app:home' %}">
+                {% if access.employee %}
+                <!-- Para o funcionário, que usa a página no celular, a logo recarrega as despesas -->
+                <a href="{% url 'expenses:expenses' %}" id="logo-link">
+                    <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Atualizar as despesas"/>
+                </a>
+                {% else %}
+                <a href="{% url 'app:home' %}" id="logo-link">
                     <img src="{% static 'global/images/black_logo.png' %}" alt="Logo SMI" class="logo" title="Voltar ao menu principal"/>
                 </a>
+                {% endif %}
                 <div class="header-text">
                     <h1>Despesas</h1>
                 </div>

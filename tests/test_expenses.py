@@ -162,6 +162,23 @@ def test_each_screen_has_its_own_route(client, openai):
 
 
 @pytest.mark.django_db
+def test_logo_reloads_the_expenses_for_the_employee(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    client.force_login(user)
+    # Em qualquer tela, a logo do funcionário recarrega a lista de despesas, sem trocar a rota pelo JS
+    for url in (reverse('expenses:expenses'), reverse('expenses:expense', args=[expense.pk])):
+        content = client.get(url).content.decode()
+        assert '<a href="/expenses/" id="logo-link">' in content and 'title="Atualizar as despesas"' in content
+
+    # Quem confere ou valida volta ao menu principal pela logo
+    for reviewer in (control(), finance()):
+        client.force_login(reviewer)
+        content = client.get(reverse('expenses:expenses')).content.decode()
+        assert f'<a href="{reverse("app:home")}" id="logo-link">' in content
+
+
+@pytest.mark.django_db
 def test_routes_respect_who_sees_the_expense(client, openai):
     owner = employee()
     expense = submitted(openai, owner)
