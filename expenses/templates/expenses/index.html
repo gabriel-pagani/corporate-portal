@@ -12,6 +12,9 @@
 {% block body %}
         <div id="content" class="container expenses"
             data-csrf-token="{{ csrf_token }}"
+            data-page-url="{% url 'expenses:expenses' %}"
+            data-add-url="{% url 'expenses:expense-add' %}"
+            data-detail-url="{% url 'expenses:expense' 0 %}"
             data-list-url="{% url 'expenses:expenses-api' %}"
             data-expense-url="{% url 'expenses:expense-api' 0 %}"
             data-action-url="{% url 'expenses:expense-action-api' 0 %}"
@@ -25,7 +28,7 @@
                     <h1>Despesas</h1>
                 </div>
                 {% if access.employee %}
-                <a href="#enviar" class="button primary big" id="new-expense">
+                <a href="{% url 'expenses:expense-add' %}" data-route class="button primary big" id="new-expense">
                     <i class="fas fa-camera" aria-hidden="true"></i> Enviar nota
                 </a>
                 {% endif %}
@@ -41,30 +44,30 @@
             <section id="list-view" class="card" hidden>
                 <div class="card-header">
                     {% if access.control or access.finance %}
-                    <nav class="tabs" aria-label="Notas">
+                    <nav class="tabs" aria-label="Despesas">
                         <button type="button" class="tab" data-scope="queue">
                             <i class="fas fa-inbox" aria-hidden="true"></i> Fila <span class="tab-count" id="queue-count"></span>
                         </button>
                         <button type="button" class="tab" data-scope="all">
-                            <i class="fas fa-list" aria-hidden="true"></i> Todas as notas
+                            <i class="fas fa-list" aria-hidden="true"></i> Todas as despesas
                         </button>
                     </nav>
                     <div class="toolbar">
                         <select id="status-filter" aria-label="Filtrar pela situação">
                             <option value="">Todas as situações</option>
                         </select>
-                        <input type="search" id="search-input" placeholder="Nº, CNPJ ou funcionário" aria-label="Pesquisar notas">
+                        <input type="search" id="search-input" placeholder="Nº, CNPJ ou funcionário" aria-label="Pesquisar despesas">
                     </div>
                     {% else %}
-                    <h2>Minhas notas</h2>
+                    <h2>Minhas despesas</h2>
                     {% endif %}
                 </div>
                 {% if not access.control and not access.finance %}
                 <!-- Os filtros são botões, que no celular rolam de lado -->
-                <div class="chips" id="status-chips" role="group" aria-label="Filtrar as notas"></div>
+                <div class="chips" id="status-chips" role="group" aria-label="Filtrar as despesas"></div>
                 {% endif %}
                 <div id="expense-list" class="expense-list"></div>
-                <p id="list-empty" class="empty" hidden>Nenhuma nota por aqui.</p>
+                <p id="list-empty" class="empty" hidden>Nenhuma despesa por aqui.</p>
                 <button type="button" class="button" id="list-more" hidden>Ver mais</button>
             </section>
 
@@ -72,7 +75,7 @@
             <!-- O envio: só as fotos e a observação -->
             <section id="submit-view" class="card submit-view" hidden>
                 <div class="view-header">
-                    <a href="#" class="button small" id="submit-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar</a>
+                    <a href="{% url 'expenses:expenses' %}" data-route class="button small" id="submit-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar</a>
                     <h2>Enviar nota</h2>
                 </div>
                 <ul class="tips">
@@ -102,7 +105,7 @@
                 </div>
                 <!-- No celular fica presa ao pé da tela -->
                 <div class="editor-actions sticky-actions">
-                    <a href="#" class="button" id="submit-cancel">Cancelar</a>
+                    <a href="{% url 'expenses:expenses' %}" data-route class="button" id="submit-cancel">Cancelar</a>
                     <button type="button" class="button primary" id="submit-send" disabled>Enviar nota</button>
                 </div>
             </section>
@@ -111,7 +114,7 @@
             <!-- A nota: as fotos ao lado do formulário -->
             <section id="detail-view" hidden>
                 <div class="detail-header">
-                    <a href="#" class="button small" id="detail-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar</a>
+                    <a href="{% url 'expenses:expenses' %}" data-route class="button small" id="detail-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar</a>
                     <h2 id="detail-title"></h2>
                     <span id="detail-status" class="status-badge"></span>
                 </div>
@@ -262,7 +265,7 @@
             {% if access.employee %}
             <!-- No celular o Enviar nota fica no rodapé da lista, ao alcance do polegar -->
             <div class="mobile-bar" id="mobile-bar">
-                <a href="#enviar" class="button primary big"><i class="fas fa-camera" aria-hidden="true"></i> Enviar nota</a>
+                <a href="{% url 'expenses:expense-add' %}" data-route class="button primary big"><i class="fas fa-camera" aria-hidden="true"></i> Enviar nota</a>
             </div>
             {% endif %}
 
@@ -289,7 +292,6 @@
         {{ types|json_script:"expenses-types" }}
         {{ limits|json_script:"expenses-limits" }}
         {{ statuses|json_script:"expenses-statuses" }}
-        {{ open_expense|json_script:"expenses-open" }}
 
         <script src="{% static 'expenses/js/expenses.js' %}"></script>
 {% endblock body %}

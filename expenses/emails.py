@@ -7,9 +7,11 @@ ação, só fica no log.
 """
 import logging
 import smtplib
+from urllib.parse import urljoin
 
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 
 from expenses.history import money
@@ -19,14 +21,14 @@ from expenses.models import Expense, ExpenseEvent
 logger = logging.getLogger(__name__)
 
 MESSAGES = {
-    ExpenseEvent.SUBMIT: 'Recebemos a sua nota. Ela agora aguarda a conferência.',
-    ExpenseEvent.RESUBMIT: 'Recebemos as novas fotos da sua nota. Ela volta para a conferência.',
-    ExpenseEvent.REQUEST_CORRECTION: 'Foi pedida uma correção na sua nota. Veja a observação abaixo e envie novas fotos pelo portal.',
-    ExpenseEvent.APPROVE_REVIEW: 'A sua nota foi conferida e agora aguarda a validação.',
-    ExpenseEvent.EXPLAIN: 'A dúvida sobre a sua nota foi esclarecida, e ela volta a aguardar a validação.',
-    ExpenseEvent.REQUEST_EXPLANATION: 'Surgiu uma dúvida sobre a sua nota na validação, e ela voltou para a conferência. Você não precisa fazer nada por enquanto.',
-    ExpenseEvent.APPROVE_VALIDATION: 'A sua nota foi aprovada.',
-    ExpenseEvent.REJECT: 'A sua nota foi rejeitada e está encerrada.',
+    ExpenseEvent.SUBMIT: 'Recebemos a sua despesa. Ela agora aguarda a conferência.',
+    ExpenseEvent.RESUBMIT: 'Recebemos as novas fotos da sua despesa. Ela volta para a conferência.',
+    ExpenseEvent.REQUEST_CORRECTION: 'Foi pedida uma correção na sua despesa. Veja a observação abaixo e envie novas fotos pelo portal.',
+    ExpenseEvent.APPROVE_REVIEW: 'A sua despesa foi conferida e agora aguarda a validação.',
+    ExpenseEvent.EXPLAIN: 'A dúvida sobre a sua despesa foi esclarecida, e ela volta a aguardar a validação.',
+    ExpenseEvent.REQUEST_EXPLANATION: 'Surgiu uma dúvida sobre a sua despesa na validação, e ela voltou para a conferência. Você não precisa fazer nada por enquanto.',
+    ExpenseEvent.APPROVE_VALIDATION: 'A sua despesa foi aprovada.',
+    ExpenseEvent.REJECT: 'A sua despesa foi rejeitada e está encerrada.',
 }
 
 # As observações que são para o funcionário. As trocadas entre a conferência e
@@ -41,7 +43,7 @@ def notify_status_change(expense, event, link=''):
     """Avisa o funcionário da nova situação. Devolve True se o e-mail saiu."""
     employee = expense.employee
     if not employee.email:
-        logger.info('Nota #%s: funcionário sem e-mail, aviso não enviado.', expense.pk)
+        logger.info('Despesa #%s: funcionário sem e-mail, aviso não enviado.', expense.pk)
         return False
 
     note_label = EMPLOYEE_NOTES.get(event.action)
@@ -54,11 +56,12 @@ def notify_status_change(expense, event, link=''):
         'reimbursed': money(expense.reimbursed_total) if expense.status == Expense.APPROVED else '',
         'note_label': note_label,
         'note': event.note if note_label else '',
-        'link': link,
+        # O link chega como o endereço da lista; o e-mail aponta para a rota da despesa
+        'link': urljoin(link, reverse('expenses:expense', args=[expense.pk])) if link else '',
     })
     try:
-        send_mail(f'Nota #{expense.pk}: {expense.get_status_display()}', body, None, [employee.email])
+        send_mail(f'Despesa #{expense.pk}: {expense.get_status_display()}', body, None, [employee.email])
     except (smtplib.SMTPException, OSError) as error:
-        logger.warning('Nota #%s: e-mail ao funcionário não enviado (%s).', expense.pk, type(error).__name__)
+        logger.warning('Despesa #%s: e-mail ao funcionário não enviado (%s).', expense.pk, type(error).__name__)
         return False
     return True

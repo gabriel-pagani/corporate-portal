@@ -142,6 +142,56 @@ def test_page_requires_login_and_a_role(client):
 
 
 @pytest.mark.django_db
+def test_each_screen_has_its_own_route(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    assert reverse('expenses:expense-add') == '/expenses/add/'
+    assert reverse('expenses:expense', args=[expense.pk]) == f'/expenses/{expense.pk}/'
+
+    client.force_login(user)
+    for url in (reverse('expenses:expense-add'), reverse('expenses:expense', args=[expense.pk])):
+        content = client.get(url).content.decode()
+        assert 'id="list-view"' in content and 'id="detail-view"' in content
+    # Os links entre as telas são rotas, e não âncoras no endereço
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    assert 'href="#' not in content
+    assert 'href="/expenses/add/" data-route' in content and 'data-detail-url="/expenses/0/"' in content
+    # Sem a barra no fim, o Django leva para a rota com a barra
+    response = client.get(f'/expenses/{expense.pk}')
+    assert response.status_code == 301 and response.url == f'/expenses/{expense.pk}/'
+
+
+@pytest.mark.django_db
+def test_routes_respect_who_sees_the_expense(client, openai):
+    owner = employee()
+    expense = submitted(openai, owner)
+    url = reverse('expenses:expense', args=[expense.pk])
+
+    client.force_login(employee(username='outro', email='outro@empresa.com'))
+    assert client.get(url).status_code == 404
+    assert client.get(reverse('expenses:expense', args=[expense.pk + 100])).status_code == 404
+
+    # Quem confere vê todas as despesas, mas não tem a tela de envio
+    client.force_login(control())
+    assert client.get(url).status_code == 200
+    assert client.get(reverse('expenses:expense-add')).status_code == 403
+
+
+@pytest.mark.django_db
+def test_list_names_the_expenses_and_keeps_the_note_inside(client):
+    client.force_login(employee())
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    assert 'Minhas despesas' in content and 'Nenhuma despesa por aqui.' in content
+    # Dentro da despesa, o documento continua sendo a nota
+    assert 'Enviar nota' in content and 'Fotos da nota' in content and 'Número da nota' in content
+    assert 'Minhas notas' not in content
+
+    client.force_login(control())
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    assert 'Todas as despesas' in content and 'Todas as notas' not in content
+
+
+@pytest.mark.django_db
 def test_page_counts_the_access_and_tells_the_role(client, catalog):
     user = control()
     client.force_login(user)
@@ -816,11 +866,13 @@ def test_employee_gets_an_email_on_every_status_change(client, openai, django_ca
 
     assert [message.to for message in mail.outbox] == [[user.email]] * 3
     assert [message.subject for message in mail.outbox] == [
-        f'Nota #{expense.pk}: Aguardando conferência',
-        f'Nota #{expense.pk}: Aguardando validação',
-        f'Nota #{expense.pk}: Aprovada',
+        f'Despesa #{expense.pk}: Aguardando conferência',
+        f'Despesa #{expense.pk}: Aguardando validação',
+        f'Despesa #{expense.pk}: Aprovada',
     ]
-    assert f'/expenses/?nota={expense.pk}' in mail.outbox[0].body
+    # O link do e-mail abre a rota da despesa
+    assert f'Acompanhe a despesa no portal: http://testserver/expenses/{expense.pk}/' in mail.outbox[0].body
+    assert 'A sua despesa foi aprovada.' in mail.outbox[2].body
     assert 'Valor reembolsado: R$ 45,00' in mail.outbox[2].body
 
 
@@ -832,7 +884,7 @@ def test_rejection_email_brings_the_reason(openai, django_capture_on_commit_call
         act(control(), expense.pk, 'reject', 'Despesa fora da política de viagens.', 1)
 
     message = mail.outbox[-1]
-    assert message.subject == f'Nota #{expense.pk}: Rejeitada'
+    assert message.subject == f'Despesa #{expense.pk}: Rejeitada'
     assert 'Motivo da rejeição:\nDespesa fora da política de viagens.' in message.body
 
 
@@ -855,7 +907,7 @@ def test_notes_between_control_and_finance_stay_out_of_the_email(openai, django_
         act(finance(), expense.pk, 'request_correction', 'Assunto interno do Financeiro.', 2)
 
     message = mail.outbox[-1]
-    assert message.subject == f'Nota #{expense.pk}: Aguardando explicação'
+    assert message.subject == f'Despesa #{expense.pk}: Aguardando explicação'
     assert 'Assunto interno do Financeiro.' not in message.body
 
 
@@ -992,10 +1044,10 @@ def test_screens_and_emails_do_not_name_the_sectors(client, openai, django_captu
 @pytest.mark.django_db
 def test_messages_of_the_wrong_stage_do_not_name_the_sectors(openai):
     expense, reviewer = submitted(openai, employee()), control()
-    with pytest.raises(PermissionDenied, match='Esta nota está na conferência.'):
+    with pytest.raises(PermissionDenied, match='Esta despesa está na conferência.'):
         act(finance(), expense.pk, 'approve', '', 1)
     act(reviewer, expense.pk, 'approve', '', 1)
-    with pytest.raises(PermissionDenied, match='Esta nota está na validação.'):
+    with pytest.raises(PermissionDenied, match='Esta despesa está na validação.'):
         act(reviewer, expense.pk, 'approve', '', 2)
     assert ROLE_CONFLICT == 'Cada usuário pode ter um só papel nas despesas: enviar notas, conferir ou validar.'
 

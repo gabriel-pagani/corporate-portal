@@ -74,17 +74,18 @@ def detail_response(request, expense_id, status=200):
 @login_required
 @require_GET
 @track_access(ServiceAccess.EXPENSES)
-def expenses_view(request):
+def expenses_view(request, expense_id=None, screen='list'):
+    """A tela das despesas. A lista, o envio (/expenses/add/) e cada despesa (/expenses/12/) têm a sua rota."""
     current = access(request.user)
     if current.conflict:
         return render(request, 'expenses/blocked.html', {'message': BLOCKED_MESSAGE}, status=403)
     if not current.any_role:
         raise PermissionDenied
-
-    try:
-        open_expense = int(request.GET.get('nota', ''))
-    except ValueError:
-        open_expense = None
+    if screen == 'add' and not current.employee:
+        raise PermissionDenied
+    if expense_id is not None:
+        # Quem não pode ver a despesa recebe o mesmo 404 de uma que não existe
+        get_object_or_404(visible_expenses(request.user), pk=expense_id)
 
     return render(request, 'expenses/index.html', {
         'access': {
@@ -95,7 +96,6 @@ def expenses_view(request):
         'types': [{'id': item.id, 'name': item.name} for item in ExpenseType.objects.all()] if current.control else [],
         'limits': {'max_photos': MAX_PHOTOS, 'max_size': MAX_PHOTO_SIZE, 'accepted': ACCEPTED_TYPES},
         'statuses': [{'value': value, 'label': label} for value, label in Expense.STATUS],
-        'open_expense': open_expense,
     })
 
 

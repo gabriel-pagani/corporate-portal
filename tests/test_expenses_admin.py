@@ -220,7 +220,8 @@ def test_expenses_card_shows_the_employee_notes(client, openai):
 
     content = client.get(reverse('app:home')).content.decode()
     card = re.search(r'data-service="expenses">(.*?)</article>', content, re.S).group(1)
-    assert f'?nota={expense.pk}' in card and 'Aguardando correção' in card
+    assert f'href="/expenses/{expense.pk}/"' in card and f'Despesa #{expense.pk}' in card
+    assert 'Aguardando correção' in card
 
 
 @pytest.mark.django_db

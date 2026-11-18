@@ -1,6 +1,6 @@
-// Despesas: a lista de notas, o envio das fotos, a conferência, a validação e
-// o histórico de cada nota. As telas trocam pelo endereço
-// (#enviar, #nota-12): o voltar do celular volta para a tela anterior.
+// Despesas: a lista, o envio das fotos da nota, a conferência, a validação e o
+// histórico de cada despesa. Cada tela tem a sua rota (/expenses/add/,
+// /expenses/12/): o voltar do celular volta para a tela anterior.
 
 (() => {
     const content = document.getElementById('content');
@@ -11,11 +11,11 @@
     const types = readJson('expenses-types');
     const limits = readJson('expenses-limits');
     const statuses = readJson('expenses-statuses');
-    const openExpense = readJson('expenses-open');
     const reviewer = access.control || access.finance;
     const accepted = limits.accepted.split(',');
 
     const urlFor = (name, id) => content.dataset[name].replace('/0/', `/${id}/`);
+    const detailPattern = new RegExp(`^${content.dataset.detailUrl.replace('/0/', '/(\\d+)/')}$`);
 
     const state = {
         scope: reviewer ? 'queue' : 'mine',
@@ -143,11 +143,11 @@
     }
 
     function route() {
-        const hash = window.location.hash;
-        const match = hash.match(/^#nota-(\d+)$/);
+        const path = window.location.pathname;
+        const match = path.match(detailPattern);
         if (match) {
             loadDetail(Number(match[1]));
-        } else if (hash === '#enviar' && access.employee) {
+        } else if (path === content.dataset.addUrl && access.employee) {
             showView('submit-view');
         } else {
             showView('list-view');
@@ -155,9 +155,24 @@
         }
     }
 
-    window.addEventListener('hashchange', () => {
+    function navigate(url) {
+        if (url !== window.location.pathname) history.pushState(null, '', url);
         clearMessages();
         route();
+    }
+
+    window.addEventListener('popstate', () => {
+        clearMessages();
+        route();
+    });
+
+    // Os links entre as telas trocam a rota sem recarregar a página; com Ctrl ou
+    // o botão do meio, abrem numa aba nova como qualquer link
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[data-route]');
+        if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigate(link.getAttribute('href'));
     });
 
     // ---------- Lista ----------
@@ -222,9 +237,9 @@
             expense.number ? `Nº ${expense.number}` : '',
             `Enviada em ${expense.created_at}`,
         ].filter(Boolean).join(' · ') : `Enviada em ${expense.created_at}`;
-        return element('a', { className: `expense-row${needsAction ? ' needs-action' : ''}`, href: `#nota-${expense.id}` }, [
+        return element('a', { className: `expense-row${needsAction ? ' needs-action' : ''}`, href: urlFor('detailUrl', expense.id), 'data-route': '' }, [
             element('span', { className: 'row-title' }, [
-                `Nota #${expense.id}`,
+                `Despesa #${expense.id}`,
                 statusBadge(expense.status, expense.status_display),
                 expense.alerts_count ? element('span', { className: 'alert-count' }, [
                     icon('fa-triangle-exclamation'), ` ${expense.alerts_count} alerta${expense.alerts_count > 1 ? 's' : ''}`,
@@ -497,8 +512,8 @@
                 const data = await upload(content.dataset.listUrl, photosForm(picker.files(), submitNote.value), progress);
                 picker.clear();
                 submitNote.value = '';
-                state.flash = 'Nota enviada. Ela agora aguarda a conferência.';
-                window.location.hash = `#nota-${data.expense.id}`;
+                state.flash = 'Nota enviada. A despesa agora aguarda a conferência.';
+                navigate(urlFor('detailUrl', data.expense.id));
             } catch (error) {
                 showError(error.message);
             } finally {
@@ -666,21 +681,21 @@
     const banners = {
         C: {
             icon: 'fa-magnifying-glass', title: 'Em conferência',
-            text: () => 'A sua nota está sendo conferida. Você recebe um e-mail quando a situação mudar.',
+            text: () => 'A sua despesa está sendo conferida. Você recebe um e-mail quando a situação mudar.',
         },
         S: {
             icon: 'fa-camera', title: 'Envie novas fotos', tone: 'attention',
             text: (expense) => (expense.last_note
                 ? `Foi pedida uma correção: ${expense.last_note}`
-                : 'Foi pedida uma correção na nota.'),
+                : 'Foi pedida uma correção na despesa.'),
         },
         E: {
             icon: 'fa-hourglass-half', title: 'Em análise',
-            text: () => 'A nota está sendo analisada. Você não precisa fazer nada.',
+            text: () => 'A despesa está sendo analisada. Você não precisa fazer nada.',
         },
         V: {
             icon: 'fa-hourglass-half', title: 'Em validação',
-            text: () => 'A nota foi conferida e agora aguarda a validação.',
+            text: () => 'A despesa foi conferida e agora aguarda a validação.',
         },
         A: {
             icon: 'fa-circle-check', title: 'Aprovada', tone: 'success',
@@ -688,7 +703,7 @@
         },
         R: {
             icon: 'fa-circle-xmark', title: 'Rejeitada', tone: 'danger',
-            text: (expense) => (expense.last_note ? `Motivo: ${expense.last_note}` : 'A nota foi rejeitada e está encerrada.'),
+            text: (expense) => (expense.last_note ? `Motivo: ${expense.last_note}` : 'A despesa foi rejeitada e está encerrada.'),
         },
     };
 
@@ -825,7 +840,7 @@
 
     function renderDetail(expense) {
         state.expense = expense;
-        document.getElementById('detail-title').textContent = `Nota #${expense.id}`;
+        document.getElementById('detail-title').textContent = `Despesa #${expense.id}`;
         const badge = document.getElementById('detail-status');
         badge.className = `status-badge status-${expense.status}`;
         badge.textContent = expense.status_display;
@@ -924,8 +939,8 @@
         const control = expense.status === 'C' || expense.status === 'E';
         if (action === 'reject') {
             return {
-                title: `Rejeitar a nota #${expense.id}?`,
-                text: 'A nota fica encerrada de vez, sem reenvio. O funcionário recebe o motivo por e-mail.',
+                title: `Rejeitar a despesa #${expense.id}?`,
+                text: 'A despesa fica encerrada de vez, sem reenvio. O funcionário recebe o motivo por e-mail.',
                 label: 'Motivo da rejeição (obrigatório)',
                 button: 'Rejeitar',
                 required: true,
@@ -935,13 +950,13 @@
         if (action === 'request_correction') {
             return control ? {
                 title: 'Pedir correção ao funcionário?',
-                text: 'A nota volta ao funcionário para ele enviar novas fotos. Os dados que você editou ficam guardados.',
+                text: 'A despesa volta ao funcionário para ele enviar novas fotos. Os dados que você editou ficam guardados.',
                 label: 'O que o funcionário precisa corrigir (obrigatório)',
                 button: 'Pedir correção',
                 required: true,
             } : {
                 title: 'Devolver para a conferência?',
-                text: 'A nota volta para a conferência, que responde com uma explicação ou pede a correção ao funcionário.',
+                text: 'A despesa volta para a conferência, que responde com uma explicação ou pede a correção ao funcionário.',
                 label: 'O que precisa ser explicado ou corrigido (obrigatório)',
                 button: 'Devolver',
                 required: true,
@@ -949,8 +964,8 @@
         }
         if (!control) {
             return {
-                title: `Aprovar a nota #${expense.id}?`,
-                text: `Valor reembolsado: ${expense.reimbursed_total}. A aprovação encerra a nota e dispara o lançamento no RM.`,
+                title: `Aprovar a despesa #${expense.id}?`,
+                text: `Valor reembolsado: ${expense.reimbursed_total}. A aprovação encerra a despesa e dispara o lançamento no RM.`,
                 label: 'Observação (opcional)',
                 button: 'Aprovar',
                 required: false,
@@ -958,7 +973,7 @@
         }
         return expense.explanation_required ? {
             title: 'Explicar e aprovar?',
-            text: 'A nota volta para a validação com a sua explicação.',
+            text: 'A despesa volta para a validação com a sua explicação.',
             label: 'Explicação para a validação (obrigatória)',
             button: 'Enviar para a validação',
             required: true,
@@ -986,7 +1001,7 @@
         try {
             const data = await postJson(urlFor('actionUrl', expense.id), payload);
             renderDetail(data.expense);
-            showSuccess(`Nota #${expense.id}: ${data.expense.status_display}.`);
+            showSuccess(`Despesa #${expense.id}: ${data.expense.status_display}.`);
         } catch (error) {
             showError(error.message);
             markInvalid(error.data && error.data.errors);
@@ -1018,7 +1033,7 @@
                 resendNote.value = '';
                 renderDetail(data.expense);
                 window.scrollTo(0, 0);
-                showSuccess('Fotos reenviadas. A nota volta para a conferência.');
+                showSuccess('Fotos reenviadas. A despesa volta para a conferência.');
             } catch (error) {
                 showError(error.message);
             } finally {
@@ -1033,9 +1048,5 @@
 
     // ---------- Início ----------
 
-    if (openExpense && !window.location.hash) {
-        // O link do e-mail e do card da home (?nota=12) abre direto a nota
-        history.replaceState(null, '', `${window.location.pathname}#nota-${openExpense}`);
-    }
     route();
 })();

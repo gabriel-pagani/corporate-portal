@@ -14,17 +14,17 @@
 <ul class="preview-list" data-fit data-more>
     {% for expense in preview.recent %}
     <li>
-        <a href="{{ service.url }}?nota={{ expense.id }}" title="Abrir a nota #{{ expense.id }}">
+        <a href="{% url 'expenses:expense' expense.id %}" title="Abrir a despesa #{{ expense.id }}">
             <i class="fas fa-receipt item-icon" aria-hidden="true"></i>
             <span class="item-text">
-                <strong>Nota #{{ expense.id }}</strong>
+                <strong>Despesa #{{ expense.id }}</strong>
                 <small>Enviada em {{ expense.created_at|date:"d/m/Y" }}</small>
             </span>
             <span class="item-aside{% if expense.status == 'S' %} stock-badge{% endif %}">{{ expense.status_display }}</span>
         </a>
     </li>
     {% empty %}
-    <li class="preview-empty">Você ainda não enviou notas.</li>
+    <li class="preview-empty">Você ainda não enviou despesas.</li>
     {% endfor %}
 </ul>
 {% else %}

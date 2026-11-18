@@ -33,7 +33,7 @@ from expenses.roles import access
 
 DUPLICATE_MESSAGE = 'Esta nota já foi enviada ao portal e não pode ser enviada de novo.'
 
-CONFLICT_MESSAGE = 'A nota foi alterada por outra pessoa desde que você a abriu. Abra-a de novo para ver a versão atual.'
+CONFLICT_MESSAGE = 'A despesa foi alterada por outra pessoa desde que você a abriu. Abra-a de novo para ver a versão atual.'
 
 MAX_NOTE = 2000
 
@@ -186,7 +186,7 @@ def resubmit_photos(user, expense_id, files, note='', link=''):
         with transaction.atomic():
             expense = Expense.objects.select_for_update().get(pk=expense_id, employee=user)
             if expense.status != Expense.AWAITING_CORRECTION:
-                raise ValidationError('Só é possível reenviar as fotos de uma nota que aguarda correção.')
+                raise ValidationError('Só é possível reenviar as fotos de uma despesa que aguarda correção.')
 
             round_number = (expense.photos.aggregate(last=Max('round'))['last'] or 0) + 1
             expense.photos.filter(replaced_at__isnull=True).update(replaced_at=timezone.now())
@@ -263,22 +263,22 @@ def check_ready_to_approve(expense):
     if missing:
         raise ValidationError(f'Para aprovar, preencha: {", ".join(missing)}.')
     if expense.reimbursed_total <= 0:
-        raise ValidationError('Para aprovar, a nota precisa ter valor reembolsado maior que zero.')
+        raise ValidationError('Para aprovar, a despesa precisa ter valor reembolsado maior que zero.')
 
 
 def acting_role(expense, current):
     """O papel de quem age, pela etapa em que a nota está."""
     if expense.status in Expense.WITH_CONTROL:
         if not current.control:
-            raise PermissionDenied('Esta nota está na conferência.')
+            raise PermissionDenied('Esta despesa está na conferência.')
         return ExpenseEvent.CONTROL
     if expense.status in Expense.WITH_FINANCE:
         if not current.finance:
-            raise PermissionDenied('Esta nota está na validação.')
+            raise PermissionDenied('Esta despesa está na validação.')
         return ExpenseEvent.FINANCE
     if expense.status == Expense.AWAITING_CORRECTION:
-        raise ValidationError('Esta nota aguarda a correção do funcionário.')
-    raise ValidationError('Esta nota já está encerrada.')
+        raise ValidationError('Esta despesa aguarda a correção do funcionário.')
+    raise ValidationError('Esta despesa já está encerrada.')
 
 
 def note_required(role, action, status):
