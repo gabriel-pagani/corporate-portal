@@ -37,6 +37,8 @@ AI_QUALITY = 85
 class Photo:
     content: bytes
     sha256: str
+    # Do arquivo como o funcionário enviou, antes da regravação
+    source_sha256: str
     # A cópia reduzida que vai para a IA
     ai_content: bytes
 
@@ -51,6 +53,10 @@ def jpeg(image, side, quality):
 
 def normalize(file):
     """A foto regravada; ValidationError se não for uma imagem aceita."""
+    source = hashlib.sha256()
+    for chunk in file.chunks():
+        source.update(chunk)
+    file.seek(0)
     try:
         image = Image.open(file, formats=ACCEPTED_FORMATS)
         # No JPEG já decodifica perto do tamanho final, sem abrir a foto inteira na memória
@@ -66,6 +72,7 @@ def normalize(file):
     return Photo(
         content=content,
         sha256=hashlib.sha256(content).hexdigest(),
+        source_sha256=source.hexdigest(),
         ai_content=jpeg(image, AI_SIDE, AI_QUALITY),
     )
 

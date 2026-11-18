@@ -1,5 +1,6 @@
 """O que os testes das despesas usam em comum: usuários por papel, fotos e a resposta falsa da OpenAI."""
 import io
+import itertools
 import json
 from unittest.mock import MagicMock
 
@@ -46,14 +47,36 @@ def finance(username='financeiro', **kwargs):
     return make_user('validate_expense', username=username, email=f'{username}@empresa.com', **kwargs)
 
 
+PHOTO_MARKS = itertools.count(1)
+
+
 def photo(name='nota.jpg', size=(400, 600), color='white', fmt='JPEG', content_type='image/jpeg'):
+    """
+    Uma foto diferente a cada chamada (o portal recusa a foto repetida): leva
+    um quadrado de cor própria no canto. Para mandar a mesma foto de novo, use
+    same_photo.
+    """
+    mark = next(PHOTO_MARKS)
+    image = Image.new('RGB', size, color)
+    image.paste((mark * 37 % 256, mark * 91 % 256, mark * 53 % 256), (0, 0, 60, 60))
+    image.paste((mark // 256 * 41 % 256, mark * 13 % 256, mark * 7 % 256), (60, 0, 120, 60))
     buffer = io.BytesIO()
-    Image.new('RGB', size, color).save(buffer, fmt)
+    image.save(buffer, fmt)
     return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+
+def same_photo(file, name=None):
+    """Outro arquivo com os mesmos bytes da foto."""
+    file.seek(0)
+    content = file.read()
+    # A foto de origem volta ao começo para poder ser enviada também
+    file.seek(0)
+    return SimpleUploadedFile(name or file.name, content, content_type=file.content_type)
 
 
 def reading_payload(**overrides):
     payload = {
+        'is_expense_document': True,
         'cnpj': '11.222.333/0001-81',
         'access_key': access_key(),
         'number': '000123',

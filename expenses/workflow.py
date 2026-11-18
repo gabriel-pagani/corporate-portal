@@ -22,7 +22,7 @@ from decimal import Decimal
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 
 from expenses import emails, rm
@@ -32,9 +32,20 @@ from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto
 from expenses.photos import prepare_photos
 from expenses.reading import read_expense
 from expenses.roles import access
+from expenses.validators import clean_number
 
 
 DUPLICATE_MESSAGE = 'Esta nota já foi enviada ao portal e não pode ser enviada de novo.'
+
+NOT_A_DOCUMENT_MESSAGE = (
+    'As fotos não parecem ser de uma nota fiscal ou de um recibo. Envie a foto do documento da despesa.'
+)
+
+REPEATED_PHOTO_MESSAGE = 'Esta foto já foi enviada e não pode ser enviada de novo.'
+
+SAME_PHOTO_TWICE_MESSAGE = 'A mesma foto foi escolhida mais de uma vez. Envie fotos diferentes.'
+
+RESUBMIT_REFUSED = 'Só é possível reenviar as fotos de uma despesa que aguarda correção.'
 
 DISCARD_REFUSED = 'Esta despesa já foi tratada e não pode mais ser excluída.'
 
@@ -113,9 +124,57 @@ def after_commit(expense, event, link):
     transaction.on_commit(lambda: emails.notify_status_change(expense, event, link))
 
 
+def refuse_repeated_photos(photos, expense=None):
+    """
+    Recusa a foto que já está no portal, pelo arquivo enviado ou pela imagem
+    regravada, sem passar pela IA. No reenvio, as fotos da própria despesa
+    podem voltar (a correção pode pedir só uma foto a mais).
+    """
+    sources = [photo.source_sha256 for photo in photos]
+    images = [photo.sha256 for photo in photos]
+    if len(set(sources)) < len(sources) or len(set(images)) < len(images):
+        raise ValidationError(SAME_PHOTO_TWICE_MESSAGE)
+    sent = ExpensePhoto.objects.filter(Q(source_sha256__in=sources) | Q(sha256__in=images))
+    if expense is not None:
+        sent = sent.exclude(expense=expense)
+    if sent.exists():
+        raise ValidationError(REPEATED_PHOTO_MESSAGE)
+
+
+def same_number(number):
+    """O número da nota para comparar: 000123 e 123 são a mesma nota."""
+    return clean_number(number).lstrip('0') or '0'
+
+
+def refuse_duplicate_note(fields, expense=None):
+    """
+    Recusa a nota que já está no portal: pela chave de acesso ou pelo mesmo
+    CNPJ do emitente, número e data. Duas notas com chaves diferentes são notas
+    diferentes (de outra série, por exemplo), então o CNPJ, o número e a data
+    só contam quando falta a chave em uma delas, como quando a IA não a leu.
+    Vale contra os dados atuais das outras despesas, já com o que a
+    conferência corrigiu.
+    """
+    others = Expense.objects.all()
+    if expense is not None:
+        others = others.exclude(pk=expense.pk)
+    access_key = fields.get('access_key')
+    if access_key and others.filter(access_key=access_key).exists():
+        raise ValidationError(DUPLICATE_MESSAGE)
+    cnpj, number, issue_date = fields.get('cnpj'), fields.get('number'), fields.get('issue_date')
+    if cnpj and number and issue_date:
+        candidates = others.filter(cnpj=cnpj, issue_date=issue_date).values_list('number', 'access_key')
+        for other_number, other_key in candidates:
+            if other_number and same_number(other_number) == same_number(number) and not (access_key and other_key):
+                raise ValidationError(DUPLICATE_MESSAGE)
+
+
 def store_photos(expense, photos, round_number, saved):
     for position, photo in enumerate(photos):
-        record = ExpensePhoto(expense=expense, sha256=photo.sha256, round=round_number, position=position)
+        record = ExpensePhoto(
+            expense=expense, sha256=photo.sha256, source_sha256=photo.source_sha256, round=round_number,
+            position=position,
+        )
         record.file.save('foto.jpg', ContentFile(photo.content), save=False)
         saved.append((record.file.storage, record.file.name))
         record.save()
@@ -130,22 +189,28 @@ def discard_files(saved):
 def submit_expense(user, files, note='', link=''):
     """
     Cria a nota com as fotos, a observação e a análise da IA. A chamada à IA
-    acontece antes da gravação, fora da transação; a nota com chave de acesso
-    já enviada é recusada.
+    acontece antes da gravação, fora da transação. Antes dela é recusada a foto
+    que já está no portal; depois, o envio que a IA diz não ser nota fiscal nem
+    recibo, e a nota que já foi enviada (refuse_duplicate_note). Sem a análise
+    (IA fora do ar ou não configurada), a nota entra e a conferência vê as fotos.
     """
     if not access(user).employee:
         raise PermissionDenied('Você não pode enviar notas.')
     note = clean_note(note)
     photos = prepare_photos(files)
+    refuse_repeated_photos(photos)
     reading = read_expense([photo.ai_content for photo in photos], note)
+    if reading.not_a_document:
+        raise ValidationError(NOT_A_DOCUMENT_MESSAGE)
 
-    access_key = reading.fields.get('access_key', '')
-    if access_key and Expense.objects.filter(access_key=access_key).exists():
-        raise ValidationError(DUPLICATE_MESSAGE)
+    refuse_duplicate_note(reading.fields)
 
     saved = []
     try:
         with transaction.atomic():
+            # De novo, perto da gravação: outro envio da mesma foto ou nota pode ter entrado durante a análise
+            refuse_repeated_photos(photos)
+            refuse_duplicate_note(reading.fields)
             expense = Expense.objects.create(
                 employee=user,
                 sector_id=user.sector_id,
@@ -204,19 +269,33 @@ def discard_expense(user, expense_id):
 def resubmit_photos(user, expense_id, files, note='', link=''):
     """
     Troca as fotos da nota que aguarda correção e a devolve para a conferência.
-    A IA não analisa de novo, e o que foi editado na conferência fica como está.
+    A IA olha as fotos novas só para recusar o que não é nota fiscal nem
+    recibo, ou é uma nota de outra despesa: os dados da nota não mudam, e o que
+    foi editado na conferência fica como está.
     """
     if not access(user).employee:
         raise PermissionDenied('Você não pode enviar notas.')
     note = clean_note(note)
     photos = prepare_photos(files)
 
+    # Antes da IA, para não gastar a análise com um reenvio que seria recusado
+    expense = Expense.objects.get(pk=expense_id, employee=user)
+    if expense.status != Expense.AWAITING_CORRECTION:
+        raise ValidationError(RESUBMIT_REFUSED)
+    refuse_repeated_photos(photos, expense)
+    reading = read_expense([photo.ai_content for photo in photos], note)
+    if reading.not_a_document:
+        raise ValidationError(NOT_A_DOCUMENT_MESSAGE)
+    refuse_duplicate_note(reading.fields, expense)
+
     saved = []
     try:
         with transaction.atomic():
             expense = Expense.objects.select_for_update().get(pk=expense_id, employee=user)
             if expense.status != Expense.AWAITING_CORRECTION:
-                raise ValidationError('Só é possível reenviar as fotos de uma despesa que aguarda correção.')
+                raise ValidationError(RESUBMIT_REFUSED)
+            refuse_repeated_photos(photos, expense)
+            refuse_duplicate_note(reading.fields, expense)
 
             round_number = (expense.photos.aggregate(last=Max('round'))['last'] or 0) + 1
             expense.photos.filter(replaced_at__isnull=True).update(replaced_at=timezone.now())

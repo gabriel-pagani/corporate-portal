@@ -195,7 +195,11 @@ class ExpensePhoto(models.Model):
     expense = models.ForeignKey(Expense, on_delete=models.PROTECT, related_name='photos', verbose_name='Nota')
     file = models.FileField(upload_to=photo_upload_to, max_length=255, verbose_name='Arquivo')
     # Do arquivo guardado: confere que a foto do histórico é a mesma de quando foi enviada
-    sha256 = models.CharField(max_length=64, verbose_name='SHA-256')
+    sha256 = models.CharField(max_length=64, db_index=True, verbose_name='SHA-256')
+    # Do arquivo como o funcionário enviou: a mesma foto não entra de novo no portal
+    source_sha256 = models.CharField(
+        max_length=64, blank=True, db_index=True, verbose_name='SHA-256 do arquivo enviado',
+    )
     # 1 no envio, 2 no primeiro reenvio e assim por diante
     round = models.PositiveSmallIntegerField(default=1, verbose_name='Rodada de envio')
     position = models.PositiveSmallIntegerField(default=0, verbose_name='Posição')

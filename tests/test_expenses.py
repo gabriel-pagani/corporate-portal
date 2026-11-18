@@ -10,7 +10,7 @@ import pytest
 from django.contrib.auth.models import Group, Permission
 from django.contrib.staticfiles import finders
 from django.core import mail
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import ProtectedError
 from django.urls import reverse
@@ -20,11 +20,14 @@ from app.models import CostCenter, Sector, ServiceAccess, User
 from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto
 from expenses.reading import FAILED_ALERT
 from expenses.roles import ROLE_CONFLICT, access
-from expenses.workflow import DUPLICATE_MESSAGE, act, resubmit_photos
+from expenses.workflow import (
+    DUPLICATE_MESSAGE, NOT_A_DOCUMENT_MESSAGE, REPEATED_PHOTO_MESSAGE, SAME_PHOTO_TWICE_MESSAGE, act,
+    resubmit_photos,
+)
 from tests.conftest import sign_in
 from tests.expenses_helpers import (  # noqa: F401
-    OTHER_CNPJ, VALID_CNPJ, access_key, catalog, control, employee, finance, make_user, media_root, openai, photo,
-    post_json, submitted,
+    OTHER_CNPJ, VALID_CNPJ, access_key, api_response, catalog, control, employee, finance, make_user, media_root,
+    openai, photo, post_json, reading_payload, same_photo, submitted,
 )
 
 
@@ -405,6 +408,123 @@ def test_access_key_already_sent_is_refused(client, openai):
 
 
 @pytest.mark.django_db
+def test_photo_that_is_not_an_invoice_or_receipt_is_refused(client, openai, media_root):
+    openai.return_value = api_response(reading_payload(is_expense_document=False))
+    user = employee()
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == NOT_A_DOCUMENT_MESSAGE
+    # Nada fica gravado: nem a despesa, nem as fotos, nem o histórico, nem o e-mail
+    assert not Expense.objects.exists() and not ExpensePhoto.objects.exists()
+    assert not ExpenseEvent.objects.exists() and mail.outbox == []
+    assert not [path for path in Path(media_root).rglob('*') if path.is_file()]
+
+
+@pytest.mark.django_db
+def test_without_the_ai_the_photo_is_not_judged_and_the_expense_goes_in(client, openai, settings):
+    # Sem a análise ninguém disse que não é documento: a conferência vê as fotos
+    settings.OPENAI_API_KEY = ''
+    user = employee()
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 201 and Expense.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_photo_already_sent_is_refused_without_asking_the_ai(client, openai):
+    user = employee()
+    sent = photo()
+    first = submitted(openai, user, photos=[sent], access_key=None)
+    openai.reset_mock()
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [same_photo(sent, 'outro-nome.jpg')]})
+
+    assert response.status_code == 400 and response.json()['detail'] == REPEATED_PHOTO_MESSAGE
+    assert not openai.called
+    assert list(Expense.objects.all()) == [first] and ExpensePhoto.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_photo_sent_by_another_employee_is_also_refused(client, openai):
+    sent = photo()
+    submitted(openai, employee(), photos=[sent], access_key=None)
+    other = employee('outro', email='outro@empresa.com')
+    client.force_login(other)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo(), same_photo(sent)]})
+
+    assert response.status_code == 400 and response.json()['detail'] == REPEATED_PHOTO_MESSAGE
+    assert not Expense.objects.filter(employee=other).exists()
+
+
+@pytest.mark.django_db
+def test_same_image_in_another_file_is_refused(client, openai):
+    # Mesmos pixels, arquivo diferente (outro formato): a imagem regravada é a mesma
+    image = Image.new('RGB', (400, 600), 'white')
+    image.paste((10, 200, 30), (0, 0, 80, 80))
+    files = []
+    for fmt, content_type in (('PNG', 'image/png'), ('WEBP', 'image/webp')):
+        buffer = io.BytesIO()
+        image.save(buffer, fmt, **({'lossless': True} if fmt == 'WEBP' else {}))
+        files.append(SimpleUploadedFile(f'nota.{fmt.lower()}', buffer.getvalue(), content_type=content_type))
+    user = employee()
+    submitted(openai, user, photos=[files[0]], access_key=None)
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [files[1]]})
+
+    assert response.status_code == 400 and response.json()['detail'] == REPEATED_PHOTO_MESSAGE
+
+
+@pytest.mark.django_db
+def test_same_photo_twice_in_one_submission_is_refused(client, openai):
+    client.force_login(employee())
+    chosen = photo()
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [chosen, same_photo(chosen)]})
+
+    assert response.status_code == 400 and response.json()['detail'] == SAME_PHOTO_TWICE_MESSAGE
+    assert not openai.called and not Expense.objects.exists()
+
+
+@pytest.mark.django_db
+def test_photo_of_a_discarded_expense_can_be_sent_again(client, openai):
+    user = employee()
+    sent = photo()
+    expense = submitted(openai, user, photos=[sent])
+    client.force_login(user)
+    assert client.delete(reverse('expenses:expense-api', args=[expense.pk])).status_code == 200
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [same_photo(sent)]})
+
+    assert response.status_code == 201
+
+
+@pytest.mark.django_db
+def test_resubmit_keeps_photos_of_the_same_expense_but_refuses_others(openai):
+    user = employee()
+    kept, other = photo(), photo()
+    submitted(openai, employee('outro', email='outro@empresa.com'), photos=[other], access_key=None, number='900')
+    expense = submitted(openai, user, photos=[kept])
+    act(control(), expense.pk, 'request_correction', 'Falta o verso.', expense.version)
+
+    with pytest.raises(ValidationError) as error:
+        resubmit_photos(user, expense.pk, [same_photo(other)])
+    assert error.value.messages == [REPEATED_PHOTO_MESSAGE]
+
+    # A correção pediu só o verso: a foto que já era desta despesa volta junto
+    resubmit_photos(user, expense.pk, [same_photo(kept), photo()])
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW
+    assert expense.photos.filter(replaced_at__isnull=True).count() == 2
+
+
+@pytest.mark.django_db
 def test_access_key_of_a_rejected_note_is_also_refused(client, openai):
     user = employee()
     expense = submitted(openai, user)
@@ -417,12 +537,92 @@ def test_access_key_of_a_rejected_note_is_also_refused(client, openai):
 
 
 @pytest.mark.django_db
-def test_notes_without_access_key_do_not_collide(openai):
+def test_notes_without_access_key_collide_only_on_the_same_cnpj_number_and_date(openai):
     user = employee()
     submitted(openai, user, access_key=None)
-    submitted(openai, user, access_key=None)
+    submitted(openai, user, access_key=None, number='000124')
+    submitted(openai, user, access_key=None, issue_date='2026-11-11')
+    submitted(openai, user, access_key=None, cnpj=OTHER_CNPJ)
 
-    assert Expense.objects.filter(access_key='').count() == 2
+    assert Expense.objects.filter(access_key='').count() == 4
+
+
+@pytest.mark.django_db
+def test_same_cnpj_number_and_date_is_refused_when_the_ai_misses_the_key(client, openai):
+    # Outra foto da mesma nota: a IA não leu a chave desta vez, e o número veio sem os zeros
+    user = employee()
+    first = submitted(openai, user)
+    openai.return_value = api_response(reading_payload(access_key=None, number='123'))
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == DUPLICATE_MESSAGE
+    assert list(Expense.objects.all()) == [first]
+
+
+@pytest.mark.django_db
+def test_same_cnpj_number_and_date_counts_against_what_control_corrected(client, openai):
+    user = employee()
+    first = submitted(openai, user, access_key=None, number=None)
+    act(control(), first.pk, 'approve', '', first.version, data=form_data(first, number='555'))
+    openai.return_value = api_response(reading_payload(access_key=None, number='555'))
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expenses-api'), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == DUPLICATE_MESSAGE
+
+
+@pytest.mark.django_db
+def test_different_access_keys_are_different_notes_even_with_the_same_number(openai):
+    # Mesmo CNPJ, número e data, outra série: as chaves dizem que são notas diferentes
+    user = employee()
+    submitted(openai, user)
+    submitted(openai, user, access_key=access_key(2))
+
+    assert Expense.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_resubmitted_photos_that_are_not_an_invoice_or_receipt_are_refused(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    act(control(), expense.pk, 'request_correction', 'Foto cortada.', expense.version)
+    openai.return_value = api_response(reading_payload(is_expense_document=False))
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expense-photos-api', args=[expense.pk]), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == NOT_A_DOCUMENT_MESSAGE
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_CORRECTION and expense.photos.count() == 1
+
+
+@pytest.mark.django_db
+def test_resubmitted_photos_of_another_expense_note_are_refused(client, openai):
+    user = employee()
+    submitted(openai, user, access_key=None, number='900')
+    expense = submitted(openai, user, access_key=access_key(2))
+    act(control(), expense.pk, 'request_correction', 'Foto cortada.', expense.version)
+    openai.return_value = api_response(reading_payload(access_key=None, number='900'))
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expense-photos-api', args=[expense.pk]), {'photos': [photo()]})
+
+    assert response.status_code == 400 and response.json()['detail'] == DUPLICATE_MESSAGE
+
+
+@pytest.mark.django_db
+def test_resubmit_is_refused_before_the_ai_when_the_expense_is_not_waiting(client, openai):
+    user = employee()
+    expense = submitted(openai, user)
+    openai.reset_mock()
+    client.force_login(user)
+
+    response = client.post(reverse('expenses:expense-photos-api', args=[expense.pk]), {'photos': [photo()]})
+
+    assert response.status_code == 400 and not openai.called
 
 
 @pytest.mark.django_db
@@ -883,8 +1083,8 @@ def test_resubmission_swaps_only_the_photos(client, openai, catalog):
     )
 
     assert response.status_code == 200
-    # A IA não analisa de novo, e o que o Controle editou fica como está
-    openai.assert_not_called()
+    # A IA olha as fotos novas, mas o que o Controle editou fica como está
+    openai.assert_called_once()
     expense.refresh_from_db()
     assert expense.status == Expense.AWAITING_REVIEW
     assert expense.number == '777' and expense.expense_type == catalog['types']['Combustível']
@@ -1351,3 +1551,9 @@ def test_reviewer_page_keeps_the_search_and_has_no_phone_bar(client):
     content = client.get(reverse('expenses:expenses')).content.decode()
     assert 'id="status-filter"' in content and 'id="search-input"' in content
     assert 'id="status-chips"' not in content and 'id="mobile-bar"' not in content
+
+
+def test_resubmit_screen_says_the_photos_are_being_analysed():
+    # O reenvio agora espera a IA: a tela avisa que pode demorar
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    assert "progressView('resubmit', 'Fotos enviadas. Analisando as fotos" in script

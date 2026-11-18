@@ -47,6 +47,40 @@ def test_reading_fills_the_form_with_what_the_ai_found(openai, catalog):
         },
     ]
     assert reading.alerts == []
+    assert reading.not_a_document is False
+
+
+@pytest.mark.django_db
+def test_reading_says_when_the_photos_are_not_an_invoice_or_receipt(openai):
+    openai.return_value = api_response(reading_payload(is_expense_document=False))
+
+    reading = read_expense([PHOTO])
+
+    assert reading.status == OK and reading.not_a_document is True
+
+
+@pytest.mark.django_db
+def test_the_model_must_answer_whether_it_is_an_invoice_or_receipt(openai):
+    read_expense([PHOTO])
+
+    _, kwargs = sent_request(openai)
+    schema = kwargs['json']['text']['format']['schema']
+    assert schema['properties']['is_expense_document'] == {'type': 'boolean'}
+    assert 'is_expense_document' in schema['required']
+    prompt = kwargs['json']['input'][0]['content']
+    assert 'nota fiscal' in prompt and 'recibo' in prompt and 'is_expense_document' in prompt
+
+
+@pytest.mark.django_db
+def test_failed_reading_does_not_judge_the_photos(openai):
+    # Resposta sem o campo: a leitura é descartada, e não vira recusa do envio
+    payload = reading_payload()
+    del payload['is_expense_document']
+    openai.return_value = api_response(payload)
+
+    reading = read_expense([PHOTO])
+
+    assert reading.status == FAILED and reading.not_a_document is False
 
 
 @pytest.mark.django_db

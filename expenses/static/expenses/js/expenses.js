@@ -1061,7 +1061,7 @@
     if (access.employee) {
         const resendButton = document.getElementById('resubmit-send');
         const resendNote = document.getElementById('resubmit-note');
-        const progress = progressView('resubmit', 'Fotos enviadas. Salvando...');
+        const progress = progressView('resubmit', 'Fotos enviadas. Analisando as fotos... isso pode levar até um minuto.');
         const picker = photoPicker('resubmit', (count, busy) => {
             resendButton.disabled = count === 0 || busy || uploading;
         });

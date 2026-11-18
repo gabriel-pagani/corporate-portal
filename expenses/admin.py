@@ -85,7 +85,7 @@ class ExpenseItemInline(ReadOnlyInline):
 
 class ExpensePhotoInline(ReadOnlyInline):
     model = ExpensePhoto
-    fields = ('get_link', 'round', 'position', 'uploaded_at', 'replaced_at', 'sha256')
+    fields = ('get_link', 'round', 'position', 'uploaded_at', 'replaced_at', 'sha256', 'source_sha256')
     readonly_fields = fields
 
     @admin.display(description='Foto')

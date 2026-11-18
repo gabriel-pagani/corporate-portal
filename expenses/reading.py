@@ -49,10 +49,14 @@ INVALID_CNPJ_ALERT = 'O CNPJ lido pela IA não confere com os dígitos verificad
 INVALID_KEY_ALERT = 'A chave de acesso lida pela IA não confere com o dígito verificador. Confira nas fotos.'
 
 PROMPT = (
-    'Você analisa fotos de notas fiscais brasileiras enviadas por funcionários para o controle de despesas de '
-    'uma empresa. As imagens são fotos de um mesmo documento, que pode estar dividido em mais de uma foto. '
-    'Preencha só o que estiver impresso e legível; não deduza nem complete o que não der para ler: o que não '
-    'encontrar fica null, ou lista vazia. Hoje é {today}.\n'
+    'Você analisa fotos de notas fiscais e recibos brasileiros enviados por funcionários para o controle de '
+    'despesas de uma empresa. As imagens são fotos de um mesmo documento, que pode estar dividido em mais de uma '
+    'foto. Preencha só o que estiver impresso e legível; não deduza nem complete o que não der para ler: o que '
+    'não encontrar fica null, ou lista vazia. Hoje é {today}.\n'
+    '- is_expense_document: true se as fotos mostram uma nota fiscal (NF-e, NFC-e, NFS-e, DANFE, cupom fiscal, '
+    'CF-e/SAT) ou um recibo de pagamento emitido por quem recebeu, mesmo que parte dele esteja ilegível; false '
+    'para qualquer outra coisa, como comprovante de cartão ou de Pix, pedido, orçamento, cardápio, print de tela, '
+    'documento pessoal ou foto sem documento.\n'
     '- cnpj: CNPJ do emitente (quem vendeu), só os 14 caracteres, sem pontuação.\n'
     '- access_key: a chave de acesso da NF-e/NFC-e/CF-e, os 44 dígitos sem espaços, ou null se ela não aparecer '
     'inteira.\n'
@@ -99,6 +103,7 @@ NULLABLE_NUMBER = {'type': ['number', 'null']}
 SCHEMA = {
     'type': 'object',
     'properties': {
+        'is_expense_document': {'type': 'boolean'},
         'cnpj': NULLABLE_STRING,
         'access_key': NULLABLE_STRING,
         'number': NULLABLE_STRING,
@@ -123,7 +128,7 @@ SCHEMA = {
         'instructions_in_image': {'type': 'boolean'},
     },
     'required': [
-        'cnpj', 'access_key', 'number', 'issue_date', 'total', 'expense_type', 'items', 'alerts',
+        'is_expense_document', 'cnpj', 'access_key', 'number', 'issue_date', 'total', 'expense_type', 'items', 'alerts',
         'instructions_in_image',
     ],
     'additionalProperties': False,
@@ -142,6 +147,8 @@ class Reading:
     fields: dict = field(default_factory=dict)
     items: list = field(default_factory=list)
     alerts: list = field(default_factory=list)
+    # A IA viu as fotos e diz que não são de nota fiscal nem de recibo: o envio é recusado
+    not_a_document: bool = False
 
 
 def quoted_list(names):
@@ -320,9 +327,12 @@ def read_expense(photos, employee_note=''):
         )
         record['response'] = raw
         fields, items, alerts = clean_reading(raw, types, groups)
+        not_a_document = raw['is_expense_document'] is not True
     except (ReadingFailed, KeyError, TypeError, AttributeError) as error:
         logger.warning('Leitura da nota descartada: %s', type(error).__name__)
         record.update(status=FAILED, error=str(error) if isinstance(error, ReadingFailed) else type(error).__name__)
         return Reading(status=FAILED, record=record, alerts=[FAILED_ALERT])
 
-    return Reading(status=OK, record=record, fields=fields, items=items, alerts=alerts)
+    return Reading(
+        status=OK, record=record, fields=fields, items=items, alerts=alerts, not_a_document=not_a_document,
+    )
