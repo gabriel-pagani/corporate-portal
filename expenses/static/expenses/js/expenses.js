@@ -124,9 +124,13 @@
         successBox.hidden = true;
     }
 
-    function statusBadge(status, label) {
-        return element('span', { className: `status-badge status-${status}`, text: label });
+    function statusBadge(status, label, title) {
+        return element('span', { className: `status-badge status-${status}`, text: label, title });
     }
+
+    // Na lista do funcionário, que é vista no celular, a situação vai abreviada para
+    // caber ao lado do título e do valor; o nome inteiro fica na dica do selo
+    const shortStatus = { C: 'Ag. conferência', S: 'Ag. correção', E: 'Ag. explicação', V: 'Ag. validação' };
 
     // ---------- Telas ----------
 
@@ -240,7 +244,9 @@
         return element('a', { className: `expense-row${needsAction ? ' needs-action' : ''}`, href: urlFor('detailUrl', expense.id), 'data-route': '' }, [
             element('span', { className: 'row-title' }, [
                 `Despesa #${expense.id}`,
-                statusBadge(expense.status, expense.status_display),
+                reviewer || !shortStatus[expense.status]
+                    ? statusBadge(expense.status, expense.status_display)
+                    : statusBadge(expense.status, shortStatus[expense.status], expense.status_display),
                 expense.alerts_count ? element('span', { className: 'alert-count' }, [
                     icon('fa-triangle-exclamation'), ` ${expense.alerts_count} alerta${expense.alerts_count > 1 ? 's' : ''}`,
                 ]) : null,
@@ -252,7 +258,7 @@
                 expense.total ? `de ${expense.total}` : 'reembolsado',
             ] : [
                 element('strong', { text: expense.reimbursed_total }),
-                'valor da nota',
+                element('span', { className: 'row-label', text: 'valor a reembolsar' }),
             ]),
             needsAction ? element('span', { className: 'row-action' }, [icon('fa-camera'), ' Toque para enviar novas fotos']) : null,
         ]);
@@ -728,7 +734,7 @@
             ['Tipo', expense.expense_type || '-'],
             ['Número', fields.number || '-'],
             ['Data', expense.issue_date || '-'],
-            ['CNPJ do emitente', fields.cnpj_display || '-'],
+            ['Emitente', fields.cnpj_display || '-'],
             ['Enviada em', expense.created_at],
             ['Sua observação', expense.employee_note || 'Sem observação.'],
         );

@@ -180,6 +180,14 @@ label.button.primary {
   color: #333;
 }
 
+/* O rótulo quebra em duas linhas, e a situação cabe ao lado do título no celular */
+.expense-row .row-label {
+  display: block;
+  max-width: 6em;
+  margin-left: auto;
+  line-height: 1.25;
+}
+
 .alert-count {
   color: #a32d2d;
   font-size: 13px;
@@ -1083,5 +1091,21 @@ label.button.primary {
 
   .timeline li {
     padding-bottom: 12px;
+  }
+}
+
+/* Nos celulares mais estreitos a linha aperta o espaçamento para a situação caber ao lado do título */
+@media (max-width: 380px) {
+  .expense-row {
+    padding: 12px;
+    column-gap: 8px;
+  }
+
+  .expense-row .row-title {
+    gap: 6px;
+  }
+
+  .expense-row .row-title .status-badge {
+    padding: 3px 7px;
   }
 }

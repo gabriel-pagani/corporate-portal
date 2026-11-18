@@ -177,16 +177,44 @@ def test_routes_respect_who_sees_the_expense(client, openai):
     assert client.get(reverse('expenses:expense-add')).status_code == 403
 
 
+def test_employee_list_labels_the_value_to_reimburse():
+    # A linha mostra o valor reembolsável, e o rótulo diz isso, para não passar pelo total da nota
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    employee_row = re.search(
+        r"\] : \[\n\s+element\('strong', \{ text: expense\.reimbursed_total \}\),\n"
+        r"\s+element\('span', \{ className: 'row-label', text: '([^']+)' \}\),", script,
+    )
+    assert employee_row.group(1) == 'valor a reembolsar'
+    assert "'valor da nota'" not in script
+    # O rótulo quebra em duas linhas, para a situação caber ao lado do título no celular
+    style = Path(finders.find('expenses/css/expenses.css')).read_text(encoding='utf-8')
+    assert re.search(r'\.expense-row \.row-label \{[^}]*max-width: 6em', style)
+
+
+def test_employee_list_abbreviates_the_long_statuses():
+    # A situação abreviada cabe ao lado do título e do valor no celular
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    short = dict(re.findall(r"(\w): '([^']+)'", re.search(r'const shortStatus = \{(.*?)\};', script).group(1)))
+    assert short == {'C': 'Ag. conferência', 'S': 'Ag. correção', 'E': 'Ag. explicação', 'V': 'Ag. validação'}
+    # Cada abreviação corresponde à situação que existe, e as curtas ficam por inteiro
+    labels = dict(Expense.STATUS)
+    assert all(labels[code].replace('Aguardando', 'Ag.') == text for code, text in short.items())
+    assert set(labels) - set(short) == {Expense.APPROVED, Expense.REJECTED}
+    # Só na lista do funcionário, com o nome inteiro na dica do selo
+    assert 'statusBadge(expense.status, shortStatus[expense.status], expense.status_display)' in script
+
+
 def test_employee_summary_leaves_out_the_note_total():
     # O funcionário vê o que vai receber; o total da nota poderia passar por esse valor
     script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
     summary = re.search(r'function renderEmployeeSummary\(expense\) \{(.*?)\n    \}\n', script, re.S).group(1)
     assert 'Valor total da nota' not in summary
     for label in ('Valor a reembolsar (previsto)', 'Valor reembolsado', 'Tipo', 'Número', 'Data',
-                  'CNPJ do emitente', 'Enviada em', 'Sua observação'):
+                  'Emitente', 'Enviada em', 'Sua observação'):
         assert f"'{label}'" in summary
     # Dentro dos dados da nota, o número e a data dispensam o "da nota"
     assert 'Número da nota' not in summary and 'Data da nota' not in summary
+    assert 'CNPJ do emitente' not in summary
 
 
 @pytest.mark.django_db
@@ -201,6 +229,7 @@ def test_list_names_the_expenses_and_keeps_the_note_inside(client):
     # No formulário dos dados da nota, o número e a data dispensam o "da nota"
     assert '<label for="field-number">Número</label>' in content
     assert '<label for="field-issue-date">Data</label>' in content
+    assert '<label for="field-cnpj">Emitente</label>' in content
     assert 'Minhas notas' not in content
 
     client.force_login(control())
