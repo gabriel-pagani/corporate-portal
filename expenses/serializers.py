@@ -40,6 +40,8 @@ def serialize_summary(expense, current):
     }
     if current.reviewer:
         data['employee'] = user_name(expense.employee)
+        # O centro de custo do envio, e não o atual do funcionário
+        data['cost_center'] = str(expense.cost_center) if expense.cost_center_id else ''
         data['alerts_count'] = len(expense.ai_alerts or [])
     return data
 
@@ -100,7 +102,6 @@ def serialize_detail(expense, user, current):
         reading = expense.ai_reading or {}
         data.update({
             'employee_username': expense.employee.username,
-            'cost_center': str(expense.cost_center) if expense.cost_center_id else '',
             'alerts': list(expense.ai_alerts or []),
             'ai_status': reading.get('status', ''),
             'last_note': expense.last_note,

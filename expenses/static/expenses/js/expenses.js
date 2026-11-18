@@ -237,11 +237,10 @@
     function expenseRow(expense) {
         // A nota que espera o funcionário fica em destaque na lista dele
         const needsAction = !reviewer && expense.status === 'S';
-        // O funcionário vê só a data de envio; quem confere vê também quem, o tipo e o número
+        // O funcionário vê só a data de envio; quem confere vê também quem enviou e o centro de custo
         const meta = reviewer ? [
             expense.employee,
-            expense.expense_type,
-            expense.number ? `Nº ${expense.number}` : '',
+            expense.cost_center,
             `Enviada em ${expense.created_at}`,
         ].filter(Boolean).join(' · ') : `Enviada em ${expense.created_at}`;
         return element('a', { className: `expense-row${needsAction ? ' needs-action' : ''}`, href: urlFor('detailUrl', expense.id), 'data-route': '' }, [

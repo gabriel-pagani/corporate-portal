@@ -227,6 +227,9 @@ def test_reviewer_details_are_titled_as_the_expense_data(client):
     content = client.get(reverse('expenses:expenses')).content.decode()
     card = re.search(r'<div class="card" id="detail-meta-card">(.*?)<dl', content, re.S).group(1)
     assert '<h3>Dados da despesa</h3>' in card
+    # Uma linha sutil entre os dados e a observação do funcionário
+    style = Path(finders.find('expenses/css/expenses.css')).read_text(encoding='utf-8')
+    assert re.search(r'\n\.employee-note \{[^}]*border-top: 1px solid #f0f0f0', style)
 
 
 def test_reviewer_details_leave_the_reimbursed_value_to_the_items():
@@ -473,6 +476,32 @@ def test_control_and_finance_see_every_note(client, openai):
         listed = client.get(reverse('expenses:expenses-api'), {'scope': 'all'}).json()
         assert {item['id'] for item in listed['expenses']} == {first.pk, second.pk}
         assert listed['expenses'][0]['employee']
+
+
+@pytest.mark.django_db
+def test_reviewer_list_shows_the_employee_the_cost_center_and_the_date(client, openai):
+    sales = CostCenter.objects.create(code='100', name='Vendas')
+    user = employee(cost_center=sales)
+    expense = submitted(openai, user)
+    # O funcionário mudou de centro de custo depois do envio: a lista mostra o do envio
+    user.cost_center = CostCenter.objects.create(code='200', name='Obras')
+    user.save()
+
+    client.force_login(control())
+    row = client.get(reverse('expenses:expenses-api'), {'scope': 'all'}).json()['expenses'][0]
+    assert row['id'] == expense.pk and row['employee'] == 'Ana Silva' and row['cost_center'] == str(sales)
+    detail = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
+    assert detail['cost_center'] == str(sales)
+
+    client.force_login(user)
+    assert 'cost_center' not in client.get(reverse('expenses:expenses-api')).json()['expenses'][0]
+
+    # Na linha: quem enviou, o centro de custo e a data; o tipo e o número ficam na despesa
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    meta = re.search(r'const meta = reviewer \? \[(.*?)\]', script, re.S).group(1)
+    assert [line.strip() for line in meta.strip().splitlines()] == [
+        'expense.employee,', 'expense.cost_center,', '`Enviada em ${expense.created_at}`,',
+    ]
 
 
 @pytest.mark.django_db
