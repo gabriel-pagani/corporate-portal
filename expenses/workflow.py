@@ -13,12 +13,15 @@ O fluxo da nota, etapa a etapa:
 Cada etapa grava um ExpenseEvent com o estado completo da nota, avisa o
 funcionário por e-mail e sobe a versão da nota: a ação feita sobre uma versão
 que já mudou é recusada.
+
+Enquanto ninguém tratou a despesa, o funcionário pode excluí-la: sai tudo,
+inclusive o registro do envio, sem aviso por e-mail.
 """
 from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.db.models import Max
 from django.utils import timezone
 
@@ -32,6 +35,8 @@ from expenses.roles import access
 
 
 DUPLICATE_MESSAGE = 'Esta nota já foi enviada ao portal e não pode ser enviada de novo.'
+
+DISCARD_REFUSED = 'Esta despesa já foi tratada e não pode mais ser excluída.'
 
 CONFLICT_MESSAGE = 'A despesa foi alterada por outra pessoa desde que você a abriu. Abra-a de novo para ver a versão atual.'
 
@@ -169,6 +174,31 @@ def submit_expense(user, files, note='', link=''):
         discard_files(saved)
         raise
     return expense
+
+
+def discard_expense(user, expense_id):
+    """
+    Exclui a despesa que o funcionário enviou e ninguém tratou ainda, com os
+    itens, as fotos (os arquivos também) e o registro do envio. A conferência
+    é feita de novo com a despesa travada: se alguém agiu nesse meio tempo, a
+    exclusão é recusada.
+    """
+    if not access(user).employee:
+        raise PermissionDenied('Você não pode enviar notas.')
+    with transaction.atomic():
+        expense = Expense.objects.select_for_update().get(pk=expense_id, employee=user)
+        if not expense.untouched():
+            raise ValidationError(DISCARD_REFUSED)
+        photos = list(ExpensePhoto.objects.filter(expense=expense))
+        files = [(photo.file.storage, photo.file.name) for photo in photos]
+        # O banco só deixa apagar o registro do envio desta despesa, e só nesta transação
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT set_config('expenses.discarding_expense', %s, true)", [str(expense.pk)])
+        ExpenseEvent.objects.filter(expense=expense).delete()
+        ExpensePhoto.objects.filter(expense=expense).delete()
+        expense.delete()
+        # Os arquivos saem só depois que a exclusão está gravada
+        transaction.on_commit(lambda: discard_files(files))
 
 
 def resubmit_photos(user, expense_id, files, note='', link=''):

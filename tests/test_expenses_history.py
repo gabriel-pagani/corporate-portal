@@ -1,12 +1,12 @@
 import pytest
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError, connection, transaction
 from django.urls import NoReverseMatch, reverse
 
 from expenses.history import money, snapshot
 from expenses.models import Expense, ExpenseEvent, ImmutableRecord
 from expenses.workflow import act
 from tests.expenses_helpers import (  # noqa: F401
-    catalog, control, employee, finance, media_root, openai, submitted,
+    access_key, catalog, control, employee, finance, media_root, openai, submitted,
 )
 
 
@@ -54,6 +54,39 @@ def test_records_cannot_be_changed_or_deleted(openai):
 
     event.refresh_from_db()
     assert event.note == ''
+
+
+def mark_discarding(expense):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('expenses.discarding_expense', %s, true)", [str(expense.pk)])
+
+
+@pytest.mark.django_db
+def test_database_allows_only_the_discard_of_the_marked_submission(openai):
+    first = submitted(openai, employee())
+    second = submitted(openai, employee('outro', email='outro@empresa.com'), access_key=access_key(2))
+    act(control(), second.pk, 'approve', '', 1)
+
+    # A marcação vale para uma despesa só
+    with pytest.raises(DatabaseError), transaction.atomic():
+        mark_discarding(first)
+        ExpenseEvent.objects.filter(expense=second).delete()
+    # E só para o registro do envio: o da conferência continua sem sair
+    with pytest.raises(DatabaseError), transaction.atomic():
+        mark_discarding(second)
+        ExpenseEvent.objects.filter(expense=second, action=ExpenseEvent.APPROVE_REVIEW).delete()
+    # Alterar continua recusado, mesmo com a marcação
+    with pytest.raises(DatabaseError), transaction.atomic():
+        mark_discarding(first)
+        ExpenseEvent.objects.filter(expense=first).update(note='alterado')
+    # A marcação some com a transação
+    with pytest.raises(DatabaseError), transaction.atomic():
+        ExpenseEvent.objects.filter(expense=first).delete()
+
+    with transaction.atomic():
+        mark_discarding(first)
+        ExpenseEvent.objects.filter(expense=first).delete()
+    assert not first.events.exists() and second.events.count() == 2
 
 
 @pytest.mark.django_db

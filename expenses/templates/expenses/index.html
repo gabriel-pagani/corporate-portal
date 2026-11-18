@@ -263,6 +263,15 @@
                     <h3>Histórico</h3>
                     <ol id="timeline" class="timeline"></ol>
                 </section>
+
+                {% if access.employee %}
+                <!-- Embaixo de tudo, sem ficar preso na tela: excluir pede rolar até o fim -->
+                <div class="discard-box" id="discard-box" hidden>
+                    <button type="button" class="button danger" id="discard-button">
+                        <i class="fas fa-trash" aria-hidden="true"></i> Excluir despesa
+                    </button>
+                </div>
+                {% endif %}
             </section>
 
 

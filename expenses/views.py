@@ -16,7 +16,7 @@ from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto, Ex
 from expenses.photos import ACCEPTED_TYPES, MAX_PHOTO_SIZE, MAX_PHOTOS
 from expenses.roles import access
 from expenses.serializers import serialize_detail, serialize_summary
-from expenses.workflow import Conflict, act, resubmit_photos, submit_expense, visible_expenses
+from expenses.workflow import Conflict, act, discard_expense, resubmit_photos, submit_expense, visible_expenses
 
 
 PAGE_SIZE = 25
@@ -191,10 +191,21 @@ def expense_submit(request):
     return detail_response(request, expense.pk, status=201)
 
 
-@require_GET
+@require_http_methods(['GET', 'DELETE'])
 @expense_access_required
 def expense_api(request, expense_id):
-    return detail_response(request, expense_id)
+    if request.method == 'GET':
+        return detail_response(request, expense_id)
+    # DELETE: o funcionário exclui a despesa dele que ninguém tratou ainda
+    try:
+        discard_expense(request.user, expense_id)
+    except Expense.DoesNotExist:
+        raise Http404
+    except PermissionDenied:
+        return JsonResponse({'detail': NO_PERMISSION}, status=403)
+    except ValidationError as error:
+        return error_response(error, status=409)
+    return JsonResponse({'detail': 'Despesa excluída.'})
 
 
 @require_POST

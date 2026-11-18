@@ -442,7 +442,7 @@ def test_employee_does_not_see_the_ai_alerts(client, openai):
     client.force_login(user)
 
     data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
-    assert 'alerts' not in data and data['can'] == {'edit': False, 'act': False, 'resubmit': False}
+    assert 'alerts' not in data and data['can'] == {'edit': False, 'act': False, 'resubmit': False, 'discard': True}
 
 
 @pytest.mark.django_db
@@ -685,7 +685,7 @@ def test_finance_sees_the_form_read_only(client, openai):
     client.force_login(finance())
 
     data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
-    assert data['can'] == {'edit': False, 'act': True, 'resubmit': False}
+    assert data['can'] == {'edit': False, 'act': True, 'resubmit': False, 'discard': False}
 
     # O que o Financeiro mandar de dados é ignorado
     response = send_action(client, expense, 'request_correction', 'Confirme o valor.', form_data(expense, number='1'))
@@ -1162,6 +1162,93 @@ def test_notes_with_history_cannot_be_deleted(openai):
 
     with pytest.raises(ProtectedError):
         expense.delete()
+
+
+def expense_url(expense):
+    return reverse('expenses:expense-api', args=[expense.pk])
+
+
+@pytest.mark.django_db
+def test_employee_discards_an_untouched_expense(client, openai, media_root, django_capture_on_commit_callbacks):
+    user = employee()
+    expense = submitted(openai, user, access_key=access_key(5))
+    files = [media_root / photo_.file.name for photo_ in expense.photos.all()]
+    assert files and all(path.exists() for path in files)
+    mail.outbox = []
+    client.force_login(user)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        response = client.delete(expense_url(expense))
+
+    assert response.status_code == 200 and response.json()['detail'] == 'Despesa excluída.'
+    # Sai tudo: a despesa, os itens, as fotos (os arquivos também) e o registro do envio
+    assert not Expense.objects.exists() and not ExpenseItem.objects.exists()
+    assert not ExpensePhoto.objects.exists() and not ExpenseEvent.objects.exists()
+    assert not any(path.exists() for path in files)
+    # Foi o próprio funcionário quem excluiu: nenhum e-mail
+    assert mail.outbox == []
+    # A chave de acesso fica livre para a mesma nota ser enviada de novo
+    assert submitted(openai, user, access_key=access_key(5)).access_key == access_key(5)
+
+
+@pytest.mark.django_db
+def test_discard_is_offered_only_while_nobody_handled_the_expense(client, openai):
+    user, reviewer = employee(), control()
+    expense = submitted(openai, user)
+    client.force_login(user)
+    assert client.get(expense_url(expense)).json()['expense']['can']['discard'] is True
+
+    # Pedida a correção e reenviadas as fotos, ela volta a aguardar conferência, mas já foi tratada
+    act(reviewer, expense.pk, 'request_correction', 'Foto cortada.', 1)
+    assert client.get(expense_url(expense)).json()['expense']['can']['discard'] is False
+    resubmit_photos(user, expense.pk, [photo()])
+    expense.refresh_from_db()
+    assert expense.status == Expense.AWAITING_REVIEW
+    assert client.get(expense_url(expense)).json()['expense']['can']['discard'] is False
+
+    response = client.delete(expense_url(expense))
+    assert response.status_code == 409
+    assert response.json()['detail'] == 'Esta despesa já foi tratada e não pode mais ser excluída.'
+    assert Expense.objects.filter(pk=expense.pk).exists() and expense.events.count() == 3
+
+
+@pytest.mark.django_db
+def test_discard_is_refused_once_the_review_acted(client, openai):
+    # Quem confere agiu entre a abertura da tela e o toque em Excluir
+    user = employee()
+    expense = submitted(openai, user)
+    act(control(), expense.pk, 'approve', '', 1)
+    client.force_login(user)
+
+    assert client.delete(expense_url(expense)).status_code == 409
+    assert Expense.objects.get(pk=expense.pk).status == Expense.AWAITING_VALIDATION
+
+
+@pytest.mark.django_db
+def test_only_the_owner_discards(client, openai):
+    expense = submitted(openai, employee())
+
+    client.force_login(employee(username='outro', email='outro@empresa.com'))
+    assert client.delete(expense_url(expense)).status_code == 404
+    client.force_login(control())
+    assert client.delete(expense_url(expense)).status_code == 403
+    assert client.get(expense_url(expense)).json()['expense']['can']['discard'] is False
+    assert Expense.objects.filter(pk=expense.pk).exists()
+
+
+@pytest.mark.django_db
+def test_discard_button_sits_after_the_history_for_the_employee(client):
+    client.force_login(employee())
+    content = client.get(reverse('expenses:expenses')).content.decode()
+    # Embaixo do histórico, dentro da tela da despesa, e não na barra presa ao rodapé
+    timeline, discard, detail_end = (
+        content.index('id="timeline"'), content.index('id="discard-box"'), content.index('id="mobile-bar"'),
+    )
+    assert timeline < discard < detail_end
+    assert 'Excluir despesa' in content
+
+    client.force_login(control())
+    assert 'id="discard-box"' not in client.get(reverse('expenses:expenses')).content.decode()
 
 
 # ---------- Celular ----------

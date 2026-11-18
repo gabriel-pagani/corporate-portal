@@ -91,6 +91,7 @@ def serialize_detail(expense, user, current):
             ),
             'resubmit': current.employee and expense.employee_id == user.pk
             and expense.status == Expense.AWAITING_CORRECTION,
+            'discard': current.employee and expense.employee_id == user.pk and expense.untouched(),
         },
         'explanation_required': expense.status == Expense.AWAITING_EXPLANATION,
     })

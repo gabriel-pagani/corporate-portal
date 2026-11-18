@@ -130,6 +130,12 @@ class Expense(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Enviada em')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizada em')
 
+    def untouched(self):
+        """Ninguém tratou a despesa ainda: só existe o envio no histórico."""
+        return self.status == self.AWAITING_REVIEW and all(
+            event.action == ExpenseEvent.SUBMIT for event in self.events.all()
+        )
+
     def __str__(self):
         return f'Nota #{self.pk}'
 

@@ -156,6 +156,9 @@
         } else {
             showView('list-view');
             loadList();
+            // A mensagem de quem chegou à lista vindo de outra tela, como depois da exclusão
+            if (state.flash) showSuccess(state.flash);
+            state.flash = null;
         }
     }
 
@@ -843,6 +846,11 @@
         box.hidden = !expense.can.resubmit;
     }
 
+    function renderDiscard(expense) {
+        const box = document.getElementById('discard-box');
+        if (box) box.hidden = !expense.can.discard;
+    }
+
     function renderDetail(expense) {
         state.expense = expense;
         document.getElementById('detail-title').textContent = `Despesa #${expense.id}`;
@@ -872,6 +880,7 @@
         renderActions(expense);
         renderTimeline(expense);
         renderResubmit(expense);
+        renderDiscard(expense);
     }
 
     async function loadDetail(id) {
@@ -901,10 +910,12 @@
     const noteInput = document.getElementById('note-input');
     const noteError = document.getElementById('note-error');
 
-    function askNote({ title, text, label, button, required, danger }) {
+    function askNote({ title, text, label, button, required, danger, withNote = true }) {
         document.getElementById('note-title').textContent = title;
         document.getElementById('note-text').textContent = text;
-        document.getElementById('note-label').textContent = label;
+        document.getElementById('note-label').textContent = label || '';
+        // Só a confirmação, sem observação: o campo some
+        noteInput.closest('.field').hidden = !withNote;
         const confirmButton = document.getElementById('note-confirm');
         confirmButton.textContent = button;
         confirmButton.classList.toggle('danger', Boolean(danger));
@@ -936,7 +947,7 @@
                 finish(null);
             };
             noteDialog.showModal();
-            noteInput.focus();
+            if (withNote) noteInput.focus();
         });
     }
 
@@ -1015,6 +1026,37 @@
             refreshApproveHint();
         }
     }));
+
+    // ---------- Exclusão ----------
+
+    const discardButton = document.getElementById('discard-button');
+    if (discardButton) {
+        discardButton.addEventListener('click', async () => {
+            const expense = state.expense;
+            if (!expense) return;
+            clearMessages();
+            const confirmed = await askNote({
+                title: `Excluir a despesa #${expense.id}?`,
+                text: 'A despesa e as fotos serão apagadas de vez. Se precisar, você pode enviar a nota de novo.',
+                button: 'Excluir',
+                danger: true,
+                withNote: false,
+            });
+            if (confirmed === null) return;
+            discardButton.disabled = true;
+            try {
+                await api(urlFor('expenseUrl', expense.id), { method: 'DELETE' });
+                state.flash = `Despesa #${expense.id} excluída.`;
+                navigate(content.dataset.pageUrl);
+            } catch (error) {
+                showError(error.message);
+                // Alguém tratou a despesa nesse meio tempo: a tela mostra como ela está agora
+                if (error.status === 409) loadDetail(expense.id);
+            } finally {
+                discardButton.disabled = false;
+            }
+        });
+    }
 
     // ---------- Reenvio ----------
 
