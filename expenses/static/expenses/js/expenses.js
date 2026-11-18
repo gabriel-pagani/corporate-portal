@@ -249,6 +249,9 @@
                 reviewer || !shortStatus[expense.status]
                     ? statusBadge(expense.status, expense.status_display)
                     : statusBadge(expense.status, shortStatus[expense.status], expense.status_display),
+                expense.ai_unread ? element('span', { className: 'ai-unread-badge' }, [
+                    icon('fa-robot'), ' IA não leu',
+                ]) : null,
                 expense.alerts_count ? element('span', { className: 'alert-count' }, [
                     icon('fa-triangle-exclamation'), ` ${expense.alerts_count} alerta${expense.alerts_count > 1 ? 's' : ''}`,
                 ]) : null,
@@ -780,6 +783,18 @@
         document.getElementById('detail-employee-note').textContent = expense.employee_note || 'Sem observação.';
     }
 
+    function renderUnread(expense) {
+        const box = document.getElementById('ai-unread');
+        const unread = reviewer && expense.ai_status !== 'ok';
+        box.hidden = !unread;
+        if (!unread) return;
+        const text = expense.can.reread
+            ? 'A análise pela IA não aconteceu no envio. Peça a leitura de novo ou preencha os dados a partir das fotos.'
+            : 'A análise pela IA não aconteceu no envio: os dados foram preenchidos a partir das fotos.';
+        document.getElementById('ai-unread-text').textContent = text;
+        document.getElementById('reread-button').hidden = !expense.can.reread;
+    }
+
     function renderAlerts(expense) {
         const box = document.getElementById('detail-alerts');
         const alerts = expense.alerts || [];
@@ -874,6 +889,7 @@
             renderFields(expense);
         }
         renderPhotos(expense);
+        renderUnread(expense);
         renderAlerts(expense);
         renderActions(expense);
         renderTimeline(expense);
@@ -1024,6 +1040,39 @@
             refreshApproveHint();
         }
     }));
+
+    // ---------- Nova leitura pela IA ----------
+
+    const rereadButton = document.getElementById('reread-button');
+    rereadButton.addEventListener('click', async () => {
+        const expense = state.expense;
+        if (!expense || !expense.can.reread) return;
+        clearMessages();
+        // O que a conferência já digitou e não gravou continua na tela: a leitura só completa o que está vazio
+        const typed = Object.fromEntries(Object.entries(fieldInputs).map(([name, input]) => [name, input.value]));
+        const typedItems = state.items;
+        rereadButton.disabled = true;
+        const label = rereadButton.innerHTML;
+        rereadButton.textContent = 'Lendo a nota... isso pode levar até um minuto.';
+        try {
+            const data = await postJson(urlFor('readingUrl', expense.id), { version: expense.version });
+            renderDetail(data.expense);
+            for (const [name, value] of Object.entries(typed)) {
+                if (value) fieldInputs[name].value = value;
+            }
+            if (typedItems.length) {
+                state.items = typedItems;
+                renderItems();
+            }
+            showSuccess('A IA leu a nota. Confira os dados antes de aprovar.');
+        } catch (error) {
+            showError(error.message);
+            if (error.status === 409) loadDetail(expense.id);
+        } finally {
+            rereadButton.innerHTML = label;
+            rereadButton.disabled = false;
+        }
+    });
 
     // ---------- Exclusão ----------
 

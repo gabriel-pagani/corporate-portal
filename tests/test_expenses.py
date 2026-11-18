@@ -663,7 +663,8 @@ def test_employee_does_not_see_the_ai_alerts(client, openai):
     client.force_login(user)
 
     data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
-    assert 'alerts' not in data and data['can'] == {'edit': False, 'act': False, 'resubmit': False, 'discard': True}
+    assert 'alerts' not in data
+    assert data['can'] == {'edit': False, 'act': False, 'resubmit': False, 'discard': True, 'reread': False}
 
 
 @pytest.mark.django_db
@@ -932,7 +933,7 @@ def test_finance_sees_the_form_read_only(client, openai):
     client.force_login(finance())
 
     data = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']
-    assert data['can'] == {'edit': False, 'act': True, 'resubmit': False, 'discard': False}
+    assert data['can'] == {'edit': False, 'act': True, 'resubmit': False, 'discard': False, 'reread': False}
 
     # O que o Financeiro mandar de dados é ignorado
     response = send_action(client, expense, 'request_correction', 'Confirme o valor.', form_data(expense, number='1'))

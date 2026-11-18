@@ -5,6 +5,7 @@ from django.utils import timezone
 from expenses.emails import EMPLOYEE_NOTES
 from expenses.history import format_cnpj, money
 from expenses.models import Expense, ExpenseEvent
+from expenses.reading import FAILED_ALERT, OK as READ_OK, UNAVAILABLE_ALERT
 
 
 # O que o funcionário vê de cada registro: as próprias observações e as que
@@ -26,6 +27,18 @@ def user_name(user):
     return user.get_full_name() or user.username
 
 
+# O aviso de que a IA não leu tem lugar próprio na tela: não conta como alerta
+UNREAD_ALERTS = {FAILED_ALERT, UNAVAILABLE_ALERT}
+
+
+def ai_unread(expense):
+    return (expense.ai_reading or {}).get('status') != READ_OK
+
+
+def reading_alerts(expense):
+    return [alert for alert in expense.ai_alerts or [] if alert not in UNREAD_ALERTS]
+
+
 def serialize_summary(expense, current):
     data = {
         'id': expense.pk,
@@ -42,7 +55,8 @@ def serialize_summary(expense, current):
         data['employee'] = user_name(expense.employee)
         # O centro de custo do envio, e não o atual do funcionário
         data['cost_center'] = str(expense.cost_center) if expense.cost_center_id else ''
-        data['alerts_count'] = len(expense.ai_alerts or [])
+        data['alerts_count'] = len(reading_alerts(expense))
+        data['ai_unread'] = ai_unread(expense)
     return data
 
 
@@ -94,6 +108,7 @@ def serialize_detail(expense, user, current):
             'resubmit': current.employee and expense.employee_id == user.pk
             and expense.status == Expense.AWAITING_CORRECTION,
             'discard': current.employee and expense.employee_id == user.pk and expense.untouched(),
+            'reread': current.control and expense.status in Expense.WITH_CONTROL and ai_unread(expense),
         },
         'explanation_required': expense.status == Expense.AWAITING_EXPLANATION,
     })
@@ -102,7 +117,7 @@ def serialize_detail(expense, user, current):
         reading = expense.ai_reading or {}
         data.update({
             'employee_username': expense.employee.username,
-            'alerts': list(expense.ai_alerts or []),
+            'alerts': reading_alerts(expense),
             'ai_status': reading.get('status', ''),
             'last_note': expense.last_note,
             'timeline': [

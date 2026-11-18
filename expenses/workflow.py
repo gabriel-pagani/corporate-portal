@@ -16,6 +16,9 @@ que já mudou é recusada.
 
 Enquanto ninguém tratou a despesa, o funcionário pode excluí-la: sai tudo,
 inclusive o registro do envio, sem aviso por e-mail.
+
+Quando a IA não leu a nota no envio (fora do ar, ou sem configuração), a
+conferência pede uma nova leitura, uma chamada por vez, até a leitura sair.
 """
 from decimal import Decimal
 
@@ -29,8 +32,8 @@ from expenses import emails, rm
 from expenses.forms import MAX_ITEMS, ExpenseDataForm, ExpenseItemForm, first_error
 from expenses.history import snapshot
 from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto
-from expenses.photos import prepare_photos
-from expenses.reading import read_expense
+from expenses.photos import ai_copy, prepare_photos
+from expenses.reading import OK as READ_OK, read_expense
 from expenses.roles import access
 from expenses.validators import clean_number
 
@@ -46,6 +49,19 @@ REPEATED_PHOTO_MESSAGE = 'Esta foto já foi enviada e não pode ser enviada de n
 SAME_PHOTO_TWICE_MESSAGE = 'A mesma foto foi escolhida mais de uma vez. Envie fotos diferentes.'
 
 RESUBMIT_REFUSED = 'Só é possível reenviar as fotos de uma despesa que aguarda correção.'
+
+REREAD_DONE = 'A IA já leu esta nota.'
+
+REREAD_NOT_WITH_CONTROL = 'Só dá para pedir a leitura enquanto a despesa está na conferência.'
+
+REREAD_FAILED = 'A IA ainda não conseguiu ler a nota. Tente de novo mais tarde ou preencha a partir das fotos.'
+
+# A nota já entrou: o que no envio seria recusado vira alerta para a conferência decidir
+REREAD_DUPLICATE_ALERT = 'A nota lida pela IA já está em outra despesa do portal. Confira antes de aprovar.'
+
+REREAD_NOT_A_DOCUMENT_ALERT = 'A IA diz que as fotos não são de uma nota fiscal nem de um recibo.'
+
+REREAD_KEPT_ITEMS_ALERT = 'A IA leu os itens da nota, mas os itens já preenchidos foram mantidos.'
 
 DISCARD_REFUSED = 'Esta despesa já foi tratada e não pode mais ser excluída.'
 
@@ -264,6 +280,83 @@ def discard_expense(user, expense_id):
         expense.delete()
         # Os arquivos saem só depois que a exclusão está gravada
         transaction.on_commit(lambda: discard_files(files))
+
+
+def check_rereadable(expense, version):
+    if version != expense.version:
+        raise Conflict(CONFLICT_MESSAGE)
+    if expense.status not in Expense.WITH_CONTROL:
+        raise ValidationError(REREAD_NOT_WITH_CONTROL)
+    if (expense.ai_reading or {}).get('status') == READ_OK:
+        raise ValidationError(REREAD_DONE)
+
+
+def apply_reading(expense, reading):
+    """
+    Preenche a nota com a nova leitura, sem passar por cima do que a
+    conferência já gravou: só os campos vazios, e os itens só se não houver
+    nenhum. A chave de acesso de outra despesa não entra (é única no portal).
+    """
+    alerts = []
+    fields = dict(reading.fields)
+    key = fields.get('access_key')
+    if key and Expense.objects.exclude(pk=expense.pk).filter(access_key=key).exists():
+        fields['access_key'] = ''
+        alerts.append(REREAD_DUPLICATE_ALERT)
+    else:
+        try:
+            refuse_duplicate_note(fields, expense)
+        except ValidationError:
+            alerts.append(REREAD_DUPLICATE_ALERT)
+    if reading.not_a_document:
+        alerts.insert(0, REREAD_NOT_A_DOCUMENT_ALERT)
+
+    for name, value in fields.items():
+        if value not in (None, '') and getattr(expense, name) in (None, ''):
+            setattr(expense, name, value)
+
+    if not expense.items.exists():
+        ExpenseItem.objects.bulk_create([
+            ExpenseItem(expense=expense, position=position, **item)
+            for position, item in enumerate(reading.items)
+        ])
+        recompute_totals(expense)
+    elif reading.items:
+        alerts.append(REREAD_KEPT_ITEMS_ALERT)
+    expense.ai_alerts = alerts + list(reading.alerts)
+
+
+def reread_expense(user, expense_id, version):
+    """
+    A conferência pede de novo a leitura da nota que a IA não leu. Uma chamada
+    por pedido: se falhar, a tentativa fica registrada em ai_reading e o pedido
+    pode ser feito de novo; deu certo, a leitura não se repete. Devolve True
+    quando a nota foi lida.
+    """
+    if not access(user).control:
+        raise PermissionDenied('Só a conferência pede a leitura da nota.')
+    expense = Expense.objects.get(pk=expense_id)
+    check_rereadable(expense, version)
+    photos = expense.photos.filter(replaced_at__isnull=True).order_by('position', 'id')
+    reading = read_expense([ai_copy(photo.file) for photo in photos], expense.employee_note)
+
+    with transaction.atomic():
+        expense = Expense.objects.select_for_update().get(pk=expense_id)
+        check_rereadable(expense, version)
+        previous = dict(expense.ai_reading or {})
+        # As tentativas que falharam ficam no registro da leitura, para a auditoria
+        attempts = previous.pop('failed_attempts', []) + [
+            {key: previous.get(key, '') for key in ('status', 'model', 'read_at', 'error')}
+        ]
+        if reading.status != READ_OK:
+            expense.ai_reading = {**previous, 'failed_attempts': attempts}
+            expense.save(update_fields=['ai_reading', 'updated_at'])
+            return False
+        apply_reading(expense, reading)
+        expense.ai_reading = {**reading.record, 'failed_attempts': attempts}
+        expense.version += 1
+        expense.save()
+    return True
 
 
 def resubmit_photos(user, expense_id, files, note='', link=''):

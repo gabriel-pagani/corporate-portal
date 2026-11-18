@@ -332,6 +332,34 @@ label.button.primary {
   font-size: 13px;
 }
 
+/* A IA não leu a nota: vem antes dos alertas, com o botão da nova leitura */
+.ai-unread {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 2px solid #a32d2d;
+  border-radius: 8px;
+  background: #fdecec;
+  color: #6b1f1f;
+}
+
+.ai-unread h3 {
+  color: #a32d2d;
+}
+
+.ai-unread p {
+  margin: 0 0 12px;
+}
+
+.ai-unread p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-unread-badge {
+  color: #a32d2d;
+  font-size: 13px;
+  font-weight: normal;
+}
+
 .ai-alerts {
   margin-bottom: 20px;
   padding: 14px 16px;

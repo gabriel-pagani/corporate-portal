@@ -77,6 +77,17 @@ def normalize(file):
     )
 
 
+def ai_copy(stored):
+    """A cópia reduzida para a IA, feita da foto já guardada (a nova leitura da conferência)."""
+    try:
+        with stored.open('rb') as file:
+            image = Image.open(file, formats=['JPEG'])
+            image.draft('RGB', (AI_SIDE, AI_SIDE))
+            return jpeg(image.convert('RGB'), AI_SIDE, AI_QUALITY)
+    except (OSError, ValueError, SyntaxError) as error:
+        raise ValidationError('Não foi possível abrir as fotos da nota para a leitura.') from error
+
+
 def prepare_photos(files):
     """Confere a quantidade e o tamanho das fotos e devolve cada uma regravada."""
     if len(files) < MIN_PHOTOS:

@@ -19,6 +19,7 @@
             data-expense-url="{% url 'expenses:expense-api' 0 %}"
             data-action-url="{% url 'expenses:expense-action-api' 0 %}"
             data-photos-url="{% url 'expenses:expense-photos-api' 0 %}"
+            data-reading-url="{% url 'expenses:expense-reading-api' 0 %}"
         >
             <div class="header">
                 {% if access.employee %}
@@ -169,6 +170,15 @@
                     </div>
 
                     <div class="detail-side">
+                        <!-- A IA não leu a nota no envio: a conferência pede de novo, uma leitura por vez -->
+                        <div id="ai-unread" class="ai-unread" role="alert" hidden>
+                            <h3><i class="fas fa-robot" aria-hidden="true"></i> A IA não leu esta nota</h3>
+                            <p id="ai-unread-text"></p>
+                            <button type="button" class="button primary" id="reread-button" hidden>
+                                <i class="fas fa-rotate" aria-hidden="true"></i> Ler a nota com a IA
+                            </button>
+                        </div>
+
                         <div id="detail-alerts" class="ai-alerts" role="alert" hidden>
                             <h3><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Alertas da IA</h3>
                             <ul id="detail-alerts-list"></ul>

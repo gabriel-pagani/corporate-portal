@@ -16,7 +16,10 @@ from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto, Ex
 from expenses.photos import ACCEPTED_TYPES, MAX_PHOTO_SIZE, MAX_PHOTOS
 from expenses.roles import access
 from expenses.serializers import serialize_detail, serialize_summary
-from expenses.workflow import Conflict, act, discard_expense, resubmit_photos, submit_expense, visible_expenses
+from expenses.workflow import (
+    REREAD_FAILED, Conflict, act, discard_expense, reread_expense, resubmit_photos, submit_expense,
+    visible_expenses,
+)
 
 
 PAGE_SIZE = 25
@@ -233,6 +236,31 @@ def expense_action_api(request, expense_id):
         return JsonResponse({'detail': str(error) or NO_PERMISSION}, status=403)
     except ValidationError as error:
         return error_response(error)
+    return detail_response(request, expense_id)
+
+
+@require_POST
+@expense_access_required
+def expense_reading_api(request, expense_id):
+    """A conferência pede de novo a leitura da nota que a IA não leu."""
+    if not request.expense_access.control:
+        return JsonResponse({'detail': NO_PERMISSION}, status=403)
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'JSON inválido.'}, status=400)
+    get_object_or_404(visible_expenses(request.user), pk=expense_id)
+    try:
+        version = int(payload.get('version'))
+    except (TypeError, ValueError):
+        version = None
+    try:
+        read = reread_expense(request.user, expense_id, version)
+    except Conflict as error:
+        return JsonResponse({'detail': str(error)}, status=409)
+    except ValidationError as error:
+        return error_response(error)
+    if not read:
+        return JsonResponse({'detail': REREAD_FAILED}, status=503)
     return detail_response(request, expense_id)
 
 

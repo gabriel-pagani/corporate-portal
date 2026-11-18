@@ -1,7 +1,8 @@
 from django.urls import path
 
 from expenses.views import (
-    expense_action_api, expense_api, expense_photos_api, expenses_api, expenses_view, photo_view,
+    expense_action_api, expense_api, expense_photos_api, expense_reading_api, expenses_api, expenses_view,
+    photo_view,
 )
 
 app_name = 'expenses'
@@ -17,4 +18,5 @@ urlpatterns = [
     path('api/expenses/<int:expense_id>/', expense_api, name='expense-api'),
     path('api/expenses/<int:expense_id>/action/', expense_action_api, name='expense-action-api'),
     path('api/expenses/<int:expense_id>/photos/', expense_photos_api, name='expense-photos-api'),
+    path('api/expenses/<int:expense_id>/reading/', expense_reading_api, name='expense-reading-api'),
 ]
