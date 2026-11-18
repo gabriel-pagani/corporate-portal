@@ -1,7 +1,7 @@
 """
 O e-mail ao funcionário a cada mudança de situação da nota.
 
-Só o funcionário recebe: o Controle e o Financeiro acompanham pela fila. O
+Só o funcionário recebe: quem confere e quem valida acompanham pela fila. O
 envio acontece depois do commit, e a falha do servidor de e-mail não desfaz a
 ação, só fica no log.
 """
@@ -19,18 +19,18 @@ from expenses.models import Expense, ExpenseEvent
 logger = logging.getLogger(__name__)
 
 MESSAGES = {
-    ExpenseEvent.SUBMIT: 'Recebemos a sua nota. Ela agora aguarda a conferência do Controle.',
-    ExpenseEvent.RESUBMIT: 'Recebemos as novas fotos da sua nota. Ela volta para a conferência do Controle.',
-    ExpenseEvent.REQUEST_CORRECTION: 'O Controle pediu uma correção na sua nota. Veja a observação abaixo e envie novas fotos pelo portal.',
-    ExpenseEvent.APPROVE_REVIEW: 'A sua nota foi conferida pelo Controle e agora aguarda a validação do Financeiro.',
-    ExpenseEvent.EXPLAIN: 'O Controle respondeu ao Financeiro sobre a sua nota, que volta a aguardar a validação.',
-    ExpenseEvent.REQUEST_EXPLANATION: 'O Financeiro pediu uma explicação ao Controle sobre a sua nota. Você não precisa fazer nada por enquanto.',
+    ExpenseEvent.SUBMIT: 'Recebemos a sua nota. Ela agora aguarda a conferência.',
+    ExpenseEvent.RESUBMIT: 'Recebemos as novas fotos da sua nota. Ela volta para a conferência.',
+    ExpenseEvent.REQUEST_CORRECTION: 'Foi pedida uma correção na sua nota. Veja a observação abaixo e envie novas fotos pelo portal.',
+    ExpenseEvent.APPROVE_REVIEW: 'A sua nota foi conferida e agora aguarda a validação.',
+    ExpenseEvent.EXPLAIN: 'A dúvida sobre a sua nota foi esclarecida, e ela volta a aguardar a validação.',
+    ExpenseEvent.REQUEST_EXPLANATION: 'Surgiu uma dúvida sobre a sua nota na validação, e ela voltou para a conferência. Você não precisa fazer nada por enquanto.',
     ExpenseEvent.APPROVE_VALIDATION: 'A sua nota foi aprovada.',
     ExpenseEvent.REJECT: 'A sua nota foi rejeitada e está encerrada.',
 }
 
-# As observações que são para o funcionário. As trocadas entre o Controle e o
-# Financeiro ficam entre eles.
+# As observações que são para o funcionário. As trocadas entre a conferência e
+# a validação ficam entre elas.
 EMPLOYEE_NOTES = {
     ExpenseEvent.REQUEST_CORRECTION: 'Correção pedida',
     ExpenseEvent.REJECT: 'Motivo da rejeição',

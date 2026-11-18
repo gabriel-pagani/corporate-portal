@@ -2,12 +2,12 @@
 Quem faz o quê nas despesas.
 
 Cada usuário tem um papel só: ou envia notas (Funcionário), ou confere
-(Controle), ou valida (Financeiro). Quem envia também não gerencia as regras
+ou valida. Quem envia também não gerencia as regras
 que a IA usa, para ninguém ajustar regra a favor da própria nota. Quem tiver uma
 combinação proibida, por permissão direta ou de grupo, fica fora das telas até
 o cadastro ser corrigido; o admin recusa salvar o usuário ou o grupo assim.
 
-O superusuário é a exceção: faz o papel do Controle e do Financeiro e gerencia
+O superusuário é a exceção: confere, valida e gerencia
 as regras, mas nunca envia nota.
 """
 from dataclasses import dataclass
@@ -29,8 +29,7 @@ ROLE_PERMISSIONS = {
 }
 
 ROLE_CONFLICT = (
-    'Cada usuário pode ter um só papel nas despesas: enviar notas (Funcionário), '
-    'conferir (Controle) ou validar (Financeiro).'
+    'Cada usuário pode ter um só papel nas despesas: enviar notas, conferir ou validar.'
 )
 
 SUBMIT_MANAGE_CONFLICT = 'Quem envia notas de despesa não pode gerenciar as regras das despesas.'

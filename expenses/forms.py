@@ -11,7 +11,7 @@ MAX_ITEMS = 100
 
 
 class ExpenseDataForm(forms.Form):
-    """Os dados da nota como o Controle confere e edita."""
+    """Os dados da nota como a conferência os confere e edita."""
     cnpj = forms.CharField(required=False, max_length=30, label='CNPJ do emitente')
     access_key = forms.CharField(required=False, max_length=80, label='Chave de acesso')
     number = forms.CharField(required=False, max_length=40, label='Número da nota')

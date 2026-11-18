@@ -27,7 +27,7 @@ class NonReimbursableGroup(models.Model):
     """
     Grupo de item que não entra no valor reembolsado ("bebida alcoólica",
     "jogos de azar"). A IA marca os itens da nota que se encaixam, como sinal
-    para o Controle, que tem a última palavra.
+    para quem confere, que tem a última palavra.
     """
     name = models.CharField(
         max_length=60,
@@ -49,12 +49,12 @@ class ExpenseRules(models.Model):
     """
     O texto único que complementa o prompt da IA ("a nota deve conter o CNPJ da
     empresa"). O que a IA encontrar na nota coberto por estas regras vira um
-    alerta na conferência do Controle.
+    alerta na conferência.
     """
     text = models.TextField(
         blank=True,
         verbose_name='Regras complementares',
-        help_text='Uma regra por linha. A IA confere cada nota por elas e gera um alerta para o Controle quando encontrar algo que elas cobrem.',
+        help_text='Uma regra por linha. A IA confere cada nota por elas e gera um alerta na conferência quando encontrar algo que elas cobrem.',
     )
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
 
@@ -86,7 +86,7 @@ class Expense(models.Model):
         (APPROVED, 'Aprovada'),
         (REJECTED, 'Rejeitada'),
     ]
-    # Com o Controle: a conferência e a explicação pedida pelo Financeiro
+    # Na conferência: a primeira conferência e a explicação pedida na validação
     WITH_CONTROL = (AWAITING_REVIEW, AWAITING_EXPLANATION)
     WITH_FINANCE = (AWAITING_VALIDATION,)
     CLOSED = (APPROVED, REJECTED)
@@ -164,7 +164,7 @@ class ExpenseItem(models.Model):
     # O valor da linha inteira, e não o unitário
     amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor')
     non_reimbursable = models.BooleanField(default=False, verbose_name='Não reembolsável')
-    # O grupo não reembolsável que a IA apontou: fica como sinal mesmo que o Controle desmarque
+    # O grupo não reembolsável que a IA apontou: fica como sinal mesmo que a conferência desmarque
     ai_group = models.CharField(max_length=60, blank=True, verbose_name='Grupo apontado pela IA')
 
     def __str__(self):
@@ -228,11 +228,11 @@ class ExpenseEvent(models.Model):
     ACTIONS = [
         (SUBMIT, 'Nota enviada'),
         (RESUBMIT, 'Fotos reenviadas'),
-        (REQUEST_CORRECTION, 'Correção solicitada ao funcionário'),
-        (APPROVE_REVIEW, 'Aprovada pelo Controle'),
-        (EXPLAIN, 'Explicação enviada ao Financeiro'),
-        (REQUEST_EXPLANATION, 'Explicação solicitada ao Controle'),
-        (APPROVE_VALIDATION, 'Aprovada pelo Financeiro'),
+        (REQUEST_CORRECTION, 'Correção solicitada'),
+        (APPROVE_REVIEW, 'Conferida'),
+        (EXPLAIN, 'Explicação enviada'),
+        (REQUEST_EXPLANATION, 'Explicação solicitada'),
+        (APPROVE_VALIDATION, 'Aprovada'),
         (REJECT, 'Rejeitada'),
     ]
 
@@ -241,8 +241,8 @@ class ExpenseEvent(models.Model):
     FINANCE = 'finance'
     ROLES = [
         (EMPLOYEE, 'Funcionário'),
-        (CONTROL, 'Controle'),
-        (FINANCE, 'Financeiro'),
+        (CONTROL, 'Conferência'),
+        (FINANCE, 'Validação'),
     ]
 
     expense = models.ForeignKey(Expense, on_delete=models.PROTECT, related_name='events', verbose_name='Nota')

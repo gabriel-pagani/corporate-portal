@@ -82,7 +82,7 @@ def test_reviewers_see_only_the_history_on_the_screen(client, openai):
 
     timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
     assert [(event['action_display'], event['note']) for event in timeline] == [
-        ('Nota enviada', 'Almoço'), ('Aprovada pelo Controle', 'Conferido.'),
+        ('Nota enviada', 'Almoço'), ('Conferida', 'Conferido.'),
     ]
     for name in ('expense-history-api', 'expense-state-api', 'expense-compare-api'):
         with pytest.raises(NoReverseMatch):

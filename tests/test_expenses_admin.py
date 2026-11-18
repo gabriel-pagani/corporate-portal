@@ -117,7 +117,7 @@ def test_notes_and_history_are_read_only_in_the_admin(client, openai):
     sign_in(client, User.objects.create_superuser(username='admin', password='senha'))
 
     content = client.get(reverse('admin:expenses_expense_change', args=[expense.pk])).content.decode()
-    assert 'Aprovada pelo Controle' in content and 'Leitura da IA' in content
+    assert 'Conferida' in content and 'Leitura da IA' in content
     assert 'name="number"' not in content
 
     event = expense.events.last()

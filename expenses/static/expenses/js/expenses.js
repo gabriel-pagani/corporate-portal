@@ -1,5 +1,5 @@
-// Despesas: a lista de notas, o envio das fotos, a conferência do Controle, a
-// validação do Financeiro e o histórico de cada nota. As telas trocam pelo endereço
+// Despesas: a lista de notas, o envio das fotos, a conferência, a validação e
+// o histórico de cada nota. As telas trocam pelo endereço
 // (#enviar, #nota-12): o voltar do celular volta para a tela anterior.
 
 (() => {
@@ -172,7 +172,7 @@
     const searchInput = document.getElementById('search-input');
     let searchTimer;
 
-    // Os filtros do funcionário. "Em andamento" junta o que está com o Controle e com o Financeiro.
+    // Os filtros do funcionário. "Em andamento" junta o que está na conferência e na validação.
     const chipFilters = [
         { label: 'Todas', value: '' },
         { label: 'Aguardando correção', value: 'S', attention: true },
@@ -497,7 +497,7 @@
                 const data = await upload(content.dataset.listUrl, photosForm(picker.files(), submitNote.value), progress);
                 picker.clear();
                 submitNote.value = '';
-                state.flash = 'Nota enviada. Ela agora aguarda a conferência do Controle.';
+                state.flash = 'Nota enviada. Ela agora aguarda a conferência.';
                 window.location.hash = `#nota-${data.expense.id}`;
             } catch (error) {
                 showError(error.message);
@@ -656,7 +656,7 @@
         notice.classList.toggle('danger', expense.status === 'R');
         const last = expense.timeline[expense.timeline.length - 1];
         const text = last && last.note && expense.status !== 'A'
-            ? `${last.action_display} (${last.role_display}, ${last.author_name}, ${last.created_at}):\n${last.note}`
+            ? `${last.action_display} (${last.author_name}, ${last.created_at}):\n${last.note}`
             : '';
         notice.textContent = text;
         notice.hidden = !text;
@@ -666,21 +666,21 @@
     const banners = {
         C: {
             icon: 'fa-magnifying-glass', title: 'Em conferência',
-            text: () => 'O Controle está conferindo a sua nota. Você recebe um e-mail quando a situação mudar.',
+            text: () => 'A sua nota está sendo conferida. Você recebe um e-mail quando a situação mudar.',
         },
         S: {
             icon: 'fa-camera', title: 'Envie novas fotos', tone: 'attention',
             text: (expense) => (expense.last_note
-                ? `O Controle pediu uma correção: ${expense.last_note}`
-                : 'O Controle pediu uma correção na nota.'),
+                ? `Foi pedida uma correção: ${expense.last_note}`
+                : 'Foi pedida uma correção na nota.'),
         },
         E: {
             icon: 'fa-hourglass-half', title: 'Em análise',
-            text: () => 'O Controle e o Financeiro estão conferindo a nota. Você não precisa fazer nada.',
+            text: () => 'A nota está sendo analisada. Você não precisa fazer nada.',
         },
         V: {
             icon: 'fa-hourglass-half', title: 'Em validação',
-            text: () => 'O Controle conferiu a nota, que agora aguarda a validação do Financeiro.',
+            text: () => 'A nota foi conferida e agora aguarda a validação.',
         },
         A: {
             icon: 'fa-circle-check', title: 'Aprovada', tone: 'success',
@@ -799,9 +799,9 @@
         if (!expense.can.act) return;
         const control = expense.status === 'C' || expense.status === 'E';
         document.getElementById('correction-button').textContent = control
-            ? 'Pedir correção ao funcionário' : 'Pedir correção ao Controle';
+            ? 'Pedir correção ao funcionário' : 'Devolver para a conferência';
         document.getElementById('approve-button').textContent = !control
-            ? 'Aprovar' : (expense.explanation_required ? 'Explicar e aprovar' : 'Aprovar e enviar ao Financeiro');
+            ? 'Aprovar' : (expense.explanation_required ? 'Explicar e aprovar' : 'Aprovar e enviar para a validação');
         refreshApproveHint();
     }
 
@@ -811,7 +811,8 @@
             element('div', { className: 'event-title', text: event.action_display }),
             element('div', {
                 className: 'event-meta',
-                text: [event.created_at, event.author_name ? `${event.author_name} (${event.role_display})` : event.role_display, event.status_display].join(' · '),
+                // O funcionário não recebe o nome de quem conferiu ou validou
+                text: [event.created_at, event.author_name, event.status_display].filter(Boolean).join(' · '),
             }),
             event.note ? element('p', { className: 'event-note', text: event.note }) : null,
         ])));
@@ -939,10 +940,10 @@
                 button: 'Pedir correção',
                 required: true,
             } : {
-                title: 'Pedir correção ao Controle?',
-                text: 'A nota volta ao Controle, que responde com uma explicação ou pede a correção ao funcionário.',
-                label: 'O que o Controle precisa explicar ou corrigir (obrigatório)',
-                button: 'Pedir correção',
+                title: 'Devolver para a conferência?',
+                text: 'A nota volta para a conferência, que responde com uma explicação ou pede a correção ao funcionário.',
+                label: 'O que precisa ser explicado ou corrigido (obrigatório)',
+                button: 'Devolver',
                 required: true,
             };
         }
@@ -957,12 +958,12 @@
         }
         return expense.explanation_required ? {
             title: 'Explicar e aprovar?',
-            text: 'A nota volta ao Financeiro com a sua explicação.',
-            label: 'Explicação ao Financeiro (obrigatória)',
-            button: 'Enviar ao Financeiro',
+            text: 'A nota volta para a validação com a sua explicação.',
+            label: 'Explicação para a validação (obrigatória)',
+            button: 'Enviar para a validação',
             required: true,
         } : {
-            title: 'Aprovar e enviar ao Financeiro?',
+            title: 'Aprovar e enviar para a validação?',
             text: `Valor reembolsado: ${formatMoney(totals().reimbursed)}.`,
             label: 'Observação (opcional)',
             button: 'Aprovar',
@@ -1017,7 +1018,7 @@
                 resendNote.value = '';
                 renderDetail(data.expense);
                 window.scrollTo(0, 0);
-                showSuccess('Fotos reenviadas. A nota volta para a conferência do Controle.');
+                showSuccess('Fotos reenviadas. A nota volta para a conferência.');
             } catch (error) {
                 showError(error.message);
             } finally {

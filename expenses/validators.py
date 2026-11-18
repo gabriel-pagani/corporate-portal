@@ -1,4 +1,4 @@
-"""Limpeza e conferência dos campos da nota, a mesma para o que a IA lê e para o que o Controle digita."""
+"""Limpeza e conferência dos campos da nota, a mesma para o que a IA lê e para o que é digitado na conferência."""
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation

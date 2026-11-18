@@ -8,8 +8,8 @@ from expenses.models import Expense, ExpenseEvent
 
 
 # O que o funcionário vê de cada registro: as próprias observações e as que
-# são para ele (correção e rejeição). O que o Controle e o Financeiro trocam
-# entre si fica entre eles.
+# são para ele (correção e rejeição). O que a conferência e a validação trocam
+# entre si fica entre elas.
 EMPLOYEE_VISIBLE_NOTES = {ExpenseEvent.SUBMIT, ExpenseEvent.RESUBMIT, *EMPLOYEE_NOTES}
 
 
@@ -48,7 +48,6 @@ def serialize_event_for_employee(event):
         'sequence': event.sequence,
         'action_display': event.get_action_display(),
         'status_display': event.get_status_after_display(),
-        'role_display': event.get_author_role_display(),
         'note': event.note if event.action in EMPLOYEE_VISIBLE_NOTES else '',
         'created_at': local(event.created_at),
     }
@@ -111,7 +110,6 @@ def serialize_detail(expense, user, current):
                     'action_display': event.get_action_display(),
                     'status_display': event.get_status_after_display(),
                     'author_name': event.author_name,
-                    'role_display': event.get_author_role_display(),
                     'note': event.note,
                     'created_at': local(event.created_at),
                 }

@@ -1,12 +1,12 @@
 """
 O fluxo da nota, etapa a etapa:
 
-    envio (com a análise da IA) -> Aguardando conferência (Controle)
-    Controle:   pedir correção -> Aguardando correção (funcionário)
+    envio (com a análise da IA) -> Aguardando conferência
+    Conferência: pedir correção -> Aguardando correção (funcionário)
                 rejeitar       -> Rejeitada
-                aprovar        -> Aguardando validação (Financeiro)
+                aprovar        -> Aguardando validação
     funcionário reenvia as fotos -> Aguardando conferência
-    Financeiro: pedir correção -> Aguardando explicação (Controle)
+    Validação:  pedir correção -> Aguardando explicação (volta à conferência)
                 rejeitar       -> Rejeitada
                 aprovar        -> Aprovada, e o lançamento no RM
 
@@ -51,7 +51,7 @@ TRANSITIONS = {
     (ExpenseEvent.FINANCE, APPROVE): (Expense.APPROVED, ExpenseEvent.APPROVE_VALIDATION),
 }
 
-# Sem estes campos o Controle não aprova
+# Sem estes campos a nota não é aprovada
 REQUIRED_TO_APPROVE = [
     ('number', 'número da nota'),
     ('issue_date', 'data'),
@@ -66,7 +66,7 @@ class Conflict(Exception):
 
 
 def visible_expenses(user):
-    """O funcionário vê só as dele; o Controle e o Financeiro veem todas."""
+    """O funcionário vê só as dele; quem confere e quem valida veem todas."""
     current = access(user)
     expenses = Expense.objects.select_related('employee', 'expense_type', 'sector', 'cost_center')
     if current.reviewer:
@@ -173,8 +173,8 @@ def submit_expense(user, files, note='', link=''):
 
 def resubmit_photos(user, expense_id, files, note='', link=''):
     """
-    Troca as fotos da nota que aguarda correção e a devolve ao Controle. A IA
-    não analisa de novo, e o que o Controle editou fica como está.
+    Troca as fotos da nota que aguarda correção e a devolve para a conferência.
+    A IA não analisa de novo, e o que foi editado na conferência fica como está.
     """
     if not access(user).employee:
         raise PermissionDenied('Você não pode enviar notas.')
@@ -206,7 +206,7 @@ def resubmit_photos(user, expense_id, files, note='', link=''):
 
 
 def apply_edits(expense, data):
-    """Grava os campos e os itens que o Controle editou. Levanta ValidationError com os erros por campo."""
+    """Grava os campos e os itens editados na conferência. Levanta ValidationError com os erros por campo."""
     if not isinstance(data, dict):
         raise ValidationError('Envie os dados da nota.')
 
@@ -270,11 +270,11 @@ def acting_role(expense, current):
     """O papel de quem age, pela etapa em que a nota está."""
     if expense.status in Expense.WITH_CONTROL:
         if not current.control:
-            raise PermissionDenied('Esta nota está com o Controle.')
+            raise PermissionDenied('Esta nota está na conferência.')
         return ExpenseEvent.CONTROL
     if expense.status in Expense.WITH_FINANCE:
         if not current.finance:
-            raise PermissionDenied('Esta nota está com o Financeiro.')
+            raise PermissionDenied('Esta nota está na validação.')
         return ExpenseEvent.FINANCE
     if expense.status == Expense.AWAITING_CORRECTION:
         raise ValidationError('Esta nota aguarda a correção do funcionário.')
@@ -284,14 +284,14 @@ def acting_role(expense, current):
 def note_required(role, action, status):
     if action in (REQUEST_CORRECTION, REJECT):
         return True
-    # A explicação que o Financeiro pediu vai na observação da aprovação
+    # A explicação pedida na validação vai na observação da aprovação
     return role == ExpenseEvent.CONTROL and status == Expense.AWAITING_EXPLANATION
 
 
 def act(user, expense_id, action, note='', version=None, data=None, link=''):
     """
-    Pedir correção, rejeitar ou aprovar, pelo Controle ou pelo Financeiro,
-    conforme a etapa. O Controle manda junto os dados que editou; o Financeiro
+    Pedir correção, rejeitar ou aprovar, na conferência ou na validação,
+    conforme a etapa. Quem confere manda junto os dados que editou; quem valida
     só vê, e o que ele mandar de dados é ignorado.
     """
     if action not in ACTIONS:
@@ -311,7 +311,7 @@ def act(user, expense_id, action, note='', version=None, data=None, link=''):
             apply_edits(expense, data)
         if note_required(role, action, expense.status) and not note:
             if action == APPROVE:
-                raise ValidationError('Escreva a explicação pedida pelo Financeiro na observação.')
+                raise ValidationError('Escreva na observação a explicação pedida na validação.')
             raise ValidationError('Escreva a observação: ela é obrigatória para esta ação.')
         if action == APPROVE:
             check_ready_to_approve(expense)

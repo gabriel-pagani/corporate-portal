@@ -2,7 +2,7 @@
 A análise da nota pela API da OpenAI (Responses API, com o modelo de visão de
 OPENAI_MODEL).
 
-A IA só preenche o formulário que o Controle confere: o que ela não encontrar
+A IA só preenche o formulário da conferência: o que ela não encontrar
 fica vazio, e a falha da chamada não devolve a nota ao funcionário, só deixa o
 formulário vazio com um alerta. Tudo o que volta passa pela limpeza antes de
 ser usado: é texto tirado de uma foto que o funcionário escolheu.
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 OPENAI_URL = 'https://api.openai.com/v1/responses'
 
 # Conexão e resposta, em segundos. A resposta precisa caber no tempo do
-# gunicorn (60s): passou disso, o Controle preenche à mão.
+# gunicorn (60s): passou disso, a conferência preenche à mão.
 OPENAI_TIMEOUT = (5, 40)
 
 MAX_ITEMS = 100
@@ -279,7 +279,7 @@ def clean_reading(raw, types, groups):
     if raw['instructions_in_image'] is not False:
         alerts.append(INSTRUCTIONS_ALERT)
 
-    # Texto livre do modelo: só vai para o Controle, curto e em quantidade limitada
+    # Texto livre do modelo: só vai para a conferência, curto e em quantidade limitada
     rule_alerts = [clean_text(alert, 300) for alert in raw['alerts'][:MAX_ALERTS]]
     alerts = [alert for alert in rule_alerts if alert] + alerts
     return fields, items, alerts

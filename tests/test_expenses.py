@@ -3,11 +3,14 @@ import json
 import re
 import smtplib
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.models import Group, Permission
+from django.contrib.staticfiles import finders
 from django.core import mail
+from django.core.exceptions import PermissionDenied
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import ProtectedError
 from django.urls import reverse
@@ -16,7 +19,7 @@ from PIL import Image
 from app.models import CostCenter, Sector, ServiceAccess, User
 from expenses.models import Expense, ExpenseEvent, ExpenseItem, ExpensePhoto
 from expenses.reading import FAILED_ALERT
-from expenses.roles import access
+from expenses.roles import ROLE_CONFLICT, access
 from expenses.workflow import DUPLICATE_MESSAGE, act, resubmit_photos
 from tests.conftest import sign_in
 from tests.expenses_helpers import (  # noqa: F401
@@ -931,6 +934,72 @@ def test_control_sees_the_alerts_and_the_last_note(client, openai):
     assert data['timeline'][-1]['note'] == 'Explique.'
 
 
+@pytest.mark.django_db
+def test_timeline_names_the_user_and_the_stage_but_not_the_role(client, openai):
+    user, reviewer, validator = employee(), control(), finance()
+    expense = submitted(openai, user)
+    act(reviewer, expense.pk, 'approve', '', 1)
+    act(validator, expense.pk, 'request_correction', 'Explique.', 2)
+    act(reviewer, expense.pk, 'approve', 'Explicado.', 3)
+    act(validator, expense.pk, 'approve', '', 4)
+
+    client.force_login(reviewer)
+    timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
+    # "Conferida", e não "Aprovada": a aprovação só vem na validação
+    assert [(event['action_display'], event['author_name']) for event in timeline] == [
+        ('Nota enviada', 'Ana Silva'), ('Conferida', 'controle'), ('Explicação solicitada', 'financeiro'),
+        ('Explicação enviada', 'controle'), ('Aprovada', 'financeiro'),
+    ]
+    assert all('role_display' not in event for event in timeline)
+
+    client.force_login(user)
+    timeline = client.get(reverse('expenses:expense-api', args=[expense.pk])).json()['expense']['timeline']
+    assert all('role_display' not in event and 'author_name' not in event for event in timeline)
+
+
+@pytest.mark.django_db
+def test_screens_and_emails_do_not_name_the_sectors(client, openai, django_capture_on_commit_callbacks):
+    # Os setores que conferem e validam podem mudar: a tela e os e-mails falam só das etapas
+    sectors = re.compile('Controle|Financeiro')
+    user, reviewer, validator = employee(), control(), finance()
+    with django_capture_on_commit_callbacks(execute=True):
+        expense = submitted(openai, user)
+        returned = submitted(openai, user, access_key=access_key(2))
+    for step in (
+        lambda: act(reviewer, expense.pk, 'approve', '', 1),
+        lambda: act(validator, expense.pk, 'request_correction', 'Explique.', 2),
+        lambda: act(reviewer, expense.pk, 'approve', 'Explicado.', 3),
+        lambda: act(validator, expense.pk, 'approve', '', 4),
+        lambda: act(reviewer, returned.pk, 'request_correction', 'Foto cortada.', 1),
+        lambda: resubmit_photos(user, returned.pk, [photo()]),
+        lambda: act(reviewer, returned.pk, 'reject', 'Nota de outra empresa.', 3),
+    ):
+        with django_capture_on_commit_callbacks(execute=True):
+            step()
+
+    assert len(mail.outbox) == 9
+    assert not [message.body for message in mail.outbox if sectors.search(message.body)]
+    labels = [label for _, label in ExpenseEvent.ACTIONS + ExpenseEvent.ROLES]
+    assert not [label for label in labels if sectors.search(label)]
+
+    script = Path(finders.find('expenses/js/expenses.js')).read_text(encoding='utf-8')
+    assert not sectors.search(script)
+    for viewer in (user, reviewer):
+        client.force_login(viewer)
+        assert not sectors.search(client.get(reverse('expenses:expenses')).content.decode())
+
+
+@pytest.mark.django_db
+def test_messages_of_the_wrong_stage_do_not_name_the_sectors(openai):
+    expense, reviewer = submitted(openai, employee()), control()
+    with pytest.raises(PermissionDenied, match='Esta nota está na conferência.'):
+        act(finance(), expense.pk, 'approve', '', 1)
+    act(reviewer, expense.pk, 'approve', '', 1)
+    with pytest.raises(PermissionDenied, match='Esta nota está na validação.'):
+        act(reviewer, expense.pk, 'approve', '', 2)
+    assert ROLE_CONFLICT == 'Cada usuário pode ter um só papel nas despesas: enviar notas, conferir ou validar.'
+
+
 # ---------- Exclusão ----------
 
 @pytest.mark.django_db
@@ -956,7 +1025,7 @@ def test_employee_filters_by_several_statuses_and_gets_the_counts(client, openai
     client.force_login(user)
     url = reverse('expenses:expenses-api')
 
-    # "Em andamento" junta o que está com o Controle e com o Financeiro
+    # "Em andamento" junta o que está na conferência e na validação
     in_progress = client.get(url, {'status': 'C,E,V'}).json()
     assert {item['id'] for item in in_progress['expenses']} == {waiting.pk, validation.pk}
     assert [item['id'] for item in client.get(url, {'status': 'S'}).json()['expenses']] == [correction.pk]
