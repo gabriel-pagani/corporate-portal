@@ -137,6 +137,7 @@ body {
 /* Conteúdo: os cards da home sobre o fundo */
 .main-content.library {
   height: 100vh;
+  height: 100dvh;
   padding: 24px;
   overflow-y: auto;
   box-sizing: border-box;

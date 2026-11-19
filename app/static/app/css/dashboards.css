@@ -5,16 +5,11 @@ iframe {
 
 .menu-item {
   margin-bottom: 10px;
-  position: relative; /* Necessário para o submenu sair da sidebar */
+  position: relative;
 }
 
 .sidebar.collapsed .toggle-icon {
   display: none;
-}
-
-/* Permite que o dropdown saia para fora da sidebar */
-.sidebar.collapsed .menu {
-  overflow: visible;
 }
 
 .menu a {
@@ -111,10 +106,12 @@ iframe {
   display: block;
 }
 
-/* Sidebar colapsada: submenu vira dropdown flutuante */
+/* Sidebar colapsada: submenu vira dropdown flutuante. Fica fixo na tela (o JS põe
+   o topo na altura do setor) para sair da sidebar sem o menu deixar de rolar: com
+   o menu sem rolagem, muitos setores empurravam o botão de minimizar para fora da tela */
 .sidebar.collapsed .submenu {
   display: block;
-  position: absolute;
+  position: fixed;
   left: 60px; /* Largura da sidebar colapsada */
   top: 0;
   width: 350px;

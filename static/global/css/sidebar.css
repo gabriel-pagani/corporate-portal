@@ -5,6 +5,9 @@
 body {
   display: flex;
   height: 100vh;
+  /* Em celulares e tablets o 100vh passa da área visível (a barra do navegador
+     cobre o rodapé da sidebar com o botão de minimizar); o dvh é a altura visível */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -16,6 +19,7 @@ body {
   flex-direction: column;
   justify-content: space-between;
   transition: width 0.3s ease;
+  flex-shrink: 0;
 }
 
 .sidebar.collapsed {
@@ -34,6 +38,7 @@ body {
   font-weight: bold;
   display: flex;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .logo img {
@@ -53,6 +58,8 @@ body {
 .menu {
   padding: 20px 10px;
   flex: 1;
+  /* Só o menu rola quando falta altura: o logo e o rodapé com o botão de minimizar ficam sempre visíveis */
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -61,6 +68,7 @@ body {
 .bottom {
   padding: 15px 10px;
   border-top: 1px solid #4b4b4b;
+  flex-shrink: 0;
 }
 
 #toggle {

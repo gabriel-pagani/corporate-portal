@@ -64,14 +64,19 @@ document.addEventListener('DOMContentLoaded', () => {
         submenu.classList.add('show');
         submenu.style.maxHeight = `${window.innerHeight * 0.8}px`;
 
-        // Reposiciona para cima caso o dropdown ultrapasse o rodapé da tela
-        const rect = submenu.getBoundingClientRect();
-        if (rect.bottom > window.innerHeight) {
-            const excedente = rect.bottom - window.innerHeight + 20;
-            const topoAtual = parseInt(window.getComputedStyle(submenu).top) || 0;
-            submenu.style.top = `${topoAtual - excedente}px`;
-        }
+        // O dropdown é fixo na tela: abre na altura do setor e sobe se passar do rodapé
+        const topoSetor = sectorHeader.getBoundingClientRect().top;
+        const altura = submenu.offsetHeight;
+        submenu.style.top = `${Math.max(10, Math.min(topoSetor, window.innerHeight - altura - 20))}px`;
     }
+
+    // O dropdown fixo não acompanha a rolagem do menu nem a mudança de tamanho da tela
+    document.querySelector('.menu').addEventListener('scroll', () => {
+        if (sidebar.classList.contains('collapsed')) fecharSubmenus();
+    });
+    window.addEventListener('resize', () => {
+        if (sidebar.classList.contains('collapsed')) fecharSubmenus();
+    });
 
     menuList.addEventListener('click', (event) => {
         const pinIcon = event.target.closest('.pin-icon');
