@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser, Group as BaseGroup
 from django.core.exceptions import ValidationError
+from django.utils.crypto import salted_hmac
 from django.urls import reverse
 from django.utils import timezone
 from axes.models import AccessAttempt, AccessFailureLog, AccessLog
@@ -114,6 +115,9 @@ class User(AbstractUser):
         related_name='users',
         verbose_name='Setor',
     )
+    # As sessões ficam no cache, sem índice por usuário: para derrubar as de
+    # alguém, este número entra no hash que o Django confere a cada requisição
+    session_version = models.PositiveIntegerField(default=0, editable=False)
 
     class Meta(AbstractUser.Meta):
         permissions = [
@@ -126,6 +130,14 @@ class User(AbstractUser):
             email = User.objects.filter(email=self.email).exclude(pk=self.pk)
             if email.exists():
                 raise ValidationError({'email': 'Já existe um usuário com este e-mail.'})
+
+    def _get_session_auth_hash(self, secret=None):
+        # Na versão 0 o hash é o de sempre, para quem já está logado não cair
+        # quando o campo chegar
+        if not self.session_version:
+            return super()._get_session_auth_hash(secret=secret)
+        key_salt = f'app.User.get_session_auth_hash.{self.session_version}'
+        return salted_hmac(key_salt, self.password, secret=secret, algorithm='sha256').hexdigest()
 
 
 class Group(BaseGroup):

@@ -2,6 +2,7 @@ import unicodedata
 from axes.admin import AccessAttemptAdmin, AccessFailureLogAdmin, AccessLogAdmin
 from axes.models import AccessAttempt, AccessFailureLog, AccessLog
 from django.contrib import admin, messages
+from django.contrib.auth import update_session_auth_hash
 from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from reversion.admin import VersionAdmin
@@ -10,7 +11,7 @@ from django import forms
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin, GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import Group as BaseGroup, Permission
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
@@ -88,7 +89,7 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
     autocomplete_fields = ('sector', 'cost_center',)
     model = User
     ordering = ('username',)
-    actions = ('deactivate_users', 'permissions_report',)
+    actions = ('deactivate_users', 'logout_users', 'permissions_report',)
     fieldsets = (
         (None, {
             'fields': ('username', 'password',)
@@ -121,6 +122,19 @@ class UserAdmin(VersionAdmin, UnaccentSearchAdmin, BaseUserAdmin):
         self.message_user(
             request,
             f'{updated} usuário(s) desativado(s) com sucesso.',
+            messages.SUCCESS,
+        )
+
+    @admin.action(description='Deslogar usuários selecionados')
+    def logout_users(self, request, queryset):
+        updated = queryset.update(session_version=F('session_version') + 1)
+        # Quem seleciona a si mesmo encerra as outras sessões, não a que está usando
+        if queryset.filter(pk=request.user.pk).exists():
+            request.user.refresh_from_db(fields=['session_version'])
+            update_session_auth_hash(request, request.user)
+        self.message_user(
+            request,
+            f'{updated} usuário(s) deslogado(s) com sucesso.',
             messages.SUCCESS,
         )
 
