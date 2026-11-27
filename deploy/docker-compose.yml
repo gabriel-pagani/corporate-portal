@@ -131,7 +131,7 @@ services:
     restart: unless-stopped
 
   cloudflare:
-    image: cloudflare/cloudflared:2026.11.0
+    image: cloudflare/cloudflared:2026.11.2
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TOKEN}
