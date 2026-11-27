@@ -8,7 +8,7 @@ django-auth-ldap==5.4.0
 django-axes==9.0.0
 django-otp==1.7.0
 django-reversion==6.4.0
-gunicorn==26.0.0
+gunicorn==27.0.1
 packaging==26.2
 pillow==13.0.0
 psycopg2==2.9.13
