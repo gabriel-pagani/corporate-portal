@@ -4,7 +4,7 @@
 
 /* O fundo fica no body, como na home, para não ser redimensionado quando a sidebar colapsa */
 body {
-  background-image: url('../../global/images/fundo_estrada.png');
+  background-image: url('../../global/images/fundo_estrada.webp');
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
